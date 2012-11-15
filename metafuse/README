@@ -1,0 +1,3 @@
+metafuse is a C++ library wrapping FUSE interfaces. It has ad-hoc design partially based on some ideas and code from fusekit library (has a MIT license, http://code.google.com/p/fusekit/) and partially - just targeted for statefs use cases. So, it is very coarse, has flaws and definitely will be undergone active refactoring.
+
+

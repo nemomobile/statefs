@@ -1,13 +1,7 @@
-#include <cor/notlisp.hpp>
-#include <cor/options.hpp>
+#include <metafuse.hpp>
+#include <cor/mt.hpp>
+#include "config.hpp"
 
-#include "metafuse.hpp"
-#include "mt.hpp"
-
-#include <cor/sexp.hpp>
-
-#include <boost/variant.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/algorithm/string/join.hpp>
 
 //#include <pthread.h>
@@ -18,192 +12,113 @@
 #include <set>
 #include <fstream>
 
-namespace nl = cor::notlisp;
-
-typedef boost::variant<long, double, std::string> property_type;
-
-void to_property(nl::expr_ptr expr, property_type &dst)
-{
-    if (!expr)
-        throw cor::Error("to_property: Null");
-
-    switch(expr->type()) {
-    case nl::Expr::String:
-        dst = expr->value();
-        break;
-    case nl::Expr::Integer:
-        dst = (long)*expr;
-        break;
-    case nl::Expr::Real:
-        dst = (double)*expr;
-        break;
-    default:
-        throw cor::Error("%s is not compatible with Any",
-                         expr->value().c_str());
-    }
-}
-
-class Property : public nl::ObjectExpr
-{
-public:
-    Property(std::string const &name, property_type &defval)
-        : ObjectExpr(name), defval_(defval)
-    {}
-private:
-    property_type defval_;
-};
-
-class Namespace : public nl::ObjectExpr
-{
-public:
-    typedef std::shared_ptr<Property> prop_type;
-    typedef std::list<prop_type> storage_type;
-    Namespace(std::string const &name, storage_type &&props)
-        : ObjectExpr(name), props_(props)
-    {}
-
-    storage_type props_;
-};
-
-class Plugin : public nl::ObjectExpr
-{
-public:
-    typedef std::shared_ptr<Namespace> ns_type;
-    typedef std::list<ns_type> storage_type;
-    Plugin(std::string const &name, std::string const &path,
-           storage_type &&namespaces)
-        : ObjectExpr(name), namespaces_(namespaces)
-    {}
-
-    std::string path;
-    storage_type namespaces_;
-};
-
-template <typename CharT, typename ReceiverT>
-void parse_config
-(std::basic_istream<CharT> &input, ReceiverT receiver)
-{
-    using namespace nl;
-    lambda_type plugin = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
-        std::string name, path;
-        src.required(to_string, name).required(to_string, path);
-
-        Plugin::storage_type namespaces;
-        push_rest_casted(src, namespaces);
-        return expr_ptr(new Plugin(name, path, std::move(namespaces)));
-    };
-
-    lambda_type prop = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
-        std::string name;
-        property_type defval;
-        src.required(to_string, name).required(to_property, defval);
-        expr_ptr res(new Property(name, defval));
-
-        return res;
-    };
-
-    lambda_type ns = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
-        std::string name;
-        src.required(to_string, name);
-
-        Namespace::storage_type props;
-        push_rest_casted(src, props);
-        expr_ptr res(new Namespace(name, std::move(props)));
-        return res;
-    };
-
-    env_ptr env(new Env
-                    ({ mk_record("plugin", plugin),
-                            mk_record("ns", ns),
-                            mk_record("prop", prop),
-                            mk_const("false", "0"),
-                    }));
-
-    Interpreter config(env);
-    cor::error_tracer([&]() { cor::sexp::parse(input, config); });
-
-    ListAccessor res(config.results());
-    rest_casted<Plugin>
-        (res, receiver);
-    // auto res = std::dynamic_pointer_cast<Plugin>(from);
-    // if (!res)
-    //     throw cor::Error("Not a plugin");
-    
-}
-
-template <typename ReceiverT>
-void config_from_file(std::string const &cfg_src, ReceiverT receiver)
-{
-    trace() << "Loading config from " << cfg_src << std::endl;
-    std::ifstream input(cfg_src);
-    parse_config(input, receiver);
-}
-
-namespace fs = boost::filesystem;
-
-template <typename ReceiverT>
-void config_from_dir(std::string const &cfg_src, ReceiverT receiver)
-{
-    trace() << "Config dir " << cfg_src << std::endl;
-    std::for_each(fs::directory_iterator(cfg_src),
-                  fs::directory_iterator(),
-                  [&receiver](fs::directory_entry const &d) {
-                      if (d.path().extension() == ".scm")
-                          config_from_file(d.path().string(), receiver);
-                  });
-}
-
-template <typename ReceiverT>
-void config_load(char const *cfg_src, ReceiverT receiver)
-{
-    if (!cfg_src)
-        return;
-
-    if (fs::is_regular_file(cfg_src))
-        return config_from_file(cfg_src, receiver);
-
-    if (fs::is_directory(cfg_src))
-        return config_from_dir(cfg_src, receiver);
-
-    throw cor::Error("Unknown configuration source %s", cfg_src);
-}
 
 using namespace metafuse;
 
-typedef FixedSizeFile<12, Mutex> test_file_type;
-
-class PluginsDir : public ReadRmDir<DirStorage, FileStorage, Mutex>
+template <typename LoadT>
+class PluginLoadFile :
+    public DefaultFile<PluginLoadFile<LoadT> >
 {
-public:
-    PluginsDir() { }
-};
+    typedef DefaultFile<PluginLoadFile<LoadT> > base_type;
 
-class PluginNsDir : public RODir<DirStorage, FileStorage, Mutex>
-{
 public:
-    PluginNsDir(std::shared_ptr<Namespace> p)
+    PluginLoadFile(LoadT loader, int mode, size_t size)
+        : base_type(mode), load_(loader), size_(size) {}
+
+    int open(struct fuse_file_info &fi)
     {
-        for (auto prop : p->props_)
-            add_file(prop->value(),
-                     mk_file_entry(new test_file_type()));
+        auto loaded = load_();
+        return loaded->open(empty_path(), fi);
     }
+
+    int read(char* buf, size_t size,
+             off_t offset, struct fuse_file_info &fi)
+    {
+        return -ENOTSUP;
+    }
+
+    int write(const char* src, size_t size,
+              off_t offset, struct fuse_file_info &fi)
+    {
+        return -ENOTSUP;
+    }
+
+    size_t size() const
+    {
+        return size_;
+    }
+private:
+    LoadT load_;
+    size_t size_;
 };
 
-class PluginDir : public RODir<DirStorage, FileStorage, Mutex>
+template <typename LoadT, typename ... Args>
+PluginLoadFile<LoadT>* mk_loader(LoadT loader, Args ... args)
+{
+    return new PluginLoadFile<LoadT>(loader, args...);
+}
+
+class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
+{
+    typedef RODir<DirFactory, FileFactory, Mutex> base_type;
+public:
+
+    // typedef typename base_type::wlock wlock;
+
+    PluginNsDir(std::shared_ptr<Namespace> p)
+        : info_(p)
+    {
+        for (auto prop : p->props_) {
+            std::string name = prop->value();
+            auto load_get = [this, name]() {
+                trace() << "Loading " << name << std::endl;
+                load();
+                return acquire(name);
+            };
+            add_file(name, mk_file_entry
+                     (mk_loader(load_get, 0644, prop->defval().size())));
+        }
+    }
+
+    void load()
+    {
+        auto lock(cor::wlock(*this));
+        files.clear();
+        for (auto prop : info_->props_) {
+            std::string name = prop->value();
+            add_file(name, mk_file_entry(new BasicTextFile<>(prop->defval())));
+        }
+    }
+private:
+    std::shared_ptr<Namespace> info_;
+};
+
+class PluginDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
     PluginDir(std::shared_ptr<Plugin> p)
+        : is_loaded_(false)
     {
         for (auto ns : p->namespaces_)
             add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns)));
     }
+private:
+    bool is_loaded_;
 };
 
+class PluginsDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
+{
+public:
+    PluginsDir() { }
 
-class NamespaceDir : public RODir<DirStorage, FileStorage, Mutex>
+    void add(std::shared_ptr<Plugin> p)
+    {
+        trace() << "Plugin " << p->value() << std::endl;
+        add_dir(p->value(), mk_dir_entry(new PluginDir(p)));
+    }
+};
+
+class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
     NamespaceDir(std::shared_ptr<Plugin> p, std::shared_ptr<Namespace> ns)
@@ -217,7 +132,7 @@ public:
     }
 };
 
-class NamespacesDir : public RODir<DirStorage, FileStorage, Mutex>
+class NamespacesDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
     NamespacesDir()
@@ -226,44 +141,39 @@ public:
 
     void plugin_add(std::shared_ptr<Plugin> p)
     {
+        auto lock(cor::wlock(*this));
         for (auto ns : p->namespaces_)
             add_dir(ns->value(), mk_dir_entry(new NamespaceDir(p, ns)));
     }
 };
 
-class ControlDir : public ReadRmDir<DirStorage, FileStorage, Mutex>
+class ControlDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
     ControlDir()
     {
-        add_file("plugins", mk_file_entry(new test_file_type()));
+        add_file("plugins",
+                 mk_file_entry
+                 (new FixedSizeFile<12, cor::Mutex>()));
     }
 };
 
-typedef RODir<DirStorage, FileStorage, NoLock> root_base_type;
-
-class RootDir : public DirEntry<root_base_type>
+class RootDir : public RODir<DirFactory, FileFactory, cor::NoLock>
 {
-    typedef DirEntry<root_base_type> base_type;
 public:
-
-    RootDir()
-        : base_type(new root_base_type()),
-          plugins(new PluginsDir()),
-          namespaces(new NamespacesDir()),
-          control(new ControlDir())
+    RootDir() :
+        plugins(new PluginsDir()),
+        namespaces(new NamespacesDir()),
+        control(new ControlDir())
     {
-        impl_->add_dir("providers", mk_dir_entry(plugins));
-        impl_->add_dir("namespaces", mk_dir_entry(namespaces));
-        impl_->add_dir("control", mk_dir_entry(control));
+        add_dir("providers", mk_dir_entry(plugins));
+        add_dir("namespaces", mk_dir_entry(namespaces));
+        add_dir("control", mk_dir_entry(control));
     }
-
-    virtual ~RootDir() {}
 
     void plugin_add(std::shared_ptr<Plugin> p)
     {
-        trace() << "Plugin " << p->value() << std::endl;
-        plugins->add_dir(p->value(), mk_dir_entry(new PluginDir(p)));
+        plugins->add(p);
         namespaces->plugin_add(p);
     }
 
@@ -271,6 +181,21 @@ private:
     std::shared_ptr<PluginsDir> plugins;
     std::shared_ptr<NamespacesDir> namespaces;
     std::shared_ptr<ControlDir> control;
+};
+
+class RootDirEntry : public DirEntry<RootDir>
+{
+    typedef DirEntry<RootDir> base_type;
+public:
+
+    RootDirEntry() : base_type(new RootDir()) {}
+    virtual ~RootDirEntry() {}
+
+    void plugin_add(std::shared_ptr<Plugin> p)
+    {
+        impl_->plugin_add(p);
+    }
+
 };
 
 
@@ -288,11 +213,11 @@ int main(int argc, char *argv[])
     if (p != opts.end())
         cfg_src = p->second;
 
-    auto &fuse = FuseFs<RootDir>::instance();
+    auto &fuse = FuseFs<RootDirEntry>::instance();
 
     using namespace std::placeholders;
     auto plugin_add = std::bind
-        (std::mem_fn(&RootDir::plugin_add), &fuse.impl(), _1);
+        (std::mem_fn(&RootDirEntry::plugin_add), &fuse.impl(), _1);
     config_load(cfg_src, plugin_add);
     std::cerr << "ready" << std::endl;
 

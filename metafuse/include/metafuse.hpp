@@ -2,8 +2,9 @@
 #define _METAFUSE_HPP_
 
 #include <cor/trace.hpp>
+#include <metafuse/common.hpp>
+#include <metafuse/entry.hpp>
 
-#include <fuse.h>
 #include <list>
 #include <string>
 #include <sstream>
@@ -24,188 +25,6 @@ enum time_fields
     change_time_bit = 2,
     access_time_bit = 4
 };
-
-struct NoLock
-{
-    struct rlock
-    {
-        rlock(NoLock&) { }
-    };
-
-    struct wlock
-    {
-        wlock(NoLock&) { }
-    };
-};
-
-class Path : public std::list<std::string>
-{
-public:
-    typedef std::list<std::string> elements_type;
-
-    Path() {}
-
-    Path(std::initializer_list<std::string> src) : elements_type(src) {}
-
-    Path(char const *path_str)
-    {
-        if (!path_str)
-            return;
-        std::istringstream ps(path_str + sizeof('/'));
-        char token[256];
-        while (ps.getline(token, 256 ,'/'))
-            push_back(token);
-    }
-
-    Path(elements_type::const_iterator begin,
-         elements_type::const_iterator end)
-    {
-        std::copy(begin, end, std::back_inserter(*this));
-    }
-
-    ~Path()
-    {
-    }
-
-    bool is_top() const
-    {
-        return (++begin() == end());
-    }
-
-private:
-
-    Path(Path &);
-    Path & operator = (Path &);
-};
-
-typedef std::unique_ptr<Path> path_ptr;
-
-#define pass(path) std::move(path)
-
-path_ptr empty_path()
-{
-    return path_ptr((Path*)0);
-}
-
-template<typename T>
-std::basic_ostream<T>& operator << (std::basic_ostream<T> &dst,
-                                    Path const &src)
-{
-    std::for_each(src.begin(), src.end(), [&dst](std::string const &name) {
-            dst << "/" << name;
-        });
-    return dst;
-}
-
-path_ptr mk_path(char const *path)
-{
-    return path_ptr(new Path(path));
-}
-
-typedef std::shared_ptr<fuse_pollhandle> poll_handle_type;
-static inline poll_handle_type mk_poll_handle(fuse_pollhandle *from)
-{
-    return poll_handle_type(from, fuse_pollhandle_destroy);
-}
-
-
-class Entry
-{
-public:
-
-    virtual int unlink(path_ptr path)
-    {
-        return -EROFS;
-    }
-
-    virtual int mknod(path_ptr path, mode_t m, dev_t t)
-    {
-        return -EROFS;
-    }
-
-    virtual int mkdir(path_ptr path, mode_t m)
-    {
-        return -EROFS;
-    }
-
-    virtual int rmdir(path_ptr path)
-    {
-        return -EROFS;
-    }
-
-    virtual int access(path_ptr path, int perm)
-    {
-        return -ENOENT;
-    }
-
-    virtual int chmod(path_ptr path, mode_t perm)
-    {
-        return -ENOENT;
-    }
-
-    virtual int open(path_ptr path, struct fuse_file_info &fi)
-    {
-        return -ENOENT;
-    }
-
-    virtual int release(path_ptr path, struct fuse_file_info &fi)
-    {
-        return -ENOENT;
-    }
-
-    virtual int flush(path_ptr path, struct fuse_file_info &fi)
-    {
-        return -ENOENT;
-    }
-
-    virtual int truncate(path_ptr path, off_t offset)
-    {
-        return -ENOENT;
-    }
-
-    virtual int getattr(path_ptr path, struct stat &stbuf)
-    {
-        trace() << "getattr:" << *path << std::endl;
-        memset(&stbuf, 0, sizeof(stbuf));
-        return -ENOENT;
-    }
-
-    virtual int read(path_ptr path, char* buf, size_t size,
-                     off_t offset, struct fuse_file_info &fi)
-    {
-        return -ENOENT;
-    }
-
-    virtual int write(path_ptr path, const char* src, size_t size,
-                      off_t offset, struct fuse_file_info &fi)
-    {
-        return -ENOENT;
-    }
-
-    virtual int readdir(path_ptr path, void *buf, fuse_fill_dir_t filler,
-                       off_t offset, struct fuse_file_info &fi)
-    {
-        return -ENOENT;
-    }
-
-    virtual int utime(path_ptr path, utimbuf &buf)
-    {
-        return -ENOENT;
-    }
-
-	virtual int poll(path_ptr path, struct fuse_file_info &fi,
-                    poll_handle_type &ph, unsigned *reventsp)
-    {
-        // PollHandle h(ph);
-        return -ENOENT;
-    }
-
-    virtual int readlink(path_ptr path, char* buf, size_t size)
-    {
-        return -ENOTSUP;
-    }
-};
-
 
 struct NullCreator : std::function<Entry *()>
 {
@@ -298,13 +117,13 @@ private:
     int value_;
 };
 
-typedef std::shared_ptr<Entry> entry_ptr;
-
+template <typename T>
 class Storage
 {
 public:
-    typedef std::unordered_map<std::string, entry_ptr> map_t;
+    typedef std::unordered_map<std::string, std::shared_ptr<T> > map_t;
     typedef typename map_t::value_type item_type;
+    typedef typename map_t::mapped_type value_type;
 
     Storage() {}
 
@@ -318,7 +137,7 @@ public:
         return 0;
     }
 
-    entry_ptr find(std::string const &name)
+    value_type find(std::string const &name)
     {
         auto e = entries_.find(name);
         return (e != entries_.end()) ? e->second : entry_ptr(0);
@@ -334,34 +153,39 @@ public:
         return (entries_.erase(name) > 0 ? 0 : -ENOENT);
     }
 
-    map_t::const_iterator begin() const
+    typename map_t::const_iterator begin() const
     {
         return entries_.begin();
     }
 
-    map_t::const_iterator end() const
+    typename map_t::const_iterator end() const
     {
         return entries_.end();
+    }
+
+    void clear()
+    {
+        entries_.clear();
     }
 
 protected:
     map_t entries_;
 };
 
-class DirStorage : public Storage
+class DirFactory : public Storage<Entry>
 {
 public:
-    typedef std::function<Entry* ()> factory_type;
-    typedef Storage base_type;
+    typedef std::function<Entry* ()> creator_type;
+    typedef Storage<Entry> base_type;
 
-    DirStorage(factory_type creator) : factory_(creator) {}
+    DirFactory(creator_type creator) : creator_(creator) {}
 
     int create(std::string const &name, mode_t mode)
     {
         if(base_type::find(name))
             return -EEXIST;
 
-        entry_ptr d(factory_());
+        entry_ptr d(creator_());
         if(!d)
             return -EROFS;
 
@@ -375,23 +199,23 @@ public:
 
 
 private:
-    factory_type factory_;
+    creator_type creator_;
 };
 
-class FileStorage : public Storage
+class FileFactory : public Storage<Entry>
 {
 public:
-    typedef std::function<Entry* ()> factory_type;
+    typedef std::function<Entry* ()> creator_type;
     typedef Storage base_type;
 
-    FileStorage(factory_type creator) : factory_(creator) {}
+    FileFactory(creator_type creator) : creator_(creator) {}
 
     int create(std::string const &name, mode_t mode, dev_t)
     {
         if(base_type::find(name))
             return -EEXIST;
 
-        entry_ptr d(factory_());
+        entry_ptr d(creator_());
         if(!d)
             return -EROFS;
 
@@ -405,66 +229,7 @@ public:
 
 
 private:
-    factory_type factory_;
-};
-
-template <typename ImplT>
-class FileEntry : public Entry
-{
-public:
-
-    FileEntry(ImplT *impl) : impl_(impl) {}
-
-    virtual int open(path_ptr path, struct fuse_file_info &fi)
-    {
-        return impl_->open(fi);
-    }
-
-    virtual int release(path_ptr path, struct fuse_file_info &fi)
-    {
-        return impl_->release(fi);
-    }
-
-    virtual int flush(path_ptr path, struct fuse_file_info &fi)
-    {
-        return 0;
-    }
-
-    virtual int truncate(path_ptr path, off_t offset)
-    {
-        return 0;
-    }
-
-    virtual int read(path_ptr path, char* buf, size_t size,
-                     off_t offset, struct fuse_file_info &fi)
-    {
-        return impl_->read(buf, size, offset, fi);
-    }
-
-    virtual int write(path_ptr path, const char* src, size_t size,
-                      off_t offset, struct fuse_file_info &fi)
-    {
-        return impl_->write(src, size, offset, fi);
-    }
-
-    virtual int utime(path_ptr path, utimbuf &buf)
-    {
-        return impl_->utime(buf);
-    }
-
-	virtual int poll(path_ptr path, struct fuse_file_info &fi,
-                    poll_handle_type &ph, unsigned *reventsp)
-    {
-        return -ENOTSUP;
-    }
-
-    virtual int getattr(path_ptr path, struct stat &buf)
-    {
-        return impl_->getattr(buf);
-    }
-
-private:
-    std::unique_ptr<ImplT> impl_;
+    creator_type creator_;
 };
 
 template <typename FileT>
@@ -480,7 +245,7 @@ protected:
 
 };
 
-template <typename LockingPolicy = NoLock>
+template <typename LockingPolicy = cor::NoLock>
 class EmptyFile :
     public DefaultTime,
     public DefaultPermissions<EmptyFile<LockingPolicy> >,
@@ -535,7 +300,7 @@ public:
 
 };
 
-template <typename DerivedT, typename LockingPolicy = NoLock>
+template <typename DerivedT, typename LockingPolicy = cor::NoLock>
 class DefaultFile :
     public DefaultTime,
     public DefaultPermissions<DefaultFile<DerivedT, LockingPolicy> >,
@@ -548,28 +313,25 @@ class DefaultFile :
 protected:
     typedef FileHandle<self_type> handle_type;
 
-    typedef typename LockingPolicy::rlock rlock;
-    typedef typename LockingPolicy::wlock wlock;
+    // typedef typename LockingPolicy::rlock rlock;
+    // typedef typename LockingPolicy::wlock wlock;
 
 public:
     DefaultFile(int mode) : DefaultPermissions<self_type>(mode) {}
 
     int open(struct fuse_file_info &fi)
     {
-        wlock lock(*this);
         fi.fh = reinterpret_cast<uint64_t>(new handle_type(*this));
         return 0;
     }
 
     int release(struct fuse_file_info &fi)
     {
-        wlock lock(*this);
         return 0;
     }
 
     int getattr(struct stat &buf)
     {
-        rlock lock(*this);
         memset(&buf, 0, sizeof(buf));
         buf.st_mode = type_flag | this->mode();
         buf.st_nlink = 1;
@@ -579,21 +341,20 @@ public:
 
     int utime(utimbuf &)
     {
-        rlock lock(*this);
         update_time(access_time_bit | modification_time_bit);
         return 0;
     }
 };
 
-template <size_t Size, typename LockingPolicy = NoLock>
+template <size_t Size, typename LockingPolicy = cor::NoLock>
 class FixedSizeFile :
     public DefaultFile<FixedSizeFile<Size, LockingPolicy>, LockingPolicy >
 {
     typedef DefaultFile<FixedSizeFile<Size, LockingPolicy>,
                         LockingPolicy > base_type;
     //typedef FileHandle<FixedSizeFile> handle_type;
-    typedef typename base_type::rlock rlock;
-    typedef typename base_type::wlock wlock;
+    // typedef typename base_type::rlock rlock;
+    // typedef typename base_type::wlock wlock;
 
 public:
     FixedSizeFile() : base_type(0644)
@@ -604,7 +365,6 @@ public:
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
     {
-        rlock lock(*this);
         //auto h = reinterpret_cast<handle_type*>(fi.fh);
         size_t count = std::min(size, arr_.size());
         memcpy(buf, &arr_[0], count);
@@ -614,7 +374,6 @@ public:
     int write(const char* src, size_t size,
               off_t offset, struct fuse_file_info &fi)
     {
-        rlock lock(*this);
         return 0;
     }
 
@@ -626,6 +385,47 @@ public:
 private:
 
     std::array<char, Size> arr_;
+};
+
+template <typename LockingPolicy = cor::NoLock>
+class BasicTextFile :
+    public DefaultFile<BasicTextFile<LockingPolicy>, LockingPolicy >
+{
+    typedef DefaultFile<BasicTextFile<LockingPolicy>,
+                        LockingPolicy > base_type;
+
+    // typedef typename base_type::rlock rlock;
+    // typedef typename base_type::wlock wlock;
+
+public:
+    BasicTextFile(std::string const &from)
+        : base_type(0644), data_(from) { }
+
+    int read(char* buf, size_t size,
+             off_t offset, struct fuse_file_info &fi)
+    {
+        if (offset < 0 || (size_t)offset >= data_.size() || !size)
+            return 0;
+
+        size_t count = std::min(data_.size() - offset, size);
+        memcpy(buf, &data_[offset], count);
+        return count;
+    }
+
+    int write(const char* src, size_t size,
+              off_t offset, struct fuse_file_info &fi)
+    {
+        return -EACCES;
+    }
+
+    size_t size() const
+    {
+        return data_.size();
+    }
+
+private:
+
+    std::string data_;
 };
 
 class NotFile
@@ -668,16 +468,15 @@ public:
     }
 };
 
-template <class LockingPolicy = NoLock>
+template <class LockingPolicy = cor::NoLock>
 class Symlink : public NotFile,
                 public DefaultTime,
                 public DefaultPermissions<Symlink<LockingPolicy> >,
                 public LockingPolicy
 {
     typedef Symlink<LockingPolicy> self_type;
-    typedef typename LockingPolicy::rlock rlock;
-    typedef typename LockingPolicy::wlock wlock;
 public:
+
     Symlink(std::string const &target)
         : DefaultPermissions<self_type>(0777), target_(target)
     {}
@@ -691,7 +490,6 @@ public:
 
     int getattr(struct stat &stbuf)
     {
-        rlock lock(*this);
         memset(&stbuf, 0, sizeof(stbuf));
         stbuf.st_mode = type_flag | this->mode();
         stbuf.st_nlink = 1;
@@ -701,8 +499,6 @@ public:
 
     int readlink(char* buf, size_t size)
     {
-        rlock lock(*this);
-
         if (target_.size() >= size)
             return -ENAMETOOLONG;
 
@@ -715,43 +511,6 @@ private:
     std::string target_;
 };
 
-template <typename ImplT>
-class SymlinkEntry : public Entry
-{
-public:
-
-    SymlinkEntry(ImplT *impl) : impl_(impl) {}
-
-    virtual int getattr(path_ptr path, struct stat &buf)
-    {
-        return impl_->getattr(buf);
-    }
-
-    virtual int readlink(path_ptr path, char* buf, size_t size)
-    {
-        return impl_->readlink(buf, size);
-    }
-
-    ImplT const* impl() const
-    {
-        return impl_.get();
-    }
-
-private:
-    std::unique_ptr<ImplT> impl_;
-};
-
-template <typename T>
-SymlinkEntry<T> * mk_symlink_entry(std::shared_ptr<T> p)
-{
-    return new SymlinkEntry<T>(p);
-}
-
-template <typename T>
-SymlinkEntry<T> * mk_symlink_entry(T *p)
-{
-    return new SymlinkEntry<T>(p);
-}
 
 template <typename T>
 std::string const& target(std::shared_ptr<SymlinkEntry<T> > const &self)
@@ -760,7 +519,7 @@ std::string const& target(std::shared_ptr<SymlinkEntry<T> > const &self)
 }
 
 template < typename DirFactoryT, typename FileFactoryT,
-           typename LockingPolicy = NoLock >
+           typename LockingPolicy = cor::NoLock >
 class DefaultDir :
     public LockingPolicy,
     public NotFile,
@@ -773,8 +532,8 @@ class DefaultDir :
     typedef DefaultDir<DirFactoryT, FileFactoryT, LockingPolicy> self_type;
 
 protected:
-    typedef typename LockingPolicy::rlock rlock;
-    typedef typename LockingPolicy::wlock wlock;
+    // typedef typename LockingPolicy::rlock rlock;
+    // typedef typename LockingPolicy::wlock wlock;
 
 public:
 
@@ -792,7 +551,6 @@ public:
 
     entry_ptr acquire(std::string const &name)
     {
-        rlock lock(*this);
         auto p = dirs.find(name);
         if (p)
             return p;
@@ -803,7 +561,6 @@ public:
 
     int readdir(void* buf, fuse_fill_dir_t filler, off_t offset, fuse_file_info&)
     {
-        rlock lock(*this);
         filler(buf, ".", NULL, offset);
         filler(buf, "..", NULL, offset);
 
@@ -819,29 +576,8 @@ public:
         return 0;
     }
 
-    template <typename Child>
-    int add_dir(std::string const &name, Child* child)
-    {
-        return change([&]() { return dirs.add(name, child); });
-    }
-
-    template <typename Child>
-    int add_file(std::string const &name, Child* child)
-    {
-        return change([&]() { return files.add(name, child); });
-    }
-
-    int add_symlink(std::string const &name, std::string const &target)
-    {
-        return change([&]() {
-                std::unique_ptr<Symlink<> > link(new Symlink<>(target));
-                return this->links.add(name, mk_symlink_entry(link.release()));
-            });
-    }
-
     int getattr(struct stat &stbuf)
     {
-        rlock lock(*this);
         memset(&stbuf, 0, sizeof(stbuf));
         stbuf.st_mode = type_flag | this->mode();
         stbuf.st_nlink = dirs.size() + files.size() + 2;
@@ -851,7 +587,7 @@ public:
 
     int utime(utimbuf &)
     {
-        return change([&]() {
+        return modify([&]() {
                 return update_time(access_time_bit | modification_time_bit);
             });
     }
@@ -859,7 +595,6 @@ public:
 	int poll(struct fuse_file_info &fi,
              poll_handle_type &ph, unsigned *reventsp)
     {
-        rlock lock(*this);
         return -ENOTSUP;
     }
 
@@ -868,12 +603,29 @@ public:
         return -ENOTSUP;
     }
 
+    template <typename Child>
+    int add_dir(std::string const &name, Child* child)
+    {
+        return dirs.add(name, child);
+    }
+
+    template <typename Child>
+    int add_file(std::string const &name, Child* child)
+    {
+        return files.add(name, child);
+    }
+
+    int add_symlink(std::string const &name, std::string const &target)
+    {
+        std::unique_ptr<Symlink<> > link(new Symlink<>(target));
+        return this->links.add(name, mk_symlink_entry(link.release()));
+    }
+
 protected:
 
     template <typename OpT>
-    int change(OpT op)
+    int modify(OpT op)
     {
-        wlock lock(*this);
         int err = op();
         if (!err)
             update_time(modification_time_bit | change_time_bit);
@@ -882,12 +634,12 @@ protected:
 
     int mknod(std::string const &name, mode_t mode, dev_t type)
     {
-        return change([&]() { return files.create(name, mode, type); });
+        return modify([&]() { return files.create(name, mode, type); });
     }
 
     int unlink(std::string const &name)
     {
-        return change
+        return modify
             ([&]() -> int {
                 int res = files.rm(name);
                 if (res >= 0)
@@ -901,23 +653,23 @@ protected:
 
     int mkdir(std::string const &name, mode_t mode)
     {
-        return change([&]() { return dirs.create(name, mode); });
+        return modify([&]() { return dirs.create(name, mode); });
     }
 
     int rmdir(std::string const &name)
     {
-        return change([&]() { return dirs.rm(name); });
+        return modify([&]() { return dirs.rm(name); });
     }
 
     DirFactoryT dirs;
     FileFactoryT files;
-    Storage links;
+    Storage<Entry> links;
 };
 
 template <
     typename DirFactoryT,
     typename FileFactoryT,
-    typename LockingPolicy = NoLock>
+    typename LockingPolicy = cor::NoLock>
 class RWDir :
     public DefaultDir<DirFactoryT, FileFactoryT, LockingPolicy>
 {
@@ -955,15 +707,16 @@ public:
 };
 
 template < typename DirFactoryT, typename FileFactoryT,
-           typename LockingPolicy = NoLock >
+           typename LockingPolicy = cor::NoLock >
 class RODir :
     public DefaultDir<DirFactoryT, FileFactoryT, LockingPolicy>
 {
     typedef DefaultDir<DirFactoryT, FileFactoryT, LockingPolicy> base_type;
-    typedef typename base_type::rlock rlock;
-    typedef typename base_type::wlock wlock;
 
 public:
+
+    // typedef typename base_type::rlock rlock;
+    // typedef typename base_type::wlock wlock;
 
     RODir() : base_type(NullCreator(), NullCreator(), 0555) {}
 
@@ -994,14 +747,11 @@ public:
 template <
     typename DirFactoryT,
     typename FileFactoryT,
-    typename LockingPolicy = NoLock>
+    typename LockingPolicy = cor::NoLock>
 class ReadRmDir :
     public DefaultDir<DirFactoryT, FileFactoryT, LockingPolicy>
 {
     typedef DefaultDir<DirFactoryT, FileFactoryT, LockingPolicy> base_type;
-    typedef typename base_type::rlock rlock;
-    typedef typename base_type::wlock wlock;
-
 public:
 
     ReadRmDir(int mode = 0755)
@@ -1031,199 +781,6 @@ public:
 
 };
 
-template <typename ImplT>
-class DirEntry : public Entry
-{
-public:
-    typedef ImplT impl_type;
-    typedef std::shared_ptr<ImplT> impl_ptr;
-
-    DirEntry(impl_type *impl) : impl_(impl) {}
-
-    DirEntry(impl_ptr impl) : impl_(impl) {}
-
-    virtual int unlink(path_ptr path)
-    {
-        return dir_op(&impl_type::unlink, &Entry::unlink,
-                      pass(path));
-    }
-
-    virtual int mknod(path_ptr path, mode_t m, dev_t t)
-    {
-        return dir_op(&impl_type::mknod, &Entry::mknod,
-                      pass(path), m, t);
-    }
-
-    virtual int mkdir(path_ptr path, mode_t m)
-    {
-        return dir_op(&impl_type::mkdir, &Entry::mkdir,
-                      pass(path), m);
-    }
-
-    virtual int rmdir(path_ptr path)
-    {
-        return dir_op(&impl_type::rmdir, &Entry::rmdir,
-                      pass(path));
-    }
-
-    virtual int access(path_ptr path, int perm)
-    {
-        return node_op
-            (&impl_type::access, &Entry::access,
-             pass(path), perm);
-    }
-
-    virtual int chmod(path_ptr path, mode_t perm)
-    {
-        return node_op
-            (&impl_type::chmod, &Entry::chmod,
-             pass(path), perm);
-    }
-
-    virtual int open(path_ptr path, struct fuse_file_info &fi)
-    {
-        return node_op
-            (&impl_type::open, &Entry::open,
-             pass(path), fi);
-    }
-
-    virtual int release(path_ptr path, struct fuse_file_info &fi)
-    {
-        return node_op
-            (&impl_type::release, &Entry::release,
-             pass(path), fi);
-    }
-
-    virtual int flush(path_ptr path, struct fuse_file_info &fi)
-    {
-        return node_op
-            (&impl_type::flush, &Entry::flush,
-             pass(path), fi);
-    }
-
-    virtual int truncate(path_ptr path, off_t offset)
-    {
-        return node_op
-            (&impl_type::truncate, &Entry::truncate,
-             pass(path), offset);
-    }
-
-    virtual int read(path_ptr path, char* buf, size_t size,
-                     off_t offset, struct fuse_file_info &fi)
-    {
-        return node_op
-            (&impl_type::read, &Entry::read,
-             pass(path), buf, size, offset, fi);
-    }
-
-    virtual int write(path_ptr path, const char* src, size_t size,
-                      off_t offset, struct fuse_file_info &fi)
-    {
-        return node_op
-            (&impl_type::write, &Entry::write,
-             pass(path), src, size, offset, fi);
-    }
-
-    virtual int readdir(path_ptr path, void *buf, fuse_fill_dir_t filler,
-                       off_t offset, struct fuse_file_info &fi)
-    {
-        return node_op
-            (&impl_type::readdir, &Entry::readdir,
-             pass(path), buf, filler, offset, fi);
-    }
-
-    virtual int utime(path_ptr path, utimbuf &buf)
-    {
-        return node_op
-            (&impl_type::utime, &Entry::utime, pass(path), buf);
-    }
-
-	virtual int poll(path_ptr path, struct fuse_file_info &fi,
-                    poll_handle_type &ph, unsigned *reventsp)
-    {
-        return node_op
-            (&impl_type::poll, &Entry::poll, pass(path),
-             fi, ph, reventsp);
-    }
-
-    virtual int getattr(path_ptr path, struct stat &buf)
-    {
-        return node_op
-            (&impl_type::getattr, &Entry::getattr, pass(path), buf);
-    }
-
-    virtual int readlink(path_ptr path, char* buf, size_t size)
-    {
-        return node_op(&impl_type::readlink, &Entry::readlink,
-                       pass(path), buf, size);
-    }
-
-private:
-
-    template <typename ImplOpT, typename ChildOpT, typename ... Args>
-    int dir_op(ImplOpT impl_op, ChildOpT child_op,
-               path_ptr path, Args&... args)
-    {
-        trace() << "dir op:" << *path << std::endl;
-        if (path->empty())
-            return -EINVAL;
-
-        return (path->is_top())
-            ? std::mem_fn(impl_op)(impl_.get(), path->front(), args...)
-            : call_child(pass(path), child_op, args...);
-    }
-
-    template <typename ImplOpT, typename ChildOpT, typename ... Args>
-    int node_op(ImplOpT impl_op, ChildOpT child_op,
-                        path_ptr path, Args&... args)
-    {
-        trace() << "node op:" << *path << std::endl;
-        return (path->empty())
-            ? std::mem_fn(impl_op)(impl_.get(), args...)
-            : call_child(pass(path), child_op, args...);
-    }
-
-    template <typename OpT, typename ... Args>
-    int call_child(path_ptr path, OpT op, Args&... args)
-    {
-        trace() << "for child: " << path->front() << std::endl;
-        auto entry = impl_->acquire(path->front());
-        if (!entry) {
-            trace() << "no child " << path->front() << std::endl;
-            return -ENOENT;
-        }
-        path->pop_front();
-        return std::mem_fn(op)(entry.get(), pass(path), args...);
-    }
-
-protected:
-    impl_ptr impl_;
-};
-
-template <typename T>
-FileEntry<T> * mk_file_entry(std::shared_ptr<T> p)
-{
-    return new FileEntry<T>(p);
-}
-
-template <typename T>
-FileEntry<T> * mk_file_entry(T *p)
-{
-    return new FileEntry<T>(p);
-}
-
-
-template <typename T>
-DirEntry<T> * mk_dir_entry(T *p)
-{
-    return new DirEntry<T>(p);
-}
-
-template <typename T>
-DirEntry<T> * mk_dir_entry(std::shared_ptr<T> p)
-{
-    return new DirEntry<T>(p);
-}
 
 template <typename RootT>
 class FuseFs

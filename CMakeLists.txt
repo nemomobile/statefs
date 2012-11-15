@@ -18,6 +18,7 @@ INCLUDE_DIRECTORIES(
   ${BOOST_INCLUDE_DIR}
   ${FUSE_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/cor/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/metafuse/include
 )
 
 link_directories(
