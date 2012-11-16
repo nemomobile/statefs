@@ -48,3 +48,5 @@ target_link_libraries(statefs
   ${FUSE_LIBRARIES}
   -ldl
 )
+
+add_subdirectory(examples/src)
