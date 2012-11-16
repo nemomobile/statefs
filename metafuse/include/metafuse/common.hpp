@@ -61,6 +61,7 @@ private:
     Path & operator = (Path &);
 };
 
+
 typedef std::unique_ptr<Path> path_ptr;
 
 path_ptr empty_path()

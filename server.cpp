@@ -1,5 +1,6 @@
 #include <metafuse.hpp>
 #include <cor/mt.hpp>
+#include <cor/so.hpp>
 #include "config.hpp"
 
 #include <boost/algorithm/string/join.hpp>
@@ -11,7 +12,6 @@
 #include <unordered_map>
 #include <set>
 #include <fstream>
-
 
 using namespace metafuse;
 
@@ -63,24 +63,23 @@ class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
     typedef RODir<DirFactory, FileFactory, Mutex> base_type;
 public:
 
-    // typedef typename base_type::wlock wlock;
-
-    PluginNsDir(std::shared_ptr<Namespace> p)
-        : info_(p)
+    template <typename PluginLoaderT>
+    PluginNsDir(std::shared_ptr<Namespace> info, PluginLoaderT plugin_load)
+        : info_(info)
     {
-        for (auto prop : p->props_) {
+        for (auto prop : info->props_) {
             std::string name = prop->value();
-            auto load_get = [this, name]() {
+            auto load_get = [this, name, plugin_load]() {
                 trace() << "Loading " << name << std::endl;
-                load();
+                plugin_load();
                 return acquire(name);
             };
             add_file(name, mk_file_entry
-                     (mk_loader(load_get, 0644, prop->defval().size())));
+                     (mk_loader(load_get, prop->mode(), prop->defval().size())));
         }
     }
 
-    void load()
+    void load(std::shared_ptr<cor::SharedLib>)
     {
         auto lock(cor::wlock(*this));
         files.clear();
@@ -89,6 +88,17 @@ public:
             add_file(name, mk_file_entry(new BasicTextFile<>(prop->defval())));
         }
     }
+
+    void load_fake()
+    {
+        auto lock(cor::wlock(*this));
+        files.clear();
+        for (auto prop : info_->props_) {
+            std::string name = prop->value();
+            add_file(name, mk_file_entry(new BasicTextFile<>(prop->defval())));
+        }
+    }
+
 private:
     std::shared_ptr<Namespace> info_;
 };
@@ -96,14 +106,50 @@ private:
 class PluginDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    PluginDir(std::shared_ptr<Plugin> p)
-        : is_loaded_(false)
+    typedef DirEntry<PluginNsDir> ns_type;
+
+    PluginDir(std::shared_ptr<Plugin> info)
+        : info_(info)
     {
-        for (auto ns : p->namespaces_)
-            add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns)));
+        auto plugin_load = std::bind(&PluginDir::load, this);
+        for (auto ns : info->namespaces_)
+            add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns, plugin_load)));
     }
+
+    void load()
+    {
+        auto lock(cor::wlock(*this));
+        if (plugin_)
+            return;
+
+        trace() << "Loading plugin " << info_->path << std::endl;
+        plugin_.reset(new cor::SharedLib(info_->path, RTLD_LAZY));
+        
+        if (!plugin_->is_loaded()) {
+            std::cerr << "Can't load " << info_->path
+                      << ", using fake values" << std::endl; 
+            namespaces_init(&PluginNsDir::load_fake);
+            return;
+        }
+        namespaces_init(&PluginNsDir::load, plugin_);
+    }
+
 private:
-    bool is_loaded_;
+
+    template <typename OpT, typename ... Args>
+    void namespaces_init(OpT op, Args ... args)
+    {
+        for (auto &d : dirs) {
+            trace() << "Init ns " << d.first << std::endl;
+            auto p = dir_entry_impl<PluginNsDir>(d.second);
+            if (!p)
+                throw std::logic_error("Can't cast to namespace???");
+            std::mem_fn(op)(p.get(), args...);
+        }
+    }
+
+    std::shared_ptr<Plugin> info_;
+    std::shared_ptr<cor::SharedLib> plugin_;
 };
 
 class PluginsDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
@@ -114,7 +160,8 @@ public:
     void add(std::shared_ptr<Plugin> p)
     {
         trace() << "Plugin " << p->value() << std::endl;
-        add_dir(p->value(), mk_dir_entry(new PluginDir(p)));
+        auto d = std::make_shared<PluginDir>(p);
+        add_dir(p->value(), mk_dir_entry(d));
     }
 };
 

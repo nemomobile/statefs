@@ -13,26 +13,7 @@ namespace nl = cor::notlisp;
 
 typedef boost::variant<long, double, std::string> property_type;
 
-void to_property(nl::expr_ptr expr, property_type &dst)
-{
-    if (!expr)
-        throw cor::Error("to_property: Null");
-
-    switch(expr->type()) {
-    case nl::Expr::String:
-        dst = expr->value();
-        break;
-    case nl::Expr::Integer:
-        dst = (long)*expr;
-        break;
-    case nl::Expr::Real:
-        dst = (double)*expr;
-        break;
-    default:
-        throw cor::Error("%s is not compatible with Any",
-                         expr->value().c_str());
-    }
-}
+void to_property(nl::expr_ptr expr, property_type &dst);
 
 struct AnyToString : public boost::static_visitor<>
 {
@@ -58,18 +39,31 @@ struct AnyToString : public boost::static_visitor<>
 class Property : public nl::ObjectExpr
 {
 public:
-    Property(std::string const &name, property_type &defval)
-        : ObjectExpr(name), defval_(defval)
-    {}
-    std::string defval() const
+    enum Access
     {
-        std::string res;
-        boost::apply_visitor(AnyToString(res), defval_);
-        return res;
+        Read = 1,
+        Write = 2,
+        Subscribe = 4
+    };
+
+    Property(std::string const &name,
+             property_type &defval,
+             unsigned access = Read)
+        : ObjectExpr(name), defval_(defval), access_(access)
+    {}
+
+    std::string defval() const;
+
+    unsigned access() const
+    {
+        return access_;
     }
+
+    int mode(int umask = 0022) const;
 
 private:
     property_type defval_;
+    unsigned access_;
 };
 
 class Namespace : public nl::ObjectExpr
@@ -91,7 +85,7 @@ public:
     typedef std::list<ns_type> storage_type;
     Plugin(std::string const &name, std::string const &path,
            storage_type &&namespaces)
-        : ObjectExpr(name), namespaces_(namespaces)
+        : ObjectExpr(name), path(path), namespaces_(namespaces)
     {}
 
     std::string path;
@@ -145,12 +139,7 @@ void parse_config
     cor::error_tracer([&]() { cor::sexp::parse(input, config); });
 
     ListAccessor res(config.results());
-    rest_casted<Plugin>
-        (res, receiver);
-    // auto res = std::dynamic_pointer_cast<Plugin>(from);
-    // if (!res)
-    //     throw cor::Error("Not a plugin");
-    
+    rest_casted<Plugin>(res, receiver);
 }
 
 template <typename ReceiverT>

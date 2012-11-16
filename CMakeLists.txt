@@ -9,10 +9,17 @@ find_package(Boost COMPONENTS filesystem system REQUIRED)
 
 pkg_check_modules(FUSE fuse REQUIRED)
 
-set(CMAKE_CXX_FLAGS 
-  "${CMAKE_CXX_FLAGS} -Wall -g -O0 -std=c++0x -DFUSE_USE_VERSION=28 -DDEBUG"
+set(CMAKE_CXX_FLAGS
+  "${CMAKE_CXX_FLAGS} -Wall -O2 -feliminate-unused-debug-types -std=c++0x -DFUSE_USE_VERSION=28 -DDEBUG"
   )
 add_definitions(${FUSE_CFLAGS})
+
+# fix for gcc 4.6 specific compiling/linking issues, no dwarf-4
+set(CMAKE_CXX_FLAGS
+  "${CMAKE_CXX_FLAGS} -gdwarf-3"
+  )
+
+add_subdirectory(cor)
 
 INCLUDE_DIRECTORIES(
   ${BOOST_INCLUDE_DIR}
@@ -32,9 +39,10 @@ link_directories(
 #   ${FUSE_LIBRARIES}
 # )
 
-add_executable(statefs server.cpp)
+add_executable(statefs server.cpp config.cpp)
 
 target_link_libraries(statefs
+  cor
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${FUSE_LIBRARIES}

@@ -75,6 +75,7 @@ public:
 
     virtual int getattr(path_ptr path, struct stat &stbuf)
     {
+        trace() << "getattr:" << *path << std::endl;
         memset(&stbuf, 0, sizeof(stbuf));
         return -ENOENT;
     }
@@ -391,6 +392,11 @@ public:
              std::move(path), buf, size);
     }
 
+    impl_ptr impl()
+    {
+        return impl_;
+    }
+
 protected:
 
     template <typename LockT,
@@ -411,7 +417,6 @@ protected:
         return call_child<LockT>(lock, std::move(path), child_op, args...);
     }
 
-
     template <typename LockT,
         typename ImplOpT,
         typename ChildOpT,
@@ -428,15 +433,20 @@ protected:
         return call_child<LockT>(lock, std::move(path), child_op, args...);
     }
 
+    template <typename LockT>
+    entry_ptr find(LockT lock, std::string const &name)
+    {
+        auto l(lock(*impl_));
+        return impl_->acquire(name);
+    }
+
     template <typename LockT,
         typename OpT,
         typename ... Args>
     int call_child(LockT lock, path_ptr path, OpT op, Args&... args)
     {
         trace() << "for child: " << path->front() << std::endl;
-        auto l(lock(*impl_));
-        auto entry = impl_->acquire(path->front());
-        l.unlock();
+        auto entry = find(lock, path->front());
         if (!entry) {
             trace() << "no child " << path->front() << std::endl;
             return -ENOENT;
@@ -461,6 +471,13 @@ template <typename T>
 DirEntry<T> * mk_dir_entry(std::shared_ptr<T> p)
 {
     return new DirEntry<T>(p);
+}
+
+template <typename T>
+typename DirEntry<T>::impl_ptr dir_entry_impl(entry_ptr entry)
+{
+    auto p = std::dynamic_pointer_cast<DirEntry<T> >(entry);
+    return (p) ? p->impl() : typename DirEntry<T>::impl_ptr();
 }
 
 } // metafuse

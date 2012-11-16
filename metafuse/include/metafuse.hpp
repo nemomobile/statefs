@@ -399,7 +399,7 @@ class BasicTextFile :
 
 public:
     BasicTextFile(std::string const &from)
-        : base_type(0644), data_(from) { }
+        : base_type(0440), data_(from) { }
 
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
@@ -407,7 +407,7 @@ public:
         if (offset < 0 || (size_t)offset >= data_.size() || !size)
             return 0;
 
-        size_t count = std::min(data_.size() - offset, size);
+        size_t count = std::min((size_t)(data_.size() - offset), size);
         memcpy(buf, &data_[offset], count);
         return count;
     }
@@ -530,11 +530,6 @@ class DefaultDir :
                                   LockingPolicy> >
 {
     typedef DefaultDir<DirFactoryT, FileFactoryT, LockingPolicy> self_type;
-
-protected:
-    // typedef typename LockingPolicy::rlock rlock;
-    // typedef typename LockingPolicy::wlock wlock;
-
 public:
 
     static const int type_flag = S_IFDIR;
@@ -679,8 +674,10 @@ class RWDir :
 
 public:
 
-    RWDir(DirFactoryT const &dir_f, FileFactoryT const &file_f)
-        : base_type(dir_f, file_f, 0755)
+    RWDir(DirFactoryT const &dir_f,
+          FileFactoryT const &file_f,
+          int umask = 0022)
+        : base_type(dir_f, file_f, 0755 & ~umask)
     {}
 
     virtual ~RWDir() {}
@@ -718,7 +715,8 @@ public:
     // typedef typename base_type::rlock rlock;
     // typedef typename base_type::wlock wlock;
 
-    RODir() : base_type(NullCreator(), NullCreator(), 0555) {}
+    RODir(int umask = 0022)
+        : base_type(NullCreator(), NullCreator(), 0555 & ~umask) {}
 
     virtual ~RODir() {}
 
@@ -754,8 +752,8 @@ class ReadRmDir :
     typedef DefaultDir<DirFactoryT, FileFactoryT, LockingPolicy> base_type;
 public:
 
-    ReadRmDir(int mode = 0755)
-        : base_type(NullCreator(), NullCreator(), mode) {}
+    ReadRmDir(int umask = 0022)
+        : base_type(NullCreator(), NullCreator(), 0755 & ~umask) {}
 
     virtual ~ReadRmDir() {}
 
