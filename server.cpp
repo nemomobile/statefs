@@ -100,6 +100,7 @@ public:
     }
 
 private:
+
     std::shared_ptr<Namespace> info_;
 };
 
@@ -108,31 +109,8 @@ class PluginDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 public:
     typedef DirEntry<PluginNsDir> ns_type;
 
-    PluginDir(std::shared_ptr<Plugin> info)
-        : info_(info)
-    {
-        auto plugin_load = std::bind(&PluginDir::load, this);
-        for (auto ns : info->namespaces_)
-            add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns, plugin_load)));
-    }
-
-    void load()
-    {
-        auto lock(cor::wlock(*this));
-        if (plugin_)
-            return;
-
-        trace() << "Loading plugin " << info_->path << std::endl;
-        plugin_.reset(new cor::SharedLib(info_->path, RTLD_LAZY));
-        
-        if (!plugin_->is_loaded()) {
-            std::cerr << "Can't load " << info_->path
-                      << ", using fake values" << std::endl; 
-            namespaces_init(&PluginNsDir::load_fake);
-            return;
-        }
-        namespaces_init(&PluginNsDir::load, plugin_);
-    }
+    PluginDir(std::shared_ptr<Plugin> info);
+    void load();
 
 private:
 
@@ -152,6 +130,32 @@ private:
     std::shared_ptr<cor::SharedLib> plugin_;
 };
 
+PluginDir::PluginDir(std::shared_ptr<Plugin> info)
+    : info_(info)
+{
+    auto plugin_load = std::bind(&PluginDir::load, this);
+    for (auto ns : info->namespaces_)
+        add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns, plugin_load)));
+}
+
+void PluginDir::load()
+{
+    auto lock(cor::wlock(*this));
+    if (plugin_)
+        return;
+
+    trace() << "Loading plugin " << info_->path << std::endl;
+    plugin_.reset(new cor::SharedLib(info_->path, RTLD_LAZY));
+        
+    if (!plugin_->is_loaded()) {
+        std::cerr << "Can't load " << info_->path
+                  << ", using fake values" << std::endl; 
+        namespaces_init(&PluginNsDir::load_fake);
+        return;
+    }
+    namespaces_init(&PluginNsDir::load, plugin_);
+}
+
 class PluginsDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
@@ -168,24 +172,22 @@ public:
 class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    NamespaceDir(std::shared_ptr<Plugin> p, std::shared_ptr<Namespace> ns)
-    {
-        Path path = {"..", "..", "providers", p->value(), ns->value()};
-        for (auto prop : ns->props_) {
-            path.push_back(prop->value());
-            add_symlink(prop->value(), boost::algorithm::join(path, "/"));
-            path.pop_back();
-        }
-    }
+    NamespaceDir(std::shared_ptr<Plugin> p, std::shared_ptr<Namespace> ns);
 };
+
+NamespaceDir::NamespaceDir(std::shared_ptr<Plugin> p, std::shared_ptr<Namespace> ns)
+{
+    Path path = {"..", "..", "providers", p->value(), ns->value()};
+    for (auto prop : ns->props_) {
+        path.push_back(prop->value());
+        add_symlink(prop->value(), boost::algorithm::join(path, "/"));
+        path.pop_back();
+    }
+}
 
 class NamespacesDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    NamespacesDir()
-    {
-    }
-
     void plugin_add(std::shared_ptr<Plugin> p)
     {
         auto lock(cor::wlock(*this));

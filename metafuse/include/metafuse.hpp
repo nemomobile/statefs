@@ -117,11 +117,10 @@ private:
     int value_;
 };
 
-template <typename T>
 class Storage
 {
 public:
-    typedef std::unordered_map<std::string, std::shared_ptr<T> > map_t;
+    typedef std::unordered_map<std::string, entry_ptr> map_t;
     typedef typename map_t::value_type item_type;
     typedef typename map_t::mapped_type value_type;
 
@@ -172,11 +171,11 @@ protected:
     map_t entries_;
 };
 
-class DirFactory : public Storage<Entry>
+class DirFactory : public Storage
 {
 public:
     typedef std::function<Entry* ()> creator_type;
-    typedef Storage<Entry> base_type;
+    typedef Storage base_type;
 
     DirFactory(creator_type creator) : creator_(creator) {}
 
@@ -202,7 +201,7 @@ private:
     creator_type creator_;
 };
 
-class FileFactory : public Storage<Entry>
+class FileFactory : public Storage
 {
 public:
     typedef std::function<Entry* ()> creator_type;
@@ -658,7 +657,7 @@ protected:
 
     DirFactoryT dirs;
     FileFactoryT files;
-    Storage<Entry> links;
+    Storage links;
 };
 
 template <
@@ -844,10 +843,15 @@ private:
     template <typename OpT, typename ... Args>
     static int invoke(const char* path, OpT op, Args&... args)
     {
-        trace() << "-" << caller_name() << "\n";
-        trace() << "Op for: '" << path << "'\n";
-        int res = std::mem_fn(op)(&impl(), mk_path(path), args...);
-        trace() << "Op res:" << res << std::endl;
+        int res;
+        try {
+            trace() << "-" << caller_name() << "\n";
+            trace() << "Op for: '" << path << "'\n";
+            res = std::mem_fn(op)(&impl(), mk_path(path), args...);
+            trace() << "Op res:" << res << std::endl;
+        } catch(...) {
+            res = -ENOMEM;
+        }
         return res;
     }
 
