@@ -48,7 +48,7 @@ public:
     };
 
     Property(std::string const &name,
-             property_type &defval,
+             property_type const &defval,
              unsigned access = Read)
         : ObjectExpr(name), defval_(defval), access_(access)
     {}
@@ -93,48 +93,15 @@ public:
     storage_type namespaces_;
 };
 
+nl::env_ptr mk_parse_env();
+
 template <typename CharT, typename ReceiverT>
 void parse_config
 (std::basic_istream<CharT> &input, ReceiverT receiver)
 {
     using namespace nl;
-    lambda_type plugin = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
-        std::string name, path;
-        src.required(to_string, name).required(to_string, path);
 
-        Plugin::storage_type namespaces;
-        push_rest_casted(src, namespaces);
-        return expr_ptr(new Plugin(name, path, std::move(namespaces)));
-    };
-
-    lambda_type prop = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
-        std::string name;
-        property_type defval;
-        src.required(to_string, name).required(to_property, defval);
-        expr_ptr res(new Property(name, defval));
-
-        return res;
-    };
-
-    lambda_type ns = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
-        std::string name;
-        src.required(to_string, name);
-
-        Namespace::storage_type props;
-        push_rest_casted(src, props);
-        expr_ptr res(new Namespace(name, std::move(props)));
-        return res;
-    };
-
-    env_ptr env(new Env
-                    ({ mk_record("plugin", plugin),
-                            mk_record("ns", ns),
-                            mk_record("prop", prop),
-                            mk_const("false", "0"),
-                    }));
+    env_ptr env(mk_parse_env());
 
     Interpreter config(env);
     cor::error_tracer([&]() { cor::sexp::parse(input, config); });
