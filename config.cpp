@@ -21,11 +21,16 @@ void to_property(nl::expr_ptr expr, property_type &dst)
     }
 }
 
-std::string Property::defval() const
+std::string to_string(property_type const &p)
 {
     std::string res;
-    boost::apply_visitor(AnyToString(res), defval_);
+    boost::apply_visitor(AnyToString(res), p);
     return res;
+}
+
+std::string Property::defval() const
+{
+    return to_string(defval_);
 }
 
 int Property::mode(int umask) const

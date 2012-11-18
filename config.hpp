@@ -14,6 +14,7 @@ namespace nl = cor::notlisp;
 typedef boost::variant<long, double, std::string> property_type;
 
 void to_property(nl::expr_ptr expr, property_type &dst);
+std::string to_string(property_type const &p);
 
 struct AnyToString : public boost::static_visitor<>
 {
