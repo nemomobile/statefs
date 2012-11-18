@@ -89,11 +89,15 @@ nl::env_ptr mk_parse_env()
         return res;
     };
 
-    env_ptr env(new Env
-                    ({ mk_record("plugin", plugin),
-                            mk_record("ns", ns),
-                            mk_record("prop", prop),
-                            mk_const("false", "0"),
+    env_ptr env(new Env({
+                mk_record("plugin", plugin),
+                    mk_record("ns", ns),
+                    mk_record("prop", prop),
+                    mk_const("false", 0),
+                    mk_const("true", 0),
+                    mk_const("discrete", Property::Subscribe),
+                    mk_const("continuous", 0),
+                    mk_const("rw", Property::Write | Property::Read),
                     }));
     return env;
 }
