@@ -36,6 +36,7 @@ struct AnyToString : public boost::static_visitor<>
     }
 };
 
+long to_integer(property_type const &src);
 
 class Property : public nl::ObjectExpr
 {

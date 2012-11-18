@@ -28,6 +28,31 @@ std::string to_string(property_type const &p)
     return res;
 }
 
+struct PropertyInt : public boost::static_visitor<>
+{
+    long &dst;
+
+    PropertyInt(long &res) : dst(res) {}
+
+    void operator () (long v) const
+    {
+        dst = v;
+    }
+
+    template <typename OtherT>
+    void operator () (OtherT &v) const
+    {
+        throw cor::Error("Wrong property type");
+    }
+};
+
+long to_integer(property_type const &src)
+{
+    long res;
+    boost::apply_visitor(PropertyInt(res), src);
+    return res;
+}
+
 std::string Property::defval() const
 {
     return to_string(defval_);
