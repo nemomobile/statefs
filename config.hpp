@@ -105,7 +105,8 @@ void parse_config
     env_ptr env(mk_parse_env());
 
     Interpreter config(env);
-    cor::error_tracer([&]() { cor::sexp::parse(input, config); });
+    cor::error_tracer([&input, &config]()
+                      { cor::sexp::parse(input, config); });
 
     ListAccessor res(config.results());
     rest_casted<Plugin>(res, receiver);
@@ -115,8 +116,13 @@ template <typename ReceiverT>
 void config_from_file(std::string const &cfg_src, ReceiverT receiver)
 {
     trace() << "Loading config from " << cfg_src << std::endl;
-    std::ifstream input(cfg_src);
-    parse_config(input, receiver);
+    try {
+        std::ifstream input(cfg_src);
+        parse_config(input, receiver);
+    } catch (...) {
+        std::cerr << "Error parsing " << cfg_src << ", skiping..."
+                  << std::endl;
+    }
 }
 
 namespace fs = boost::filesystem;
