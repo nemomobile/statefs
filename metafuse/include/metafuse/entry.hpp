@@ -266,6 +266,16 @@ SymlinkEntry<T> * mk_symlink_entry(T *p)
     return new SymlinkEntry<T>(p);
 }
 
+template <typename T> class DirEntry;
+
+template <typename T>
+typename DirEntry<T>::impl_ptr dir_entry_impl(entry_ptr entry)
+{
+    auto p = std::dynamic_pointer_cast<DirEntry<T> >(entry);
+    return (p) ? p->impl() : typename DirEntry<T>::impl_ptr();
+}
+
+
 template <typename ImplT>
 class DirEntry : public Entry
 {
@@ -392,12 +402,14 @@ public:
              std::move(path), buf, size);
     }
 
+protected:
+
+    friend impl_ptr dir_entry_impl<ImplT>(entry_ptr);
+
     impl_ptr impl()
     {
         return impl_;
     }
-
-protected:
 
     template <typename LockT,
     typename ImplOpT,
@@ -471,13 +483,6 @@ template <typename T>
 DirEntry<T> * mk_dir_entry(std::shared_ptr<T> p)
 {
     return new DirEntry<T>(p);
-}
-
-template <typename T>
-typename DirEntry<T>::impl_ptr dir_entry_impl(entry_ptr entry)
-{
-    auto p = std::dynamic_pointer_cast<DirEntry<T> >(entry);
-    return (p) ? p->impl() : typename DirEntry<T>::impl_ptr();
 }
 
 } // metafuse
