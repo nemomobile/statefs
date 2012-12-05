@@ -231,17 +231,13 @@ private:
     creator_type creator_;
 };
 
-template <typename FileT>
 class FileHandle
 {
 public:
-    FileHandle(FileT &f) : pos(0), f_(f) {}
+    FileHandle() : pos(0) {}
 
     size_t pos;
-
-protected:
-    FileT &f_;
-
+    poll_handle_type poll_;
 };
 
 template <typename LockingPolicy = cor::NoLock>
@@ -252,7 +248,7 @@ class EmptyFile :
 {
     static const int type_flag = S_IFREG;
 
-    typedef FileHandle<EmptyFile> handle_type;
+    typedef FileHandle handle_type;
 
 public:
     EmptyFile() :
@@ -261,7 +257,6 @@ public:
 
     int open(struct fuse_file_info &fi)
     {
-        fi.fh = reinterpret_cast<uint64_t>(new handle_type(*this));
         return 0;
     }
 
@@ -310,22 +305,22 @@ class DefaultFile :
     typedef DefaultFile<DerivedT, LockingPolicy> self_type;
 
 protected:
-    typedef FileHandle<self_type> handle_type;
-
-    // typedef typename LockingPolicy::rlock rlock;
-    // typedef typename LockingPolicy::wlock wlock;
+    typedef FileHandle handle_type;
 
 public:
     DefaultFile(int mode) : DefaultPermissions<self_type>(mode) {}
 
     int open(struct fuse_file_info &fi)
     {
-        fi.fh = reinterpret_cast<uint64_t>(new handle_type(*this));
+        fi.fh = reinterpret_cast<uint64_t>(new handle_type);
         return 0;
     }
 
     int release(struct fuse_file_info &fi)
     {
+        auto p = reinterpret_cast<handle_type*>(fi.fh);
+        if (p)
+            delete p;
         return 0;
     }
 
@@ -850,6 +845,7 @@ private:
             res = std::mem_fn(op)(&impl(), mk_path(path), args...);
             trace() << "Op res:" << res << std::endl;
         } catch(...) {
+            std::cerr << "silently eating exception\n";
             res = -ENOMEM;
         }
         return res;
