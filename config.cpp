@@ -1,5 +1,10 @@
 #include "config.hpp"
 
+namespace config
+{
+
+namespace nl = cor::notlisp;
+
 void to_property(nl::expr_ptr expr, property_type &dst)
 {
     if (!expr)
@@ -70,29 +75,29 @@ int Property::mode(int umask) const
 
 nl::env_ptr mk_parse_env()
 {
-    using namespace nl;
-    lambda_type plugin = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
+    using nl::env_ptr;
+    nl::lambda_type plugin = [](env_ptr, nl::expr_list_type &params) {
+        nl::ListAccessor src(params);
         std::string name, path;
-        src.required(to_string, name).required(to_string, path);
+        src.required(nl::to_string, name).required(nl::to_string, path);
 
         Plugin::storage_type namespaces;
         push_rest_casted(src, namespaces);
-        return expr_ptr(new Plugin(name, path, std::move(namespaces)));
+        return nl::expr_ptr(new Plugin(name, path, std::move(namespaces)));
     };
 
-    lambda_type prop = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
+    nl::lambda_type prop = [](env_ptr, nl::expr_list_type &params) {
+        nl::ListAccessor src(params);
         std::string name;
         property_type defval;
-        src.required(to_string, name).required(to_property, defval);
+        src.required(nl::to_string, name).required(to_property, defval);
 
         std::unordered_map<std::string, property_type> options = {
             {"type", "discrete"},
             {"access", (long)Property::Read}
         };
-        rest(src, [](expr_ptr &) {},
-             [&options](expr_ptr &k, expr_ptr &v) {
+        nl::rest(src, [](nl::expr_ptr &) {},
+                 [&options](nl::expr_ptr &k, nl::expr_ptr &v) {
                      auto &p = options[k->value()];
                      to_property(v, p);
              });
@@ -100,23 +105,25 @@ nl::env_ptr mk_parse_env()
         if (to_string(options["type"]) == "discrete")
                 access |= Property::Subscribe;
 
-        expr_ptr res(new Property(name, defval, access));
+        nl::expr_ptr res(new Property(name, defval, access));
 
         return res;
     };
 
-    lambda_type ns = [](env_ptr, expr_list_type &params) {
-        ListAccessor src(params);
+    nl::lambda_type ns = [](env_ptr, nl::expr_list_type &params) {
+        nl::ListAccessor src(params);
         std::string name;
-        src.required(to_string, name);
+        src.required(nl::to_string, name);
 
         Namespace::storage_type props;
-        push_rest_casted(src, props);
-        expr_ptr res(new Namespace(name, std::move(props)));
+        nl::push_rest_casted(src, props);
+        nl::expr_ptr res(new Namespace(name, std::move(props)));
         return res;
     };
 
-    env_ptr env(new Env({
+    using nl::mk_record;
+    using nl::mk_const;
+    env_ptr env(new nl::Env({
                 mk_record("plugin", plugin),
                     mk_record("ns", ns),
                     mk_record("prop", prop),
@@ -128,3 +135,5 @@ nl::env_ptr mk_parse_env()
                     }));
     return env;
 }
+
+} // config

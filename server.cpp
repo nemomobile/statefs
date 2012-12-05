@@ -1,3 +1,5 @@
+#include <statefs/provider.h>
+
 #include <metafuse.hpp>
 #include <cor/mt.hpp>
 #include <cor/so.hpp>
@@ -15,9 +17,145 @@
 
 using namespace metafuse;
 
+typedef std::unique_ptr<statefs_provider,
+                        void (*)(statefs_provider*)> provider_handle_type;
+typedef std::unique_ptr<statefs_namespace,
+                        void (*)(statefs_namespace*)> ns_handle_type;
+typedef std::unique_ptr<statefs_property,
+                        void (*)(statefs_property*)> property_handle_type;
+typedef std::unique_ptr<statefs_data,
+                        void (*)(statefs_data*)> data_handle_type;
+
+class Provider
+{
+public:
+    Provider(std::string const &path);
+
+    ~Provider() { }
+
+    bool is_loaded() const
+    {
+        return provider_ != nullptr;
+    }
+
+    ns_handle_type ns(std::string const &name) const;
+
+private:
+
+    static provider_handle_type mk_provider_handle(cor::SharedLib &lib);
+
+    static void ns_release(statefs_namespace *p)
+    {
+        if (p)
+            statefs_node_release(&p->node);
+    };
+
+    cor::SharedLib lib_;
+    provider_handle_type provider_;
+};
+
+class Namespace
+{
+public:
+    Namespace(ns_handle_type &&h);
+
+    ~Namespace() { }
+
+    bool is_exists() const
+    {
+        return handle_ != nullptr;
+    }
+
+    property_handle_type property(std::string const &name) const;
+
+private:
+
+    static void property_release(statefs_property *p)
+    {
+        if (p)
+            statefs_node_release(&p->node);
+    };
+
+    ns_handle_type handle_;
+};
+
+class Property
+{
+public:
+    Property(property_handle_type &&h);
+
+    bool is_exists() const
+    {
+        return handle_ != nullptr;
+    }
+
+    data_handle_type get() const;
+
+private:
+
+    static void data_free(statefs_data *p)
+    {
+        if (p && p->release)
+            p->release(p);
+    };
+
+    property_handle_type handle_;
+};
+
+data_handle_type Property::get() const
+{
+    if (!is_exists())
+        return data_handle_type(nullptr, data_free);
+    return data_handle_type(handle_->get(handle_.get()), data_free);
+}
+
+provider_handle_type Provider::mk_provider_handle(cor::SharedLib &lib)
+{
+    static auto deleter = [](statefs_provider *p) {
+        if (p) statefs_node_release(&p->node);
+    };
+    statefs_provider *provider = nullptr;
+    statefs_provider_fn fn = nullptr;
+    lib.sym(&fn, "statefs_provider_get");
+    if (!fn) {
+        std::cerr << "Can't resolve statefs_provider_get" << std::endl;
+        return provider_handle_type(provider, deleter);
+    }
+    auto res = provider_handle_type(fn(), deleter);
+    if (res && !statefs_is_compatible(res.get())) {
+        std::cerr << "Incompatible provider version\n";
+        return provider_handle_type(nullptr, deleter);
+    }
+    return res;
+}
+
+Provider::Provider(std::string const &path)
+    : lib_(path, RTLD_LAZY), provider_(std::move(mk_provider_handle(lib_)))
+{ }
+
+ns_handle_type Provider::ns(std::string const &name) const
+{
+    return ns_handle_type
+        (is_loaded() ? statefs_ns_find(provider_.get(), name.c_str()) : nullptr, ns_release);
+}
+
+property_handle_type Namespace::property(std::string const &name) const
+{
+    return property_handle_type
+        (is_exists() ? statefs_prop_find(handle_.get(), name.c_str()) : nullptr,
+         property_release);
+}
+
+Property::Property(property_handle_type &&h)
+    : handle_(std::move(h))
+{}
+
+Namespace::Namespace(ns_handle_type &&h)
+    : handle_(std::move(h))
+{}
+
 template <typename LoadT>
-class PluginLoadFile :
-    public DefaultFile<PluginLoadFile<LoadT> >
+class PluginLoadFile : public DefaultFile<PluginLoadFile<LoadT> >
 {
     typedef DefaultFile<PluginLoadFile<LoadT> > base_type;
 
@@ -52,6 +190,76 @@ private:
     size_t size_;
 };
 
+class FileHandle
+{
+};
+
+class ContinuousPropFile : public DefaultFile<ContinuousPropFile>
+{
+    typedef DefaultFile<ContinuousPropFile> base_type;
+    static void dummy_data_clean (statefs_data*) {};
+
+public:
+    ContinuousPropFile(std::unique_ptr<Property> &prop, int mode)
+        : base_type(mode), prop_(std::move(prop)),
+          data_(nullptr, dummy_data_clean)
+    {}
+
+    int open(struct fuse_file_info &fi)
+    {
+        return 0;
+    }
+
+    int release(struct fuse_file_info &fi)
+    {
+        return 0;
+    }
+
+    int read(char* buf, size_t size,
+             off_t offset, struct fuse_file_info &fi)
+    {
+        std::cerr << "@ READ " << size << " starting from " << offset << "\n";
+        get_data();
+        if (!data_->p) {
+            std::cerr << "no data\n";
+            return 0;
+        }
+        memcpy(buf, data_->p, data_->len);
+        return data_->len;
+    }
+
+	int poll(struct fuse_file_info &fi,
+             poll_handle_type &ph, unsigned *reventsp)
+    {
+        auto p = reinterpret_cast<handle_type*>(fi.fh);
+        p->poll_ = ph;
+        return -ENOTSUP;
+    }
+
+    int write(const char* src, size_t size,
+              off_t offset, struct fuse_file_info &fi)
+    {
+        return -ENOTSUP;
+    }
+
+    size_t size() const
+    {
+        if (!data_ || !data_->len)
+            get_data();
+        return data_->len;
+    }
+
+private:
+
+    void get_data() const
+    {
+        data_ = std::move(prop_->get());
+    }
+
+    std::unique_ptr<Property> prop_;
+    mutable data_handle_type data_;
+};
+
 template <typename LoadT, typename ... Args>
 PluginLoadFile<LoadT>* mk_loader(LoadT loader, Args ... args)
 {
@@ -64,7 +272,7 @@ class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 public:
 
     template <typename PluginLoaderT>
-    PluginNsDir(std::shared_ptr<Namespace> info, PluginLoaderT plugin_load)
+    PluginNsDir(std::shared_ptr<config::Namespace> info, PluginLoaderT plugin_load)
         : info_(info)
     {
         for (auto prop : info->props_) {
@@ -79,14 +287,23 @@ public:
         }
     }
 
-    void load(std::shared_ptr<cor::SharedLib>)
+    void load(std::shared_ptr<Provider> prov)
     {
         auto lock(cor::wlock(*this));
         files.clear();
-        for (auto prop : info_->props_) {
-            std::string name = prop->value();
-            add_file(name, mk_file_entry(new BasicTextFile<>(prop->defval())));
+        std::unique_ptr<Namespace> ns
+            (new Namespace(prov->ns(info_->value())));
+        for (auto cfg : info_->props_) {
+            std::string name = cfg->value();
+            std::unique_ptr<Property> prop(new Property(ns->property(name)));
+            if (!prop->is_exists()) {
+                std::cerr << "PROPERTY " << name << "is absent\n";
+                add_file(name, mk_file_entry(new BasicTextFile<>(cfg->defval())));
+            } else {
+                add_file(name, mk_file_entry(new ContinuousPropFile(prop, 0644)));
+            }
         }
+        ns_ = std::move(ns);
     }
 
     void load_fake()
@@ -101,15 +318,23 @@ public:
 
 private:
 
-    std::shared_ptr<Namespace> info_;
+    std::shared_ptr<config::Namespace> info_;
+    std::unique_ptr<Namespace> ns_;
 };
 
-class PluginDir : public RODir<DirFactory, FileFactory, cor::Mutex>
+class PluginStorage
+{
+protected:
+    std::shared_ptr<Provider> provider_;
+};
+
+class PluginDir : public PluginStorage,
+                  public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
     typedef DirEntry<PluginNsDir> ns_type;
 
-    PluginDir(std::shared_ptr<Plugin> info);
+    PluginDir(std::shared_ptr<config::Plugin> info);
     void load();
 
 private:
@@ -126,11 +351,10 @@ private:
         }
     }
 
-    std::shared_ptr<Plugin> info_;
-    std::shared_ptr<cor::SharedLib> plugin_;
+    std::shared_ptr<config::Plugin> info_;
 };
 
-PluginDir::PluginDir(std::shared_ptr<Plugin> info)
+PluginDir::PluginDir(std::shared_ptr<config::Plugin> info)
     : info_(info)
 {
     auto plugin_load = std::bind(&PluginDir::load, this);
@@ -141,19 +365,19 @@ PluginDir::PluginDir(std::shared_ptr<Plugin> info)
 void PluginDir::load()
 {
     auto lock(cor::wlock(*this));
-    if (plugin_)
+    if (provider_)
         return;
 
     trace() << "Loading plugin " << info_->path << std::endl;
-    plugin_.reset(new cor::SharedLib(info_->path, RTLD_LAZY));
-        
-    if (!plugin_->is_loaded()) {
+    provider_.reset(new Provider(info_->path));
+
+    if (!provider_->is_loaded()) {
         std::cerr << "Can't load " << info_->path
-                  << ", using fake values" << std::endl; 
+                  << ", using fake values" << std::endl;
         namespaces_init(&PluginNsDir::load_fake);
         return;
     }
-    namespaces_init(&PluginNsDir::load, plugin_);
+    namespaces_init(&PluginNsDir::load, provider_);
 }
 
 class PluginsDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
@@ -161,7 +385,7 @@ class PluginsDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
 public:
     PluginsDir() { }
 
-    void add(std::shared_ptr<Plugin> p)
+    void add(std::shared_ptr<config::Plugin> p)
     {
         trace() << "Plugin " << p->value() << std::endl;
         auto d = std::make_shared<PluginDir>(p);
@@ -172,10 +396,12 @@ public:
 class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    NamespaceDir(std::shared_ptr<Plugin> p, std::shared_ptr<Namespace> ns);
+    NamespaceDir(std::shared_ptr<config::Plugin> p,
+                 std::shared_ptr<config::Namespace> ns);
 };
 
-NamespaceDir::NamespaceDir(std::shared_ptr<Plugin> p, std::shared_ptr<Namespace> ns)
+NamespaceDir::NamespaceDir
+(std::shared_ptr<config::Plugin> p, std::shared_ptr<config::Namespace> ns)
 {
     Path path = {"..", "..", "providers", p->value(), ns->value()};
     for (auto prop : ns->props_) {
@@ -188,7 +414,7 @@ NamespaceDir::NamespaceDir(std::shared_ptr<Plugin> p, std::shared_ptr<Namespace>
 class NamespacesDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    void plugin_add(std::shared_ptr<Plugin> p)
+    void plugin_add(std::shared_ptr<config::Plugin> p)
     {
         auto lock(cor::wlock(*this));
         for (auto ns : p->namespaces_)
@@ -220,7 +446,7 @@ public:
         add_dir("control", mk_dir_entry(control));
     }
 
-    void plugin_add(std::shared_ptr<Plugin> p)
+    void plugin_add(std::shared_ptr<config::Plugin> p)
     {
         plugins->add(p);
         namespaces->plugin_add(p);
@@ -240,7 +466,7 @@ public:
     RootDirEntry() : base_type(new RootDir()) {}
     virtual ~RootDirEntry() {}
 
-    void plugin_add(std::shared_ptr<Plugin> p)
+    void plugin_add(std::shared_ptr<config::Plugin> p)
     {
         impl_->plugin_add(p);
     }
@@ -256,7 +482,7 @@ int main(int argc, char *argv[])
                           {{"config", "config"}},
                           {"config"});
     options.parse(argc, argv, opts, params);
-    
+
     char const *cfg_src = nullptr;
     auto p = opts.find("config");
     if (p != opts.end())
@@ -267,7 +493,7 @@ int main(int argc, char *argv[])
     using namespace std::placeholders;
     auto plugin_add = std::bind
         (std::mem_fn(&RootDirEntry::plugin_add), &fuse.impl(), _1);
-    config_load(cfg_src, plugin_add);
+    config::load(cfg_src, plugin_add);
     std::cerr << "ready" << std::endl;
 
     int res = fuse.main(params.size(), &params[0], true);

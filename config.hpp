@@ -9,6 +9,9 @@
 #include <boost/filesystem.hpp>
 
 
+namespace config
+{
+
 namespace nl = cor::notlisp;
 
 typedef boost::variant<long, double, std::string> property_type;
@@ -97,8 +100,7 @@ public:
 nl::env_ptr mk_parse_env();
 
 template <typename CharT, typename ReceiverT>
-void parse_config
-(std::basic_istream<CharT> &input, ReceiverT receiver)
+void parse(std::basic_istream<CharT> &input, ReceiverT receiver)
 {
     using namespace nl;
 
@@ -113,12 +115,12 @@ void parse_config
 }
 
 template <typename ReceiverT>
-void config_from_file(std::string const &cfg_src, ReceiverT receiver)
+void from_file(std::string const &cfg_src, ReceiverT receiver)
 {
     trace() << "Loading config from " << cfg_src << std::endl;
     try {
         std::ifstream input(cfg_src);
-        parse_config(input, receiver);
+        parse(input, receiver);
     } catch (...) {
         std::cerr << "Error parsing " << cfg_src << ", skiping..."
                   << std::endl;
@@ -128,30 +130,32 @@ void config_from_file(std::string const &cfg_src, ReceiverT receiver)
 namespace fs = boost::filesystem;
 
 template <typename ReceiverT>
-void config_from_dir(std::string const &cfg_src, ReceiverT receiver)
+void from_dir(std::string const &cfg_src, ReceiverT receiver)
 {
     trace() << "Config dir " << cfg_src << std::endl;
     std::for_each(fs::directory_iterator(cfg_src),
                   fs::directory_iterator(),
                   [&receiver](fs::directory_entry const &d) {
                       if (d.path().extension() == ".scm")
-                          config_from_file(d.path().string(), receiver);
+                          from_file(d.path().string(), receiver);
                   });
 }
 
 template <typename ReceiverT>
-void config_load(char const *cfg_src, ReceiverT receiver)
+void load(char const *cfg_src, ReceiverT receiver)
 {
     if (!cfg_src)
         return;
 
     if (fs::is_regular_file(cfg_src))
-        return config_from_file(cfg_src, receiver);
+        return from_file(cfg_src, receiver);
 
     if (fs::is_directory(cfg_src))
-        return config_from_dir(cfg_src, receiver);
+        return from_dir(cfg_src, receiver);
 
     throw cor::Error("Unknown configuration source %s", cfg_src);
 }
+
+} // config
 
 #endif // _STATEFS_CONFIG_HPP_
