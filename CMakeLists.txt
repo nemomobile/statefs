@@ -55,3 +55,4 @@ target_link_libraries(statefs
 )
 
 add_subdirectory(examples/src)
+add_subdirectory(tools/introspect)

@@ -4,6 +4,7 @@ CMakeFiles*
 cmake_install.cmake
 *.o
 Makefile
-statefs
+/statefs
 cscope*
 *.so
+tools/introspect/introspect
