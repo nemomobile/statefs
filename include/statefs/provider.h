@@ -123,15 +123,15 @@ struct statefs_property;
 struct statefs_slot
 {
     void (*on_changed)(struct statefs_slot *,
-                       struct statefs_property *,
-                       void *, size_t);
+                       struct statefs_property *);
 };
 
 struct statefs_property
 {
     struct statefs_node node;
     struct statefs_data * (*get)(struct statefs_property *);
-    void (*connect)(struct statefs_property *, struct statefs_slot *);
+    bool (*connect)(struct statefs_property *, struct statefs_slot *);
+    void (*disconnect)(struct statefs_property *, struct statefs_slot *);
 };
 
 static inline struct statefs_property * statefs_prop_get

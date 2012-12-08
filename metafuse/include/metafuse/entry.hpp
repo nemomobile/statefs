@@ -171,7 +171,7 @@ public:
     virtual int poll(path_ptr path, struct fuse_file_info &fi,
                      poll_handle_type &ph, unsigned *reventsp)
     {
-        return -ENOTSUP;
+        return node_op(W(), &impl_type::poll, fi, ph, reventsp);
     }
 
     virtual int getattr(path_ptr path, struct stat &buf)

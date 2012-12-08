@@ -72,9 +72,11 @@ struct statefs_data * get_bat_is_low(struct statefs_property *self)
     return &is_low_data;
 }
 
-static void connect_is_low
+static bool connect_is_low
 (struct statefs_property *self, struct statefs_slot *slot)
 {
+    is_low_slot = slot;
+    return true;
 }
 
 static const struct statefs_meta voltage_info[] = {
@@ -129,8 +131,7 @@ static void * control_thread(void *arg)
             dvoltage = 0.1;
         voltage_now += dvoltage;
         if (update_is_low() && is_low_slot)
-            is_low_slot->on_changed
-                (is_low_slot, &props[2], is_low_data.p, is_low_data.len);
+            is_low_slot->on_changed(is_low_slot, &props[2]);
         sleep(1);
     }
     return NULL;
@@ -161,7 +162,8 @@ static void prop_next(struct statefs_branch const* self, intptr_t *idx_ptr)
     (++*idx_ptr);
 }
 
-static struct statefs_node * prop_get(struct statefs_branch const* self, intptr_t idx)
+static struct statefs_node * prop_get
+(struct statefs_branch const* self, intptr_t idx)
 {
     return (idx < ARRAY_SIZE(props) && idx >= 0) ? &props[idx].node : NULL;
 }
@@ -192,7 +194,8 @@ struct statefs_node * ns_find
     return &battery_ns.node;
 }
 
-static struct statefs_node * ns_get(struct statefs_branch const* self, intptr_t p)
+static struct statefs_node * ns_get
+(struct statefs_branch const* self, intptr_t p)
 {
     return (p ? &((struct statefs_namespace*)p)->node : NULL);
 }

@@ -14,17 +14,18 @@
 #include <unordered_map>
 #include <set>
 #include <fstream>
+#include <poll.h>
 
 using namespace metafuse;
 
-typedef std::unique_ptr<statefs_provider,
-                        void (*)(statefs_provider*)> provider_handle_type;
-typedef std::unique_ptr<statefs_namespace,
-                        void (*)(statefs_namespace*)> ns_handle_type;
-typedef std::unique_ptr<statefs_property,
-                        void (*)(statefs_property*)> property_handle_type;
-typedef std::unique_ptr<statefs_data,
-                        void (*)(statefs_data*)> data_handle_type;
+typedef std::unique_ptr
+<statefs_provider, void (*)(statefs_provider*)> provider_handle_type;
+typedef std::unique_ptr
+<statefs_namespace, void (*)(statefs_namespace*)> ns_handle_type;
+typedef std::unique_ptr
+<statefs_property, void (*)(statefs_property*)> property_handle_type;
+typedef std::unique_ptr
+<statefs_data, void (*)(statefs_data*)> data_handle_type;
 
 class Provider
 {
@@ -89,7 +90,15 @@ public:
         return handle_ != nullptr;
     }
 
+    bool is_discrete() const
+    {
+        return is_exists() && (handle_->connect != nullptr);
+    }
+
     data_handle_type get() const;
+
+    bool connect(statefs_slot *slot);
+    void disconnect(statefs_slot *slot);
 
 private:
 
@@ -109,18 +118,32 @@ data_handle_type Property::get() const
     return data_handle_type(handle_->get(handle_.get()), data_free);
 }
 
+bool Property::connect(statefs_slot *slot)
+{
+    if (!is_exists() || !handle_->connect)
+        return false;
+    return handle_->connect(handle_.get(), slot);
+}
+
+void Property::disconnect(statefs_slot *slot)
+{
+    if (is_exists() && handle_->disconnect)
+        handle_->disconnect(handle_.get(), slot);
+}
+
 provider_handle_type Provider::mk_provider_handle(cor::SharedLib &lib)
 {
     static auto deleter = [](statefs_provider *p) {
         if (p) statefs_node_release(&p->node);
     };
-    statefs_provider *provider = nullptr;
-    statefs_provider_fn fn = nullptr;
-    lib.sym(&fn, "statefs_provider_get");
+    static const char *sym_name = "statefs_provider_get";
+
+    auto fn = lib.sym<statefs_provider_fn>(sym_name);
     if (!fn) {
-        std::cerr << "Can't resolve statefs_provider_get" << std::endl;
-        return provider_handle_type(provider, deleter);
+        std::cerr << "Can't resolve " << sym_name << std::endl;
+        return provider_handle_type(nullptr, deleter);
     }
+
     auto res = provider_handle_type(fn(), deleter);
     if (res && !statefs_is_compatible(res.get())) {
         std::cerr << "Incompatible provider version\n";
@@ -136,13 +159,18 @@ Provider::Provider(std::string const &path)
 ns_handle_type Provider::ns(std::string const &name) const
 {
     return ns_handle_type
-        (is_loaded() ? statefs_ns_find(provider_.get(), name.c_str()) : nullptr, ns_release);
+        ((is_loaded()
+          ? statefs_ns_find(provider_.get(), name.c_str())
+          : nullptr),
+         ns_release);
 }
 
 property_handle_type Namespace::property(std::string const &name) const
 {
     return property_handle_type
-        (is_exists() ? statefs_prop_find(handle_.get(), name.c_str()) : nullptr,
+        ((is_exists()
+          ? statefs_prop_find(handle_.get(), name.c_str())
+          : nullptr),
          property_release);
 }
 
@@ -185,19 +213,22 @@ public:
     {
         return size_;
     }
+
+	int poll(struct fuse_file_info &fi,
+             poll_handle_type &ph, unsigned *reventsp)
+    {
+        return -ENOTSUP;
+    }
+
 private:
     LoadT load_;
     size_t size_;
 };
 
-class FileHandle
-{
-};
-
 class ContinuousPropFile : public DefaultFile<ContinuousPropFile>
 {
     typedef DefaultFile<ContinuousPropFile> base_type;
-    static void dummy_data_clean (statefs_data*) {};
+    static void dummy_data_clean(statefs_data*) {}
 
 public:
     ContinuousPropFile(std::unique_ptr<Property> &prop, int mode)
@@ -205,35 +236,15 @@ public:
           data_(nullptr, dummy_data_clean)
     {}
 
-    int open(struct fuse_file_info &fi)
-    {
-        return 0;
-    }
-
-    int release(struct fuse_file_info &fi)
-    {
-        return 0;
-    }
-
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
     {
-        std::cerr << "@ READ " << size << " starting from " << offset << "\n";
         get_data();
-        if (!data_->p) {
-            std::cerr << "no data\n";
+        if (!data_->p)
             return 0;
-        }
+
         memcpy(buf, data_->p, data_->len);
         return data_->len;
-    }
-
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
-    {
-        auto p = reinterpret_cast<handle_type*>(fi.fh);
-        p->poll_ = ph;
-        return -ENOTSUP;
     }
 
     int write(const char* src, size_t size,
@@ -249,7 +260,13 @@ public:
         return data_->len;
     }
 
-private:
+	int poll(struct fuse_file_info &fi,
+             poll_handle_type &ph, unsigned *reventsp)
+    {
+        return -ENOTSUP;
+    }
+
+protected:
 
     void get_data() const
     {
@@ -258,6 +275,56 @@ private:
 
     std::unique_ptr<Property> prop_;
     mutable data_handle_type data_;
+};
+
+
+class DiscretePropFile : public statefs_slot, public ContinuousPropFile
+{
+
+    static void slot_on_changed
+    (struct statefs_slot *slot, struct statefs_property *)
+    {
+        auto self = static_cast<DiscretePropFile*>(slot);
+        self->notify();
+    }
+
+public:
+    DiscretePropFile(std::unique_ptr<Property> &prop, int mode)
+        : ContinuousPropFile(prop, mode)
+    {
+        on_changed = &DiscretePropFile::slot_on_changed;
+    }
+
+	int poll(struct fuse_file_info &fi,
+             poll_handle_type &ph, unsigned *reventsp)
+    {
+        auto p = reinterpret_cast<handle_type*>(fi.fh);
+        if (p->is_changed())
+            *reventsp |= POLLIN;
+        p->poll(ph);
+        return 0;
+    }
+
+    int open(struct fuse_file_info &fi)
+    {
+        if (handles_.empty())
+            prop_->connect(this);
+        return ContinuousPropFile::open(fi);
+    }
+
+    int release(struct fuse_file_info &fi)
+    {
+        int rc = ContinuousPropFile::release(fi);
+        if (handles_.empty())
+            prop_->disconnect(this);
+        return rc;
+    }
+
+    void notify()
+    {
+        for (auto h : handles_)
+            h.second->notify();
+    }
 };
 
 template <typename LoadT, typename ... Args>
@@ -287,40 +354,49 @@ public:
         }
     }
 
-    void load(std::shared_ptr<Provider> prov)
-    {
-        auto lock(cor::wlock(*this));
-        files.clear();
-        std::unique_ptr<Namespace> ns
-            (new Namespace(prov->ns(info_->value())));
-        for (auto cfg : info_->props_) {
-            std::string name = cfg->value();
-            std::unique_ptr<Property> prop(new Property(ns->property(name)));
-            if (!prop->is_exists()) {
-                std::cerr << "PROPERTY " << name << "is absent\n";
-                add_file(name, mk_file_entry(new BasicTextFile<>(cfg->defval())));
-            } else {
-                add_file(name, mk_file_entry(new ContinuousPropFile(prop, 0644)));
-            }
-        }
-        ns_ = std::move(ns);
-    }
-
-    void load_fake()
-    {
-        auto lock(cor::wlock(*this));
-        files.clear();
-        for (auto prop : info_->props_) {
-            std::string name = prop->value();
-            add_file(name, mk_file_entry(new BasicTextFile<>(prop->defval())));
-        }
-    }
+    void load(std::shared_ptr<Provider> prov);
+    void load_fake();
 
 private:
 
     std::shared_ptr<config::Namespace> info_;
     std::unique_ptr<Namespace> ns_;
 };
+
+void PluginNsDir::load(std::shared_ptr<Provider> prov)
+{
+    auto lock(cor::wlock(*this));
+    files.clear();
+    std::unique_ptr<Namespace> ns
+        (new Namespace(prov->ns(info_->value())));
+    for (auto cfg : info_->props_) {
+        std::string name = cfg->value();
+        std::unique_ptr<Property> prop(new Property(ns->property(name)));
+        if (!prop->is_exists()) {
+            std::cerr << "PROPERTY " << name << "is absent\n";
+            add_file(name, mk_file_entry(new BasicTextFile<>(cfg->defval())));
+        } else {
+            if (prop->is_discrete())
+                add_file(name, mk_file_entry
+                         (new DiscretePropFile(prop, 0644)));
+            else
+                add_file(name, mk_file_entry
+                         (new ContinuousPropFile(prop, 0644)));
+        }
+    }
+    ns_ = std::move(ns);
+}
+
+void PluginNsDir::load_fake()
+{
+    auto lock(cor::wlock(*this));
+    files.clear();
+    for (auto prop : info_->props_) {
+        std::string name = prop->value();
+        add_file(name, mk_file_entry(new BasicTextFile<>(prop->defval())));
+    }
+}
+
 
 class PluginStorage
 {

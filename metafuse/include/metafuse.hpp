@@ -234,9 +234,31 @@ private:
 class FileHandle
 {
 public:
-    FileHandle() : pos(0) {}
+    FileHandle() : pos(0), is_changed_(false) {}
 
+    void notify()
+    {
+        if (poll_) {
+            is_changed_ = true;
+            fuse_notify_poll(poll_.get());
+            poll_ = nullptr;
+        }
+    }
+
+    void poll(poll_handle_type &ph)
+    {
+        is_changed_ = false;
+        poll_ = ph;
+    }
+
+    bool is_changed() const
+    {
+        return is_changed_;
+    }
+
+private:
     size_t pos;
+    bool is_changed_;
     poll_handle_type poll_;
 };
 
@@ -306,21 +328,24 @@ class DefaultFile :
 
 protected:
     typedef FileHandle handle_type;
+    typedef std::shared_ptr<handle_type> handle_ptr;
+    typedef std::unordered_map <uint64_t, handle_ptr > handles_type;
 
 public:
     DefaultFile(int mode) : DefaultPermissions<self_type>(mode) {}
 
     int open(struct fuse_file_info &fi)
     {
-        fi.fh = reinterpret_cast<uint64_t>(new handle_type);
+        handle_ptr h(new handle_type);
+        fi.fh = reinterpret_cast<uint64_t>(h.get());
+        handles_[fi.fh] = h;
         return 0;
     }
 
     int release(struct fuse_file_info &fi)
     {
-        auto p = reinterpret_cast<handle_type*>(fi.fh);
-        if (p)
-            delete p;
+        handles_.erase(fi.fh);
+        fi.fh = 0;
         return 0;
     }
 
@@ -338,18 +363,17 @@ public:
         update_time(access_time_bit | modification_time_bit);
         return 0;
     }
+
+protected:
+    handles_type handles_;
 };
 
 template <size_t Size, typename LockingPolicy = cor::NoLock>
 class FixedSizeFile :
     public DefaultFile<FixedSizeFile<Size, LockingPolicy>, LockingPolicy >
 {
-    typedef DefaultFile<FixedSizeFile<Size, LockingPolicy>,
-                        LockingPolicy > base_type;
-    //typedef FileHandle<FixedSizeFile> handle_type;
-    // typedef typename base_type::rlock rlock;
-    // typedef typename base_type::wlock wlock;
-
+    typedef DefaultFile
+    <FixedSizeFile<Size, LockingPolicy>, LockingPolicy > base_type;
 public:
     FixedSizeFile() : base_type(0644)
     {
@@ -359,7 +383,6 @@ public:
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
     {
-        //auto h = reinterpret_cast<handle_type*>(fi.fh);
         size_t count = std::min(size, arr_.size());
         memcpy(buf, &arr_[0], count);
         return count;
@@ -376,6 +399,12 @@ public:
         return Size;
     }
 
+	int poll(struct fuse_file_info &fi,
+             poll_handle_type &ph, unsigned *reventsp)
+    {
+        return -ENOTSUP;
+    }
+
 private:
 
     std::array<char, Size> arr_;
@@ -385,12 +414,8 @@ template <typename LockingPolicy = cor::NoLock>
 class BasicTextFile :
     public DefaultFile<BasicTextFile<LockingPolicy>, LockingPolicy >
 {
-    typedef DefaultFile<BasicTextFile<LockingPolicy>,
-                        LockingPolicy > base_type;
-
-    // typedef typename base_type::rlock rlock;
-    // typedef typename base_type::wlock wlock;
-
+    typedef DefaultFile
+    <BasicTextFile<LockingPolicy>, LockingPolicy > base_type;
 public:
     BasicTextFile(std::string const &from)
         : base_type(0440), data_(from) { }
@@ -415,6 +440,12 @@ public:
     size_t size() const
     {
         return data_.size();
+    }
+
+	int poll(struct fuse_file_info &fi,
+             poll_handle_type &ph, unsigned *reventsp)
+    {
+        return -ENOTSUP;
     }
 
 private:
