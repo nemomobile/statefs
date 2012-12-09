@@ -1,4 +1,5 @@
 #include <statefs/provider.h>
+#include <statefs/util.h>
 
 #include <metafuse.hpp>
 #include <cor/mt.hpp>

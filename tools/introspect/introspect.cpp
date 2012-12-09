@@ -1,5 +1,6 @@
 #include <cor/util.h>
 #include <statefs/provider.h>
+#include <statefs/util.h>
 #include <stdio.h>
 #include <stdbool.h>
 

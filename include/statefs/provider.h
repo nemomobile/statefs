@@ -16,11 +16,6 @@
 #define EXTERN_C
 #endif
 
-#ifndef container_of
-#define container_of(ptr, type, member)                     \
-    ((type *)( (char *)(ptr) - offsetof(type, member) ))
-#endif
-
 EXTERN_C_BEGIN
 
 typedef enum
@@ -59,9 +54,6 @@ struct statefs_meta
     struct statefs_variant value;
 };
 
-#define STATEFS_META(name, type, value) { name, STATEFS_##type(value) }
-#define STATEFS_META_END { NULL, {} }
-
 typedef enum
 {
     statefs_node_root = 0,
@@ -69,48 +61,46 @@ typedef enum
     statefs_node_prop
 } statefs_node_type;
 
+/** 
+ * StateFS information tree consists of nodes, node type is determined
+ * by statefs_node_type enumeration. Each node has metadata (array of
+ * struct statefs_meta items). There is a single root node (struct
+ * statefs_provider), namespace nodes (struct statefs_namespace) and
+ * property nodes (struct statefs_property).
+ *
+ * Root node and namespace nodes has ability to has children nodes
+ * (branch nodes (struct statefs_branch). Property nodes are tree
+ * leafs.
+ */
 struct statefs_node
 {
     statefs_node_type type;
+    /** name - c string */
     char const *name;
+    /** if not NULL called to free resources used by node */  
     void (*release)(struct statefs_node*);
+    /** node metadata */
     struct statefs_meta const* info;
 };
 
-static inline void statefs_node_release(struct statefs_node *node)
-{
-    if (node && node->release)
-        node->release(node);
-}
-
+/**
+ * each node has children is a branch node
+ */
 struct statefs_branch
 {
+    /** find child node by name */
     struct statefs_node * (*find)(struct statefs_branch const*, char const *);
+    /** get first child node iterator */
     intptr_t (*first)(struct statefs_branch const*);
+    /** move iterator to next node */
     void (*next)(struct statefs_branch const*, intptr_t *);
+    /** get node pointer from iterator */
     struct statefs_node * (*get)(struct statefs_branch const*, intptr_t);
+    /** release/free iterator and resources used by it */
     bool (*release)(struct statefs_branch const*, intptr_t);
 };
 
-static inline intptr_t statefs_first(struct statefs_branch const* self)
-{
-    return (self->first ? self->first(self) : 0);
-}
-
-static inline void statefs_next(struct statefs_branch const* self, intptr_t *p)
-{
-    if (self->next)
-        self->next(self, p);
-    else
-        *p = 0;
-}
-
-static inline struct statefs_node * statefs_get
-(struct statefs_branch const* self, intptr_t p)
-{
-    return (self->get ? self->get(self, p) : NULL);
-}
-
+/** returned by statefs_property.get */
 struct statefs_data
 {
     void (*release)(struct statefs_data *);
@@ -134,40 +124,11 @@ struct statefs_property
     void (*disconnect)(struct statefs_property *, struct statefs_slot *);
 };
 
-static inline struct statefs_property * statefs_prop_get
-(struct statefs_branch const* self, intptr_t iter)
-{
-    struct statefs_node *n = statefs_get(self, iter);
-    return (n && n->type == statefs_node_prop
-            ? container_of(n, struct statefs_property, node)
-            : NULL);
-
-}
-
 struct statefs_namespace
 {
     struct statefs_node node;
     struct statefs_branch branch;
 };
-
-static inline struct statefs_namespace * statefs_ns_get
-(struct statefs_branch const* self, intptr_t iter)
-{
-    struct statefs_node *n = statefs_get(self, iter);
-    return (n && n->type == statefs_node_ns
-            ? container_of(n, struct statefs_namespace, node)
-            : NULL);
-
-}
-
-static inline struct statefs_property * statefs_prop_find
-(struct statefs_namespace const* self, char const *name)
-{
-    struct statefs_node *res = self->branch.find(&self->branch, name);
-    return ( (res && res->type == statefs_node_prop)
-             ? container_of(res, struct statefs_property, node)
-             : NULL );
-}
 
 struct statefs_provider
 {
@@ -175,16 +136,6 @@ struct statefs_provider
     struct statefs_node node;
     struct statefs_branch branch;
 };
-
-static inline struct statefs_namespace * statefs_ns_find
-(struct statefs_provider *self, char const *name)
-{
-    struct statefs_node *res = self->branch.find(&self->branch, name);
-    return ( (res && res->type == statefs_node_ns)
-             ? container_of(res, struct statefs_namespace, node)
-             : NULL );
-}
-
 
 typedef struct statefs_provider * (*statefs_provider_fn)(void);
 
