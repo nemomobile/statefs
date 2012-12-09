@@ -226,9 +226,9 @@ private:
     size_t size_;
 };
 
-class ContinuousPropFile : public DefaultFile<ContinuousPropFile>
+class ContinuousPropFile : public DefaultFile<ContinuousPropFile, cor::Mutex>
 {
-    typedef DefaultFile<ContinuousPropFile> base_type;
+    typedef DefaultFile<ContinuousPropFile, cor::Mutex> base_type;
     static void dummy_data_clean(statefs_data*) {}
 
 public:
@@ -296,6 +296,11 @@ public:
         on_changed = &DiscretePropFile::slot_on_changed;
     }
 
+    virtual ~DiscretePropFile()
+    {
+        prop_->disconnect(this);
+    }
+
 	int poll(struct fuse_file_info &fi,
              poll_handle_type &ph, unsigned *reventsp)
     {
@@ -323,6 +328,8 @@ public:
 
     void notify()
     {
+        auto l(cor::wlock(*this));
+
         for (auto h : handles_)
             h.second->notify();
     }
