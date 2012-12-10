@@ -5,72 +5,80 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
+
+#include <sys/param.h>
 
 #include <pthread.h>
 
 static pthread_mutex_t power_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void init() {}
-
 static double voltage_now = 3.6;
 static double dvoltage = 0.1;
 static char voltage_buf[255];
+static const char *max_dbl_fmt = "1.0000";
 
-static struct statefs_data voltage_data = {
-    .p = voltage_buf
-};
-
-struct statefs_data * get_voltage(struct statefs_property *self)
+static int memcpy_offset
+(char *dst, size_t len, off_t off, char const *src, size_t src_len)
 {
-    sprintf(voltage_buf, "%1.4f", voltage_now);
-    voltage_data.len = strlen(voltage_buf);
-    return &voltage_data;
+    if (!dst || !src || off >= src_len)
+        return -EINVAL;
+    size_t real_len = MIN(src_len - off, len + off);
+    if (real_len)
+        memcpy(dst, &src[off], real_len);
+    return real_len;
 }
 
-static char current_buf[255];
-
-static struct statefs_data current_data = {
-    .p = current_buf
-};
-
-struct statefs_data * get_current(struct statefs_property *self)
+static int read_voltage
+(struct statefs_property *self, char *dst, size_t len, off_t off)
 {
+    char buf[sizeof(max_dbl_fmt)];
+
+    pthread_mutex_lock(&power_mutex);
+    sprintf(buf, "%1.4f", voltage_now);
+    pthread_mutex_unlock(&power_mutex);
+
+    return memcpy_offset(dst, len, off, buf, sizeof(buf) - 1);
+}
+
+static size_t double_size()
+{
+    return sizeof(max_dbl_fmt) - 1;
+}
+
+static int read_current
+(struct statefs_property *self, char *dst, size_t len, off_t off)
+{
+    char buf[sizeof(max_dbl_fmt)];
     double r = (double)rand() * 1.0 / RAND_MAX;
-    sprintf(current_buf, "%1.4f", r);
-    current_data.len = strlen(current_buf);
-    return &current_data;
+    sprintf(buf, "%1.4f", r);
+    return memcpy_offset(dst, len, off, buf, sizeof(buf) - 1);
 }
 
-static char is_low_buf[16];
-
+static const size_t is_low_fmt_len = sizeof("0");
 static bool is_low = false;
-
-static struct statefs_data is_low_data = {
-    .p = is_low_buf
-};
-
 static struct statefs_slot * is_low_slot = NULL;
 
-static void set_is_low()
+static size_t is_low_size()
 {
-    sprintf(is_low_buf, "%s", is_low ? "true" : "false");
-    is_low_data.len = strlen(is_low_buf);
+    return is_low_fmt_len - 1;
 }
 
 static bool update_is_low()
 {
     bool prev_is_low = is_low;
     is_low = (voltage_now < 3.7);
-    if (prev_is_low != is_low) {
-        set_is_low();
-        return true;
-    }
-    return false;
+    return (prev_is_low != is_low);
 }
 
-struct statefs_data * get_bat_is_low(struct statefs_property *self)
+static int read_is_low
+(struct statefs_property *self, char *dst, size_t len, off_t off)
 {
-    return &is_low_data;
+    char buf[is_low_fmt_len];
+    pthread_mutex_lock(&power_mutex);
+    sprintf(buf, "%s", is_low ? "1" : "0");
+    pthread_mutex_unlock(&power_mutex);
+    return memcpy_offset(dst, len, off, buf, sizeof(buf) - 1);
 }
 
 static bool connect_is_low
@@ -102,7 +110,8 @@ static struct statefs_property props[] = {
             .name = "voltage",
             .info = voltage_info
         },
-        .get = get_voltage
+        .read = read_voltage,
+        .size = double_size
     },
     {
         .node = {
@@ -110,7 +119,8 @@ static struct statefs_property props[] = {
             .name = "current",
             .info = current_info
         },
-        .get = get_current
+        .read = read_current,
+        .size = double_size
     },
     {
         .node = {
@@ -118,20 +128,27 @@ static struct statefs_property props[] = {
             .name = "is_low",
             .info = bat_is_low_info
         },
-        .get = get_bat_is_low,
+        .read = read_is_low,
+        .size = is_low_size,
         .connect = connect_is_low
     }
 };
     
 static void * control_thread(void *arg)
 {
+    bool is_low_changed;
     while (true) {
+
+        pthread_mutex_lock(&power_mutex);
         if (voltage_now >= 4.2)
             dvoltage = -0.1;
         if (voltage_now <= 3.1)
             dvoltage = 0.1;
         voltage_now += dvoltage;
-        if (update_is_low() && is_low_slot)
+        is_low_changed = update_is_low();
+        pthread_mutex_unlock(&power_mutex);
+
+        if (is_low_changed && is_low_slot)
             is_low_slot->on_changed(is_low_slot, &props[2]);
         sleep(1);
     }
@@ -235,7 +252,6 @@ static int power_init()
     if (power_is_initialized)
         goto out;
     sprintf(voltage_buf, "%1.4f", voltage_now);
-    set_is_low();
     rc = pthread_attr_init(&attr);
     if (rc < 0)
         return rc;

@@ -25,8 +25,6 @@ typedef std::unique_ptr
 <statefs_namespace, void (*)(statefs_namespace*)> ns_handle_type;
 typedef std::unique_ptr
 <statefs_property, void (*)(statefs_property*)> property_handle_type;
-typedef std::unique_ptr
-<statefs_data, void (*)(statefs_data*)> data_handle_type;
 
 class Provider
 {
@@ -96,28 +94,26 @@ public:
         return is_exists() && (handle_->connect != nullptr);
     }
 
-    data_handle_type get() const;
+    int read(char *dst, size_t len, off_t off) const
+    {
+        return (is_exists()
+                ? handle_->read(handle_.get(), dst, len, off)
+                : 0);
+    }
+
+    size_t size() const
+    {
+        return is_exists() ? handle_->size() : 0;
+    }
+
 
     bool connect(statefs_slot *slot);
     void disconnect(statefs_slot *slot);
 
 private:
 
-    static void data_free(statefs_data *p)
-    {
-        if (p && p->release)
-            p->release(p);
-    };
-
     property_handle_type handle_;
 };
-
-data_handle_type Property::get() const
-{
-    if (!is_exists())
-        return data_handle_type(nullptr, data_free);
-    return data_handle_type(handle_->get(handle_.get()), data_free);
-}
 
 bool Property::connect(statefs_slot *slot)
 {
@@ -229,23 +225,16 @@ private:
 class ContinuousPropFile : public DefaultFile<ContinuousPropFile, cor::Mutex>
 {
     typedef DefaultFile<ContinuousPropFile, cor::Mutex> base_type;
-    static void dummy_data_clean(statefs_data*) {}
 
 public:
     ContinuousPropFile(std::unique_ptr<Property> &prop, int mode)
-        : base_type(mode), prop_(std::move(prop)),
-          data_(nullptr, dummy_data_clean)
+        : base_type(mode), prop_(std::move(prop))
     {}
 
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
     {
-        get_data();
-        if (!data_->p)
-            return 0;
-
-        memcpy(buf, data_->p, data_->len);
-        return data_->len;
+        return prop_->read(buf, size, offset);
     }
 
     int write(const char* src, size_t size,
@@ -256,9 +245,7 @@ public:
 
     size_t size() const
     {
-        if (!data_ || !data_->len)
-            get_data();
-        return data_->len;
+        return prop_->size();
     }
 
 	int poll(struct fuse_file_info &fi,
@@ -268,14 +255,7 @@ public:
     }
 
 protected:
-
-    void get_data() const
-    {
-        data_ = std::move(prop_->get());
-    }
-
     std::unique_ptr<Property> prop_;
-    mutable data_handle_type data_;
 };
 
 

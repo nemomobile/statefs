@@ -100,14 +100,6 @@ struct statefs_branch
     bool (*release)(struct statefs_branch const*, intptr_t);
 };
 
-/** returned by statefs_property.get */
-struct statefs_data
-{
-    void (*release)(struct statefs_data *);
-    void *p;
-    size_t len;
-};
-
 struct statefs_property;
 
 struct statefs_slot
@@ -116,10 +108,20 @@ struct statefs_slot
                        struct statefs_property *);
 };
 
+/**
+ * depending in which methods are implemented properties can be
+ * readable/writable and discrete/continuous. Discrete property is the
+ * property changing in some discrete intervals so each change can be
+ * tracked through event. Continuous property is changing continuously
+ * (or maybe, also, very frequently to use events to track it) in time
+ * so it should be requested only explicitely
+ */
 struct statefs_property
 {
     struct statefs_node node;
-    struct statefs_data * (*get)(struct statefs_property *);
+    int (*read)(struct statefs_property *, char *, size_t, off_t);
+    int (*write)(struct statefs_property *, char *, size_t, off_t);
+    size_t (*size)(void);
     bool (*connect)(struct statefs_property *, struct statefs_slot *);
     void (*disconnect)(struct statefs_property *, struct statefs_slot *);
 };
