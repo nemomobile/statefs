@@ -540,11 +540,12 @@ public:
 
 int main(int argc, char *argv[])
 {
-    cor::OptParse::map_type opts;
+    typedef cor::OptParse<std::string> option_parser_type;
+    option_parser_type::map_type opts;
     std::vector<char const*> params;
-    cor::OptParse options({{"C", "config"}},
-                          {{"config", "config"}},
-                          {"config"});
+    option_parser_type options({{'C', "config"}},
+                               {{"config", "config"}},
+                               {"config"});
     options.parse(argc, argv, opts, params);
 
     char const *cfg_src = nullptr;
