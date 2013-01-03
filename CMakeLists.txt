@@ -44,7 +44,7 @@ link_directories(
 #   ${FUSE_LIBRARIES}
 # )
 
-add_executable(statefs server.cpp config.cpp)
+add_executable(statefs server.cpp config.cpp introspect.cpp)
 
 target_link_libraries(statefs
   cor
@@ -56,3 +56,4 @@ target_link_libraries(statefs
 
 add_subdirectory(examples/src)
 add_subdirectory(tools/introspect)
+add_subdirectory(tools/poller)

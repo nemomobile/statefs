@@ -93,7 +93,8 @@ nl::env_ptr mk_parse_env()
         src.required(nl::to_string, name).required(to_property, defval);
 
         std::unordered_map<std::string, property_type> options = {
-            {"type", "discrete"},
+            // default option values
+            {"behavior", "discrete"},
             {"access", (long)Property::Read}
         };
         nl::rest(src, [](nl::expr_ptr &) {},
@@ -102,7 +103,7 @@ nl::env_ptr mk_parse_env()
                      to_property(v, p);
              });
         unsigned access = to_integer(options["access"]);
-        if (to_string(options["type"]) == "discrete")
+        if (to_string(options["behavior"]) == "discrete")
                 access |= Property::Subscribe;
 
         nl::expr_ptr res(new Property(name, defval, access));

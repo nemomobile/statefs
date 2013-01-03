@@ -1,5 +1,8 @@
+#include "statefs.hpp"
+
 #include <statefs/provider.h>
 #include <statefs/util.h>
+#include <cor/util.h>
 
 #include <metafuse.hpp>
 #include <cor/mt.hpp>
@@ -7,6 +10,7 @@
 #include "config.hpp"
 
 #include <boost/algorithm/string/join.hpp>
+#include <boost/filesystem.hpp>
 
 //#include <pthread.h>
 //#include <string.h>
@@ -486,28 +490,15 @@ public:
     }
 };
 
-class ControlDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
-{
-public:
-    ControlDir()
-    {
-        add_file("plugins",
-                 mk_file_entry
-                 (new FixedSizeFile<12, cor::Mutex>()));
-    }
-};
-
 class RootDir : public RODir<DirFactory, FileFactory, cor::NoLock>
 {
 public:
     RootDir() :
         plugins(new PluginsDir()),
-        namespaces(new NamespacesDir()),
-        control(new ControlDir())
+        namespaces(new NamespacesDir())
     {
         add_dir("providers", mk_dir_entry(plugins));
         add_dir("namespaces", mk_dir_entry(namespaces));
-        add_dir("control", mk_dir_entry(control));
     }
 
     void plugin_add(std::shared_ptr<config::Plugin> p)
@@ -519,7 +510,6 @@ public:
 private:
     std::shared_ptr<PluginsDir> plugins;
     std::shared_ptr<NamespacesDir> namespaces;
-    std::shared_ptr<ControlDir> control;
 };
 
 class RootDirEntry : public DirEntry<RootDir>
@@ -537,31 +527,133 @@ public:
 
 };
 
+enum statefs_cmd {
+    statefs_cmd_run,
+    statefs_cmd_dump,
+    statefs_cmd_register
+};
 
-int main(int argc, char *argv[])
+static FuseFs<RootDirEntry> & fuse()
 {
+    static auto &fuse = FuseFs<RootDirEntry>::instance();
+    return fuse;
+}
+
+static int ensure_cfg_dir_exists(char const *cfg_dir)
+{
+    namespace fs = boost::filesystem;
+    if (fs::exists(cfg_dir)) {
+        if (!fs::is_directory(cfg_dir)) {
+            std::cerr << "Configuration source "
+                      << cfg_dir << " should be directory" << std::endl;
+            return -1;
+        }
+    } else {
+        if (!fs::create_directory(cfg_dir))
+            std::cerr << "Can't create configuration dir "
+                      << cfg_dir << std::endl;
+        return -1;
+    }
+    return 0;
+}
+
+int statefs_main(int argc, char *argv[])
+{
+    bool is_show_help = false;
+    statefs_cmd cmd = statefs_cmd_run;
     typedef cor::OptParse<std::string> option_parser_type;
     option_parser_type::map_type opts;
     std::vector<char const*> params;
-    option_parser_type options({{'C', "config"}},
-                               {{"config", "config"}},
-                               {"config"});
+    option_parser_type options
+        ({{'h', "help"}},
+         {{"statefs-config-dir", "config"}, {"help", "help"}},
+         {"config"},
+         {"help"});
     options.parse(argc, argv, opts, params);
+
+    static const std::unordered_map<std::string, statefs_cmd>
+        commands= {{"dump", statefs_cmd_dump},
+                   {"register", statefs_cmd_register}};
+    if (params.size() > 1) {
+        auto p = commands.find(params[1]);
+        if (p != commands.end())
+            cmd = p->second;
+    }
+
+    if (opts.count("help"))
+        is_show_help = true;
 
     char const *cfg_src = nullptr;
     auto p = opts.find("config");
     if (p != opts.end())
         cfg_src = p->second;
+    else
+        cfg_src = "/var/lib/statefs";
 
-    auto &fuse = FuseFs<RootDirEntry>::instance();
-
+    namespace fs = boost::filesystem;
     using namespace std::placeholders;
-    auto plugin_add = std::bind
-        (std::mem_fn(&RootDirEntry::plugin_add), &fuse.impl(), _1);
-    config::load(cfg_src, plugin_add);
-    std::cerr << "ready" << std::endl;
 
-    int res = fuse.main(params.size(), &params[0], true);
-    trace() << "FUSE exited: " << res << std::endl;
-    return res;
+    if (!is_show_help) {
+        switch (cmd) {
+        case statefs_cmd_run: {
+            if (ensure_cfg_dir_exists(cfg_src))
+                return -1;
+
+            auto plugin_add = std::bind
+                (std::mem_fn(&RootDirEntry::plugin_add), &fuse().impl(), _1);
+            config::load(cfg_src, plugin_add);
+            trace() << "ready" << std::endl;
+            break;
+        }
+        case statefs_cmd_dump:
+            if (params.size() >= 3)
+                return std::get<0>(dump_plugin_meta(std::cout, params[2]));
+
+            is_show_help = true;
+            break;
+        case statefs_cmd_register: {
+            if (ensure_cfg_dir_exists(cfg_src))
+                return -1;
+
+            std::stringstream ss;
+            if (params.size() >= 3) {
+                auto res = dump_plugin_meta(ss, params[2]);
+                if (!std::get<0>(res)) {
+                    auto cfg_path = fs::path(cfg_src);
+                    cfg_path /= (std::get<1>(res) + ".cfg");
+                    std::ofstream out(cfg_path.generic_string());
+                    out << ss.str();
+                }
+                return 0;
+            }
+
+            is_show_help = true;
+            break;
+        }
+        }
+    }
+
+    if (is_show_help) {
+        options.show_help(std::cerr, params[0],
+                          "[command] [options] [fuse_options]\n"
+                          "\t[command]:\n"
+                          "\t\tdump plugin_path\n"
+                          "\t\tregister plugin_path\n"
+                          "\t\tunregister plugin_path\n"
+                          "\t[options]:\n");
+        std::cerr << "[fuse_options]:\n\n";
+    }
+
+    return fuse().main(params.size(), &params[0], true);
 }
+
+int main(int argc, char *argv[])
+{
+    try {
+        return statefs_main(argc, argv);
+    } catch (std::exception const &e) {
+        std::cerr << "caught: " << e.what() << std::endl;
+    }
+    return -1;
+}
+
