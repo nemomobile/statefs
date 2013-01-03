@@ -5,6 +5,6 @@
 #include <tuple>
 
 std::tuple<int, std::string>
-dump_plugin_meta(std::ostream &dst, char const *path);
+dump_plugin_meta(std::ostream &dst, std::string const &path);
 
 #endif // _STATEFS_PRIVATE_HPP_

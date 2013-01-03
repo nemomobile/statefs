@@ -44,7 +44,7 @@ class Dump
 public:
     Dump(std::ostream &out) : out(out) {}
 
-    int operator ()(char const *path, std::string &);
+    int operator ()(std::string const &, std::string &);
 
 private:
 
@@ -94,7 +94,7 @@ void Dump::dump_ns(int level, statefs_namespace const *ns)
     out << ")";
 }
 
-int Dump::operator ()(char const *path, std::string &provider_name)
+int Dump::operator ()(std::string const &path, std::string &provider_name)
 {
     static const char *provider_main_fn_name = "statefs_provider_get";
     cor::SharedLib lib(path, RTLD_LAZY);
@@ -127,7 +127,7 @@ int Dump::operator ()(char const *path, std::string &provider_name)
 
 
 std::tuple<int, std::string>
-dump_plugin_meta(std::ostream &dst, char const *path)
+dump_plugin_meta(std::ostream &dst, std::string const &path)
 {
     std::string provider_name;
     return std::make_tuple(Dump(dst)(path, provider_name), provider_name);

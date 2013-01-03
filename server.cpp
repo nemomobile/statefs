@@ -557,83 +557,122 @@ static int ensure_cfg_dir_exists(char const *cfg_dir)
     return 0;
 }
 
-int statefs_main(int argc, char *argv[])
+class Server
 {
-    bool is_show_help = false;
-    statefs_cmd cmd = statefs_cmd_run;
     typedef cor::OptParse<std::string> option_parser_type;
-    option_parser_type::map_type opts;
-    std::vector<char const*> params;
-    option_parser_type options
-        ({{'h', "help"}},
-         {{"statefs-config-dir", "config"}, {"help", "help"}},
-         {"config"},
-         {"help"});
-    options.parse(argc, argv, opts, params);
+public:
 
-    static const std::unordered_map<std::string, statefs_cmd>
-        commands= {{"dump", statefs_cmd_dump},
-                   {"register", statefs_cmd_register}};
-    if (params.size() > 1) {
-        auto p = commands.find(params[1]);
-        if (p != commands.end())
-            cmd = p->second;
+    Server(int argc, char *argv[])
+        : cfg_dir("/var/lib/statefs"),
+          options({{'h', "help"}},
+                  {{"statefs-config-dir", "config"}, {"help", "help"}},
+                  {"config"},
+                  {"help"}),
+          commands({{"dump", statefs_cmd_dump},
+                      {"register", statefs_cmd_register}})
+    {
+        options.parse(argc, argv, opts, params);
     }
 
-    if (opts.count("help"))
-        is_show_help = true;
+    int operator()()
+    {
+        statefs_cmd cmd = statefs_cmd_run;
+        int rc = 0;
 
-    char const *cfg_src = nullptr;
-    auto p = opts.find("config");
-    if (p != opts.end())
-        cfg_src = p->second;
-    else
-        cfg_src = "/var/lib/statefs";
+        if (params.size() > 1) {
+            // first param can be a command 
+            auto p = commands.find(params[1]);
+            if (p != commands.end())
+                cmd = p->second;
+        }
 
-    namespace fs = boost::filesystem;
-    using namespace std::placeholders;
+        if (opts.count("help"))
+            return show_help();
 
-    if (!is_show_help) {
+        auto p = opts.find("config");
+        if (p != opts.end())
+            cfg_dir = p->second;
+
         switch (cmd) {
-        case statefs_cmd_run: {
-            if (ensure_cfg_dir_exists(cfg_src))
-                return -1;
-
-            auto plugin_add = std::bind
-                (std::mem_fn(&RootDirEntry::plugin_add), &fuse().impl(), _1);
-            config::load(cfg_src, plugin_add);
-            trace() << "ready" << std::endl;
+        case statefs_cmd_run:
+            rc = run();
             break;
-        }
         case statefs_cmd_dump:
-            if (params.size() >= 3)
-                return std::get<0>(dump_plugin_meta(std::cout, params[2]));
-
-            is_show_help = true;
+            rc = dump();
             break;
-        case statefs_cmd_register: {
-            if (ensure_cfg_dir_exists(cfg_src))
-                return -1;
-
-            std::stringstream ss;
-            if (params.size() >= 3) {
-                auto res = dump_plugin_meta(ss, params[2]);
-                if (!std::get<0>(res)) {
-                    auto cfg_path = fs::path(cfg_src);
-                    cfg_path /= (std::get<1>(res) + ".cfg");
-                    std::ofstream out(cfg_path.generic_string());
-                    out << ss.str();
-                }
-                return 0;
-            }
-
-            is_show_help = true;
+        case statefs_cmd_register:
+            rc = save_provider_config();
             break;
         }
-        }
+
+        return rc;
     }
 
-    if (is_show_help) {
+private:
+
+    std::string mk_provider_path(std::string const &path)
+    {
+        namespace fs = boost::filesystem;
+        auto provider_path = fs::path(path);
+        provider_path = fs::canonical(provider_path);
+        return provider_path.generic_string();
+    }
+
+    int dump()
+    {
+        if (params.size() >= 3)
+            return std::get<0>
+                (dump_plugin_meta(std::cout, mk_provider_path(params[2])));
+
+        return show_help();
+    }
+
+    int save_provider_config()
+    {
+        namespace fs = boost::filesystem;
+        if (ensure_cfg_dir_exists(cfg_dir))
+            return -1;
+
+        std::stringstream ss;
+        if (params.size() < 3)
+            return show_help();
+
+        auto provider_path = fs::path(params[2]);
+        provider_path = fs::absolute(provider_path);
+        auto res = dump_plugin_meta(ss, mk_provider_path(params[2]));
+        int rc = std::get<0>(res);
+        if (!rc)
+            return rc;
+
+        auto cfg_path = fs::path(cfg_dir);
+        cfg_path /= (std::get<1>(res) + ".cfg");
+        std::ofstream out(cfg_path.generic_string());
+        out << ss.str();
+
+        return 0;
+
+    }
+
+    int fuse_run()
+    {
+        return fuse().main(params.size(), &params[0], true);
+    }
+
+    int run()
+    {
+        if (ensure_cfg_dir_exists(cfg_dir))
+            return -1;
+
+        using namespace std::placeholders;
+        auto plugin_add = std::bind
+            (std::mem_fn(&RootDirEntry::plugin_add), &fuse().impl(), _1);
+        config::load(cfg_dir, plugin_add);
+        trace() << "ready" << std::endl;
+        return fuse_run();
+    }
+
+    int show_help()
+    {
         options.show_help(std::cerr, params[0],
                           "[command] [options] [fuse_options]\n"
                           "\t[command]:\n"
@@ -642,18 +681,24 @@ int statefs_main(int argc, char *argv[])
                           "\t\tunregister plugin_path\n"
                           "\t[options]:\n");
         std::cerr << "[fuse_options]:\n\n";
+        return fuse_run();
     }
 
-    return fuse().main(params.size(), &params[0], true);
-}
+    char const *cfg_dir;
+    option_parser_type options;
+    std::unordered_map<std::string, statefs_cmd> commands;
+    option_parser_type::map_type opts;
+    std::vector<char const*> params;
+};
+
 
 int main(int argc, char *argv[])
 {
     try {
-        return statefs_main(argc, argv);
+        Server server(argc, argv);
+        return server();
     } catch (std::exception const &e) {
         std::cerr << "caught: " << e.what() << std::endl;
     }
     return -1;
 }
-
