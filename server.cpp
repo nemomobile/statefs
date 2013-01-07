@@ -19,13 +19,6 @@
 
 using namespace metafuse;
 
-typedef std::unique_ptr
-<statefs_provider, void (*)(statefs_provider*)> provider_handle_type;
-typedef std::unique_ptr
-<statefs_namespace, void (*)(statefs_namespace*)> ns_handle_type;
-typedef std::unique_ptr
-<statefs_property, void (*)(statefs_property*)> property_handle_type;
-
 class Provider
 {
 public:
@@ -41,8 +34,6 @@ public:
     ns_handle_type ns(std::string const &name) const;
 
 private:
-
-    static provider_handle_type mk_provider_handle(cor::SharedLib &lib);
 
     static void ns_release(statefs_namespace *p)
     {
@@ -128,47 +119,22 @@ void Property::disconnect(statefs_slot *slot)
         handle_->disconnect(handle_.get(), slot);
 }
 
-provider_handle_type Provider::mk_provider_handle(cor::SharedLib &lib)
-{
-    static auto deleter = [](statefs_provider *p) {
-        if (p) statefs_node_release(&p->node);
-    };
-    static const char *sym_name = "statefs_provider_get";
-
-    auto fn = lib.sym<statefs_provider_fn>(sym_name);
-    if (!fn) {
-        std::cerr << "Can't resolve " << sym_name << std::endl;
-        return provider_handle_type(nullptr, deleter);
-    }
-
-    auto res = provider_handle_type(fn(), deleter);
-    if (res && !statefs_is_compatible(res.get())) {
-        std::cerr << "Incompatible provider version\n";
-        return provider_handle_type(nullptr, deleter);
-    }
-    return res;
-}
-
 Provider::Provider(std::string const &path)
     : lib_(path, RTLD_LAZY), provider_(std::move(mk_provider_handle(lib_)))
 { }
 
 ns_handle_type Provider::ns(std::string const &name) const
 {
-    return ns_handle_type
-        ((is_loaded()
-          ? statefs_ns_find(provider_.get(), name.c_str())
-          : nullptr),
-         ns_release);
+    return mk_namespace_handle
+        ((is_loaded() ? statefs_ns_find(provider_.get(), name.c_str())
+          : nullptr));
 }
 
 property_handle_type Namespace::property(std::string const &name) const
 {
-    return property_handle_type
-        ((is_exists()
-          ? statefs_prop_find(handle_.get(), name.c_str())
-          : nullptr),
-         property_release);
+    return mk_property_handle
+        ((is_exists() ? statefs_prop_find(handle_.get(), name.c_str())
+          : nullptr));
 }
 
 Property::Property(property_handle_type &&h)
