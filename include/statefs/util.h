@@ -32,6 +32,13 @@ static inline void statefs_next(struct statefs_branch const* self, intptr_t *p)
         *p = 0;
 }
 
+static inline void statefs_branch_release
+(struct statefs_branch const* self, intptr_t p)
+{
+    if (self && self->release)
+        self->release(self, p);
+}
+
 static inline struct statefs_node * statefs_get
 (struct statefs_branch const* self, intptr_t p)
 {
@@ -45,7 +52,6 @@ static inline struct statefs_property * statefs_prop_get
     return (n && n->type == statefs_node_prop
             ? container_of(n, struct statefs_property, node)
             : NULL);
-
 }
 
 static inline struct statefs_namespace * statefs_ns_get
