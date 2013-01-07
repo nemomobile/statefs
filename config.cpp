@@ -169,7 +169,8 @@ Monitor::Monitor
                                     IN_CREATE | IN_DELETE | IN_MODIFY));
 
     // run thread before loading config to avoid missing configuration
-    thread_res_ = std::async(std::bind(std::mem_fn(&Monitor::watch_thread), this));
+    thread_res_ = std::async(std::launch::async,
+                             std::bind(std::mem_fn(&Monitor::watch_thread), this));
     load();
 }
 
@@ -349,12 +350,19 @@ void Dump::dump_ns(int level, statefs_namespace const *ns)
     out << "\n";
     dump_info(level, &ns->node, "ns");
 
-    intptr_t iter = statefs_first(&ns->branch);
-    auto prop = statefs_prop_get(&ns->branch, iter);
+    cor::Handle<intptr_t> iter
+        (statefs_first(&ns->branch),
+         [&ns](intptr_t v) {
+            statefs_branch_release(&ns->branch, v);
+        });
+    auto next = [&ns, &iter]() {
+        return mk_property_handle(statefs_prop_get(&ns->branch, iter.value()));
+    };
+    auto prop = next();
     while (prop) {
-        dump_prop(level + 1, prop);
-        statefs_next(&ns->branch, &iter);
-        prop = statefs_prop_get(&ns->branch, iter);
+        dump_prop(level + 1, prop.get());
+        statefs_next(&ns->branch, &iter.ref());
+        prop = next();
     }
     out << ")";
 }
