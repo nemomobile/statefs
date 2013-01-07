@@ -167,12 +167,8 @@ Monitor::Monitor
     watch_.reset(new inotify::Watch(inotify_, path,
                                     IN_CREATE | IN_DELETE | IN_MODIFY));
 
-    using namespace std::placeholders;
-    std::packaged_task<int()> task
-        (std::bind(std::mem_fn(&Monitor::watch_thread), this));
-    thread_res_ = task.get_future();
     // run thread before loading config to avoid missing configuration
-    std::thread(std::move(task)).detach();
+    thread_res_ = std::async(std::bind(std::mem_fn(&Monitor::watch_thread), this));
     load();
 }
 
