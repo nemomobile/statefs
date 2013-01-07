@@ -169,8 +169,7 @@ Monitor::Monitor
                                     IN_CREATE | IN_DELETE | IN_MODIFY));
 
     // run thread before loading config to avoid missing configuration
-    thread_res_ = std::async(std::launch::async,
-                             std::bind(std::mem_fn(&Monitor::watch_thread), this));
+    mon_thread_ = std::thread(std::bind(std::mem_fn(&Monitor::watch_thread), this));
     load();
 }
 
@@ -179,7 +178,7 @@ Monitor::~Monitor()
     uint64_t v = 1;
     ::write(event_.fd, &v, sizeof(v));
     trace() << "config monitor: waiting to be stopped\n";
-    thread_res_.wait();
+    mon_thread_.join();
 }
 
 void Monitor::plugin_add(std::string const &cfg_path,

@@ -197,7 +197,7 @@ private:
 
     std::unique_ptr<cor::inotify::Watch> watch_;
     std::array<pollfd, 2> fds_;
-    std::future<int> thread_res_;
+    std::thread mon_thread_;
 
     std::map<std::string, std::shared_ptr<config::Plugin> > files_providers_;
 };
