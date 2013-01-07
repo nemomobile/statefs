@@ -141,7 +141,7 @@ nl::env_ptr mk_parse_env()
     using nl::mk_record;
     using nl::mk_const;
     env_ptr env(new nl::Env({
-                mk_record("plugin", plugin),
+                mk_record("provider", plugin),
                     mk_record("ns", ns),
                     mk_record("prop", prop),
                     mk_const("false", 0),
@@ -224,7 +224,7 @@ bool Monitor::process_poll()
     char buf[sizeof(inotify_event) + 256];
     int rc;
     // read all events
-    while ((rc = inotify_.read(buf, sizeof(buf))) > sizeof(buf)) {}
+    while ((rc = inotify_.read(buf, sizeof(buf))) > (int)sizeof(buf)) {}
         
     // configuration is changed rarely (only on
     // un/installation of plugins), so it is simplier and more
@@ -314,31 +314,32 @@ public:
 
 private:
 
-    void dump_info(int level, statefs_node const *node, char const *kind);
+    void dump_info(int level, statefs_node const *node);
     void dump_prop(int level, statefs_property const *prop);
     void dump_ns(int level, statefs_namespace const *ns);
 
     std::ostream &out;
 };
 
-void Dump::dump_info(int level, statefs_node const *node, char const *kind)
+void Dump::dump_info(int level, statefs_node const *node)
 {
-    out << "(" << kind << " \"" << node->name << "\"";
+    if (!node->info)
+        return;
 
-    if (node->info) {
-        auto info = node->info;
-        while (info->name) {
-            out << " :" << info->name << " "
-                << statefs_variant_2str(&info->value);
-            ++info;
-        }
+    auto info = node->info;
+    while (info->name) {
+        out << " :" << info->name << " "
+            << statefs_variant_2str(&info->value);
+        ++info;
     }
 }
 
 void Dump::dump_prop(int level, statefs_property const *prop)
 {
-    out <<"\n";
-    dump_info(level, &prop->node, "prop");
+    out << "\n";
+    out << "(" << "prop" << " \"" << prop->node.name << "\" "
+        << statefs_variant_2str(&prop->default_value);
+    dump_info(level, &prop->node);
     if (!prop->connect)
         out << " :behavior continuous";
     out << ")";
@@ -347,7 +348,8 @@ void Dump::dump_prop(int level, statefs_property const *prop)
 void Dump::dump_ns(int level, statefs_namespace const *ns)
 {
     out << "\n";
-    dump_info(level, &ns->node, "ns");
+    out << "(" << "ns" << " \"" << ns->node.name << "\"";
+    dump_info(level, &ns->node);
 
     cor::Handle<intptr_t> iter
         (statefs_first(&ns->branch),
@@ -377,8 +379,9 @@ int Dump::operator ()(std::string const &path, std::string &provider_name)
     auto provider = std::move(mk_provider_handle(lib));
 
     provider_name = provider->node.name;
-    dump_info(0, &provider->node, "provider");
-    out << " :path \"" << path << "\"";
+    out << "(" << "provider" << " \"" << provider_name << "\"";
+    dump_info(0, &provider->node);
+    out << " \"" << path << "\"";
     cor::Handle<intptr_t> pns
         (statefs_first(&provider->branch),
          [&provider](intptr_t v) {

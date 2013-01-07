@@ -119,6 +119,7 @@ struct statefs_slot
 struct statefs_property
 {
     struct statefs_node node;
+    struct statefs_variant default_value;
     int (*read)(struct statefs_property *, char *, size_t, off_t);
     int (*write)(struct statefs_property *, char *, size_t, off_t);
     size_t (*size)(void);

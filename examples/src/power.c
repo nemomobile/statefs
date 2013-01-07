@@ -96,46 +96,31 @@ static void disconnect_is_low
     is_low_slot = NULL;
 }
 
-static const struct statefs_meta voltage_info[] = {
-    STATEFS_META("default", REAL, 3.8),
-    STATEFS_META_END
-};
-
-static const struct statefs_meta current_info[] = {
-    STATEFS_META("default", REAL, 0),
-    STATEFS_META_END
-};
-
-static const struct statefs_meta bat_is_low_info[] = {
-    STATEFS_META("default", INT, 0),
-    STATEFS_META_END
-};
-
 static struct statefs_property props[] = {
     {
         .node = {
             .type = statefs_node_prop,
-            .name = "voltage",
-            .info = voltage_info
+            .name = "voltage"
         },
+        .default_value = STATEFS_REAL(3.8),
         .read = read_voltage,
         .size = double_size
     },
     {
         .node = {
             .type = statefs_node_prop,
-            .name = "current",
-            .info = current_info
+            .name = "current"
         },
+        .default_value = STATEFS_REAL(0),
         .read = read_current,
         .size = double_size
     },
     {
         .node = {
             .type = statefs_node_prop,
-            .name = "is_low",
-            .info = bat_is_low_info
+            .name = "is_low"
         },
+        .default_value = STATEFS_BOOL(false),
         .read = read_is_low,
         .size = is_low_size,
         .connect = connect_is_low,
