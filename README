@@ -1,0 +1,5 @@
+StateFS is the syntetic filesystem to expose current system state
+provided by StateFS plugins as properties wrapped into namespaces.
+
+Plugins are shared libraries providing StateFS API. Plugins
+un/registration is done by executing 
