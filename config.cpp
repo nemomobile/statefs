@@ -6,6 +6,7 @@
 
 #include <cor/so.hpp>
 #include <cor/util.h>
+#include <cor/util.hpp>
 
 #include <sys/eventfd.h>
 
@@ -360,30 +361,31 @@ void Dump::dump_ns(int level, statefs_namespace const *ns)
 
 int Dump::operator ()(std::string const &path, std::string &provider_name)
 {
-    static const char *provider_main_fn_name = "statefs_provider_get";
     cor::SharedLib lib(path, RTLD_LAZY);
 
     if (!lib.is_loaded()) {
         std::cerr << "Can't load plugin " << path << "\n";
         return -1;
     }
-    auto fn = lib.sym<statefs_provider_fn>(provider_main_fn_name);
-    if (!fn) {
-        std::cerr << "Can't find " << provider_main_fn_name
-                  << " fn in " << path << "\n";
-        return -1;
-    }
-    auto provider = fn();
+    auto provider = std::move(mk_provider_handle(lib));
 
     provider_name = provider->node.name;
     dump_info(0, &provider->node, "provider");
     out << " :path \"" << path << "\"";
-    intptr_t pns = statefs_first(&provider->branch);
-    auto ns = statefs_ns_get(&provider->branch, pns);
+    cor::Handle<intptr_t> pns
+        (statefs_first(&provider->branch),
+         [&provider](intptr_t v) {
+            statefs_branch_release(&provider->branch, v);
+        });
+
+    auto next = [&provider, &pns]() {
+        return mk_namespace_handle(statefs_ns_get(&provider->branch, pns.value()));
+    };
+    auto ns = next();
     while (ns) {
-        dump_ns(1, ns);
-        statefs_next(&provider->branch, &pns);
-        ns = statefs_ns_get(&provider->branch, pns);
+        dump_ns(1, ns.get());
+        statefs_next(&provider->branch, &pns.ref());
+        ns = next();
     }
     out << ")\n";
     return 0;
@@ -409,19 +411,23 @@ std::tuple<int, std::string> dump(std::ostream &dst, std::string const &path)
 int save(std::string const &cfg_dir,
          std::string const &provider_fname)
 {
+    std::cerr << "Save config to " << cfg_dir << std::endl;
     namespace fs = boost::filesystem;
 
     auto provider_path = fs::path(provider_fname);
     provider_path = fs::absolute(provider_path);
 
     std::stringstream ss;
-    auto res = config::dump(ss, mk_provider_path(provider_fname));
+    auto res = dump(ss, mk_provider_path(provider_fname));
     int rc = std::get<0>(res);
-    if (!rc)
+    if (rc) {
+        std::cerr << "rc " << rc << " dumping config\n";
         return rc;
+    }
 
     auto cfg_path = fs::path(cfg_dir);
     cfg_path /= (std::get<1>(res) + config::file_ext());
+    std::cerr << "CFG:" << cfg_path.generic_string() << std::endl;
     std::ofstream out(cfg_path.generic_string());
     out << ss.str();
     return 0;
