@@ -122,6 +122,7 @@ struct statefs_property
     int (*read)(struct statefs_property *, char *, size_t, off_t);
     int (*write)(struct statefs_property *, char *, size_t, off_t);
     size_t (*size)(void);
+    /** only single connection is opened for single property */
     bool (*connect)(struct statefs_property *, struct statefs_slot *);
     void (*disconnect)(struct statefs_property *, struct statefs_slot *);
 };

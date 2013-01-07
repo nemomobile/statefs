@@ -167,6 +167,12 @@ public:
         entries_.clear();
     }
 
+    bool empty() const
+    {
+        std::cerr << "SZ" << entries_.size() << std::endl;
+        return entries_.empty();
+    }
+
 protected:
     map_t entries_;
 };
@@ -641,6 +647,11 @@ public:
         return this->links.add(name, mk_symlink_entry(link.release()));
     }
 
+    bool empty() const
+    {
+        return dirs.empty() && files.empty() && links.empty();
+    }
+
 protected:
 
     template <typename OpT>
@@ -652,12 +663,12 @@ protected:
         return err;
     }
 
-    int mknod(std::string const &name, mode_t mode, dev_t type)
+    int mknod_(std::string const &name, mode_t mode, dev_t type)
     {
         return modify([&]() { return files.create(name, mode, type); });
     }
 
-    int unlink(std::string const &name)
+    int unlink_(std::string const &name)
     {
         return modify
             ([&]() -> int {
@@ -671,12 +682,12 @@ protected:
             });
     }
 
-    int mkdir(std::string const &name, mode_t mode)
+    int mkdir_(std::string const &name, mode_t mode)
     {
         return modify([&]() { return dirs.create(name, mode); });
     }
 
-    int rmdir(std::string const &name)
+    int rmdir_(std::string const &name)
     {
         return modify([&]() { return dirs.rm(name); });
     }
@@ -709,22 +720,22 @@ public:
 
     int mknod(std::string const &name, mode_t mode, dev_t type)
     {
-        return base_type::mknod(name, mode, type);
+        return base_type::_mknod(name, mode, type);
     }
 
     int unlink(std::string const &name)
     {
-        return base_type::unlink(name);
+        return base_type::unlink_(name);
     }
 
     int mkdir(std::string const &name, mode_t mode)
     {
-        return base_type::mkdir(name, mode);
+        return base_type::_mkdir(name, mode);
     }
 
     int rmdir(std::string const &name)
     {
-        return base_type::rmdir(name);
+        return base_type::_rmdir(name);
     }
 };
 
@@ -789,7 +800,7 @@ public:
 
     int unlink(std::string const &name)
     {
-        return base_type::unlink(name);
+        return base_type::unlink_(name);
     }
 
     int mkdir(std::string const &name, mode_t mode)
@@ -799,7 +810,7 @@ public:
 
     int rmdir(std::string const &name)
     {
-        return base_type::rmdir(name);
+        return base_type::rmdir_(name);
     }
 
 };
@@ -875,8 +886,12 @@ private:
             trace() << "Op for: '" << path << "'\n";
             res = std::mem_fn(op)(&impl(), mk_path(path), args...);
             trace() << "Op res:" << res << std::endl;
+        } catch(std::exception const &e) {
+            std::cerr << "Caught exception: "
+                      << e.what() << std::endl;
+            res = -ENOMEM;
         } catch(...) {
-            std::cerr << "silently eating exception\n";
+            std::cerr << "Caught unknown exception" << std::endl;
             res = -ENOMEM;
         }
         return res;
