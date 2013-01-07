@@ -12,6 +12,8 @@
 #include <pthread.h>
 
 static pthread_mutex_t power_mutex = PTHREAD_MUTEX_INITIALIZER;
+static bool is_running = true;
+static pthread_t tid;
 
 static double voltage_now = 3.6;
 static double dvoltage = 0.1;
@@ -144,7 +146,7 @@ static struct statefs_property props[] = {
 static void * control_thread(void *arg)
 {
     bool is_low_changed;
-    while (true) {
+    while (is_running) {
 
         pthread_mutex_lock(&power_mutex);
         if (voltage_now >= 4.2)
@@ -230,12 +232,21 @@ static intptr_t ns_first(struct statefs_branch const* self)
     return (intptr_t)&battery_ns;
 }
 
+void power_release(struct statefs_node *node)
+{
+    pthread_mutex_lock(&power_mutex);
+    is_running = false;
+    pthread_mutex_unlock(&power_mutex);
+    pthread_join(tid, NULL);
+}
+
 static struct power_provider provider = {
     .base = {
         .version = STATEFS_CURRENT_VERSION,
         .node = {
             .type = statefs_node_root,
             .name = "power",
+            .release = &power_release
         },
         .branch = {
             .find = ns_find,
@@ -251,8 +262,7 @@ static bool power_is_initialized = false;
 static int power_init()
 {
     pthread_attr_t attr;
-    pthread_t tid;
-    int rc;
+    int rc = 0;
 
     pthread_mutex_lock(&power_mutex);
 
@@ -261,16 +271,16 @@ static int power_init()
     sprintf(voltage_buf, "%1.4f", voltage_now);
     rc = pthread_attr_init(&attr);
     if (rc < 0)
-        return rc;
+        goto out;
     rc = pthread_create(&tid, &attr, control_thread, NULL);
     if (rc < 0)
-        return rc;
+        goto out;
 
     power_is_initialized = true;
 
 out:
     pthread_mutex_unlock(&power_mutex);
-    return 0;
+    return rc;
 }
 
 EXTERN_C struct statefs_provider * statefs_provider_get(void)
