@@ -1,16 +1,28 @@
 #ifndef _STATEFS_CONFIG_HPP_
 #define _STATEFS_CONFIG_HPP_
 
+#include <cor/inotify.hpp>
 #include <cor/notlisp.hpp>
 #include <cor/options.hpp>
 #include <cor/sexp.hpp>
 
+#include <thread>
+#include <future>
+#include <fstream>
+
 #include <boost/variant.hpp>
 #include <boost/filesystem.hpp>
 
+#include <poll.h>
 
 namespace config
 {
+
+
+static inline std::string file_ext()
+{
+    return ".scm";
+}
 
 namespace nl = cor::notlisp;
 
@@ -120,7 +132,8 @@ void from_file(std::string const &cfg_src, ReceiverT receiver)
     trace() << "Loading config from " << cfg_src << std::endl;
     try {
         std::ifstream input(cfg_src);
-        parse(input, receiver);
+        using namespace std::placeholders;
+        parse(input, std::bind(receiver, cfg_src, _1));
     } catch (...) {
         std::cerr << "Error parsing " << cfg_src << ", skiping..."
                   << std::endl;
@@ -136,15 +149,15 @@ void from_dir(std::string const &cfg_src, ReceiverT receiver)
     std::for_each(fs::directory_iterator(cfg_src),
                   fs::directory_iterator(),
                   [&receiver](fs::directory_entry const &d) {
-                      if (d.path().extension() == ".scm")
+                      if (d.path().extension() == file_ext())
                           from_file(d.path().string(), receiver);
                   });
 }
 
 template <typename ReceiverT>
-void load(char const *cfg_src, ReceiverT receiver)
+void load(std::string const &cfg_src, ReceiverT receiver)
 {
-    if (!cfg_src)
+    if (cfg_src.empty())
         return;
 
     if (fs::is_regular_file(cfg_src))
@@ -153,8 +166,45 @@ void load(char const *cfg_src, ReceiverT receiver)
     if (fs::is_directory(cfg_src))
         return from_dir(cfg_src, receiver);
 
-    throw cor::Error("Unknown configuration source %s", cfg_src);
+    throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
 }
+
+class Monitor
+{
+public:
+
+    enum Event { Added, Removed };
+
+    typedef std::function<void (Event ev, std::shared_ptr<Plugin>)>
+    on_changed_type;
+
+    Monitor(std::string const &path,
+                  on_changed_type on_changed);
+    ~Monitor();
+
+private:
+    void load();
+    int watch_thread();
+    bool process_poll();
+    int watch();
+    void plugin_add(std::string const &cfg_path,
+                    std::shared_ptr<config::Plugin> p);
+
+    cor::inotify::Handle inotify_;
+    std::string path_;
+    cor::Fd event_;
+    on_changed_type on_changed_;
+
+    std::unique_ptr<cor::inotify::Watch> watch_;
+    std::array<pollfd, 2> fds_;
+    std::future<int> thread_res_;
+
+    std::map<std::string, std::shared_ptr<config::Plugin> > files_providers_;
+};
+
+std::tuple<int, std::string> dump(std::ostream &, std::string const &);
+
+int save(std::string const &cfg_dir, std::string const &provider_fname);
 
 } // config
 

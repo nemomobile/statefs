@@ -10,16 +10,12 @@
 #include "config.hpp"
 
 #include <boost/algorithm/string/join.hpp>
-#include <boost/filesystem.hpp>
 
-//#include <pthread.h>
-//#include <string.h>
 #include <iostream>
 #include <exception>
 #include <unordered_map>
 #include <set>
 #include <fstream>
-#include <poll.h>
 
 using namespace metafuse;
 
@@ -466,6 +462,8 @@ class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 public:
     NamespaceDir(std::shared_ptr<config::Plugin> p,
                  std::shared_ptr<config::Namespace> ns);
+
+    void rm_props(std::shared_ptr<config::Namespace> ns);
 };
 
 NamespaceDir::NamespaceDir
@@ -479,6 +477,16 @@ NamespaceDir::NamespaceDir
     }
 }
 
+void NamespaceDir::rm_props(std::shared_ptr<config::Namespace> ns)
+{
+    for (auto prop : ns->props_) {
+        auto name = prop->value();
+        int rc = unlink_(name);
+        if (rc < 0)
+            std::cerr << "can't unlink prop " << name << std::endl;
+    }
+}
+
 class NamespacesDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
@@ -488,28 +496,91 @@ public:
         for (auto ns : p->namespaces_)
             add_dir(ns->value(), mk_dir_entry(new NamespaceDir(p, ns)));
     }
+
+    void plugin_rm(std::shared_ptr<config::Plugin> p)
+    {
+        auto lock(cor::wlock(*this));
+        for (auto ns : p->namespaces_) {
+            auto name = ns->value();
+            auto dir = dir_entry_impl<NamespaceDir>(dirs.find(name));
+            dir->rm_props(ns);
+            if (dir->empty()) {
+                int rc = unlink_(name);
+                if (rc < 0)
+                    std::cerr << "can't unlink ns " << name << std::endl;
+            }
+        }
+    }
 };
+
 
 class RootDir : public RODir<DirFactory, FileFactory, cor::NoLock>
 {
+    typedef RODir<DirFactory, FileFactory, cor::NoLock> base_type;
 public:
-    RootDir() :
-        plugins(new PluginsDir()),
-        namespaces(new NamespacesDir())
+    RootDir()
+        : plugins(new PluginsDir())
+        , namespaces(new NamespacesDir())
+        , before_readdir([]() { throw cor::Error("No config set"); })
     {
         add_dir("providers", mk_dir_entry(plugins));
         add_dir("namespaces", mk_dir_entry(namespaces));
     }
 
+    void init(std::string const &cfg_dir)
+    {
+        auto on_config_changed = [this](config::Monitor::Event ev,
+                                    std::shared_ptr<config::Plugin> p) {
+            switch (ev) {
+            case config::Monitor::Added:
+                plugin_add(p);
+                break;
+            case config::Monitor::Removed:
+                plugin_rm(p);
+                break;
+            }
+        };
+        before_readdir = [cfg_dir, on_config_changed, this]() {
+            cfg_mon_.reset(new config::Monitor(cfg_dir, on_config_changed));
+        };
+    }
+
+    int readdir(void* buf, fuse_fill_dir_t filler,
+                off_t offset, fuse_file_info &fi)
+    {
+        before_readdir();
+        before_readdir = []() {};
+        return base_type::readdir(buf, filler, offset, fi);
+    }
+
+    entry_ptr acquire(std::string const &name)
+    {
+        before_readdir();
+        before_readdir = []() {};
+        return base_type::acquire(name);
+    }
+
+private:
+
     void plugin_add(std::shared_ptr<config::Plugin> p)
     {
+        auto lock(cor::wlock(*this));
         plugins->add(p);
         namespaces->plugin_add(p);
     }
 
-private:
+    void plugin_rm(std::shared_ptr<config::Plugin> p)
+    {
+        auto lock(cor::wlock(*this));
+        trace() << "removing " << p->value() << std::endl;
+        namespaces->plugin_rm(p);
+        plugins->unlink(p->value());
+    }
+
     std::shared_ptr<PluginsDir> plugins;
     std::shared_ptr<NamespacesDir> namespaces;
+    std::function<void ()> before_readdir;
+    std::unique_ptr<config::Monitor> cfg_mon_;
 };
 
 class RootDirEntry : public DirEntry<RootDir>
@@ -520,11 +591,10 @@ public:
     RootDirEntry() : base_type(new RootDir()) {}
     virtual ~RootDirEntry() {}
 
-    void plugin_add(std::shared_ptr<config::Plugin> p)
+    void init(std::string const &cfg_dir)
     {
-        impl_->plugin_add(p);
+        impl_->init(cfg_dir);
     }
-
 };
 
 enum statefs_cmd {
@@ -537,24 +607,6 @@ static FuseFs<RootDirEntry> & fuse()
 {
     static auto &fuse = FuseFs<RootDirEntry>::instance();
     return fuse;
-}
-
-static int ensure_cfg_dir_exists(char const *cfg_dir)
-{
-    namespace fs = boost::filesystem;
-    if (fs::exists(cfg_dir)) {
-        if (!fs::is_directory(cfg_dir)) {
-            std::cerr << "Configuration source "
-                      << cfg_dir << " should be directory" << std::endl;
-            return -1;
-        }
-    } else {
-        if (!fs::create_directory(cfg_dir))
-            std::cerr << "Can't create configuration dir "
-                      << cfg_dir << std::endl;
-        return -1;
-    }
-    return 0;
 }
 
 class Server
@@ -580,7 +632,7 @@ public:
         int rc = 0;
 
         if (params.size() > 1) {
-            // first param can be a command 
+            // first param can be a command
             auto p = commands.find(params[1]);
             if (p != commands.end())
                 cmd = p->second;
@@ -595,7 +647,7 @@ public:
 
         switch (cmd) {
         case statefs_cmd_run:
-            rc = run();
+            rc = main();
             break;
         case statefs_cmd_dump:
             rc = dump();
@@ -610,47 +662,24 @@ public:
 
 private:
 
-    std::string mk_provider_path(std::string const &path)
-    {
-        namespace fs = boost::filesystem;
-        auto provider_path = fs::path(path);
-        provider_path = fs::canonical(provider_path);
-        return provider_path.generic_string();
-    }
-
     int dump()
     {
         if (params.size() >= 3)
-            return std::get<0>
-                (dump_plugin_meta(std::cout, mk_provider_path(params[2])));
+            return std::get<0>(config::dump(std::cout, params[2]));
 
         return show_help();
     }
 
     int save_provider_config()
     {
-        namespace fs = boost::filesystem;
-        if (ensure_cfg_dir_exists(cfg_dir))
-            return -1;
-
-        std::stringstream ss;
         if (params.size() < 3)
             return show_help();
 
-        auto provider_path = fs::path(params[2]);
-        provider_path = fs::absolute(provider_path);
-        auto res = dump_plugin_meta(ss, mk_provider_path(params[2]));
-        int rc = std::get<0>(res);
-        if (!rc)
-            return rc;
+        namespace fs = boost::filesystem;
+        if (!ensure_dir_exists(cfg_dir))
+            return -1;
 
-        auto cfg_path = fs::path(cfg_dir);
-        cfg_path /= (std::get<1>(res) + ".cfg");
-        std::ofstream out(cfg_path.generic_string());
-        out << ss.str();
-
-        return 0;
-
+        return config::save(cfg_dir, params[2]);
     }
 
     int fuse_run()
@@ -658,17 +687,11 @@ private:
         return fuse().main(params.size(), &params[0], true);
     }
 
-    int run()
+    int main()
     {
-        if (ensure_cfg_dir_exists(cfg_dir))
-            return -1;
-
-        using namespace std::placeholders;
-        auto plugin_add = std::bind
-            (std::mem_fn(&RootDirEntry::plugin_add), &fuse().impl(), _1);
-        config::load(cfg_dir, plugin_add);
-        trace() << "ready" << std::endl;
-        return fuse_run();
+        fuse().impl().init(cfg_dir);
+        int rc = fuse_run();
+        return rc;
     }
 
     int show_help()
