@@ -24,7 +24,7 @@ make %{?jobs:-j%jobs}
 %install
 rm -rf %{buildroot}
 install -D -p -m755 statefs %{buildroot}%{_bindir}/statefs
-install -D -p -m644 packaging/statefs.service %{buildroot}%{_unitdir}/statefs
+install -D -p -m644 packaging/statefs.service %{buildroot}%{_unitdir}/statefs.service
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
 
 %clean
@@ -35,4 +35,4 @@ rm -rf %{buildroot}
 %doc COPYING
 %{_bindir}/statefs
 %{_sharedstatedir}/statefs
-%{_unitdir}/statefs
+%{_unitdir}/statefs.service
