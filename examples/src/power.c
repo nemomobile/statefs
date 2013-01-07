@@ -88,6 +88,12 @@ static bool connect_is_low
     return true;
 }
 
+static void disconnect_is_low
+(struct statefs_property *self, struct statefs_slot *slot)
+{
+    is_low_slot = NULL;
+}
+
 static const struct statefs_meta voltage_info[] = {
     STATEFS_META("default", REAL, 3.8),
     STATEFS_META_END
@@ -130,7 +136,8 @@ static struct statefs_property props[] = {
         },
         .read = read_is_low,
         .size = is_low_size,
-        .connect = connect_is_low
+        .connect = connect_is_low,
+        .disconnect = disconnect_is_low
     }
 };
     
