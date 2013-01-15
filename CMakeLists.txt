@@ -38,11 +38,5 @@ link_directories(
   ${FUSE_LIBRARY_DIRS}
 )
 
-#add_executable(test test.cpp)
-
-# target_link_libraries(test
-#   ${FUSE_LIBRARIES}
-# )
-
 add_subdirectory(src)
 add_subdirectory(examples/src)
