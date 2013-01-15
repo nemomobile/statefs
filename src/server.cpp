@@ -630,22 +630,24 @@ private:
 
     int dump()
     {
-        if (params.size() >= 3)
-            return std::get<0>(config::dump(std::cout, params[2]));
-
-        return show_help();
+        if (params.size() < 3)
+            return show_help(-1);
+        
+        config::dump(std::cout, params[2]);
+        return 0;
     }
 
     int save_provider_config()
     {
         if (params.size() < 3)
-            return show_help();
+            return show_help(-1);
 
         namespace fs = boost::filesystem;
         if (!ensure_dir_exists(cfg_dir))
             return -1;
 
-        return config::save(cfg_dir, params[2]);
+        config::save(cfg_dir, params[2]);
+        return 0;
     }
 
     int fuse_run()
@@ -660,7 +662,7 @@ private:
         return rc;
     }
 
-    int show_help()
+    int show_help(int rc = 0)
     {
         options.show_help(std::cerr, params[0],
                           "[command] [options] [fuse_options]\n"
@@ -670,7 +672,8 @@ private:
                           "\t\tunregister plugin_path\n"
                           "\t[options]:\n");
         std::cerr << "[fuse_options]:\n\n";
-        return fuse_run();
+        int fuse_rc = fuse_run();
+        return (fuse_rc) ? fuse_rc : rc;
     }
 
     char const *cfg_dir;
@@ -687,7 +690,7 @@ int main(int argc, char *argv[])
         Server server(argc, argv);
         return server();
     } catch (std::exception const &e) {
-        std::cerr << "caught: " << e.what() << std::endl;
+        std::cerr << "exception: " << e.what() << std::endl;
     }
     return -1;
 }

@@ -176,7 +176,7 @@ Monitor::Monitor
 Monitor::~Monitor()
 {
     uint64_t v = 1;
-    ::write(event_.fd, &v, sizeof(v));
+    ::write(event_.value(), &v, sizeof(v));
     trace() << "config monitor: waiting to be stopped\n";
     mon_thread_.join();
 }
@@ -213,7 +213,7 @@ bool Monitor::process_poll()
 {
     if (fds_[1].revents) {
         uint64_t v;
-        ::read(event_.fd, &v, sizeof(v));
+        ::read(event_.value(), &v, sizeof(v));
         watch_.reset(nullptr);
         return false;
     }
@@ -271,7 +271,7 @@ int Monitor::watch()
 
     fds_.fill({-1, POLLIN | POLLPRI, 0});
     fds_[0].fd = inotify_.fd();
-    fds_[1].fd = event_.fd;
+    fds_[1].fd = event_.value();
 
     while ((rc = poll(&fds_[0], fds_.size(), -1)) >= 0
            && process_poll()) {}
@@ -310,7 +310,8 @@ class Dump
 public:
     Dump(std::ostream &out) : out(out) {}
 
-    int operator ()(std::string const &, std::string &);
+    std::string dump_library(std::string const&);
+    std::string dump_provider(provider_handle_type, std::string const&);
 
 private:
 
@@ -368,39 +369,32 @@ void Dump::dump_ns(int level, statefs_namespace const *ns)
     out << ")";
 }
 
-int Dump::operator ()(std::string const &path, std::string &provider_name)
+std::string Dump::dump_provider
+(provider_handle_type provider, std::string const& path)
 {
-    cor::SharedLib lib(path, RTLD_LAZY);
-
-    if (!lib.is_loaded()) {
-        std::cerr << "Can't load plugin " << path << "\n";
-        return -1;
-    }
-    auto provider = std::move(mk_provider_handle(lib));
-
-    provider_name = provider->node.name;
+    auto provider_name = provider->node.name;
     out << "(" << "provider" << " \"" << provider_name << "\"";
     dump_info(0, &provider->node);
     out << " \"" << path << "\"";
-    cor::Handle<intptr_t> pns
+    cor::Handle<intptr_t> iter
         (statefs_first(&provider->branch),
          [&provider](intptr_t v) {
             statefs_branch_release(&provider->branch, v);
         });
 
-    auto next = [&provider, &pns]() {
-        return mk_namespace_handle(statefs_ns_get(&provider->branch, pns.value()));
+    auto next = [&provider, &iter]() {
+        return mk_namespace_handle
+        (statefs_ns_get(&provider->branch, iter.value()));
     };
     auto ns = next();
     while (ns) {
         dump_ns(1, ns.get());
-        statefs_next(&provider->branch, &pns.ref());
+        statefs_next(&provider->branch, &iter.ref());
         ns = next();
     }
     out << ")\n";
-    return 0;
+    return provider_name;
 }
-
 
 static std::string mk_provider_path(std::string const &path)
 {
@@ -410,37 +404,33 @@ static std::string mk_provider_path(std::string const &path)
     return provider_path.generic_string();
 }
 
-
-std::tuple<int, std::string> dump(std::ostream &dst, std::string const &path)
+std::string Dump::dump_library(std::string const &path)
 {
-    std::string provider_name;
-    int rc = Dump(dst)(mk_provider_path(path), provider_name);
-    return std::make_tuple(rc, provider_name);
+    auto full_path = mk_provider_path(path);
+    cor::SharedLib lib(full_path, RTLD_LAZY);
+
+    if (!lib.is_loaded())
+        throw cor::Error("Can't load library %s", path.c_str());
+
+    return dump_provider(mk_provider_handle(lib), full_path);
 }
 
-int save(std::string const &cfg_dir,
-         std::string const &provider_fname)
+std::string dump(std::ostream &dst, std::string const &path)
 {
-    std::cerr << "Save config to " << cfg_dir << std::endl;
+    return Dump(dst).dump_library(path);
+}
+
+void save(std::string const &cfg_dir, std::string const &provider_fname)
+{
     namespace fs = boost::filesystem;
 
-    auto provider_path = fs::path(provider_fname);
-    provider_path = fs::absolute(provider_path);
-
     std::stringstream ss;
-    auto res = dump(ss, mk_provider_path(provider_fname));
-    int rc = std::get<0>(res);
-    if (rc) {
-        std::cerr << "rc " << rc << " dumping config\n";
-        return rc;
-    }
+    auto name = dump(ss, provider_fname);
 
     auto cfg_path = fs::path(cfg_dir);
-    cfg_path /= (std::get<1>(res) + config::file_ext());
-    std::cerr << "CFG:" << cfg_path.generic_string() << std::endl;
+    cfg_path /= (name + config::file_ext());
     std::ofstream out(cfg_path.generic_string());
     out << ss.str();
-    return 0;
 }
 
 } // config

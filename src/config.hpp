@@ -192,7 +192,7 @@ private:
 
     cor::inotify::Handle inotify_;
     std::string path_;
-    cor::Fd event_;
+    cor::FdHandle event_;
     on_changed_type on_changed_;
 
     std::unique_ptr<cor::inotify::Watch> watch_;
@@ -202,9 +202,9 @@ private:
     std::map<std::string, std::shared_ptr<config::Plugin> > files_providers_;
 };
 
-std::tuple<int, std::string> dump(std::ostream &, std::string const &);
+std::string dump(std::ostream &, std::string const&);
 
-int save(std::string const &cfg_dir, std::string const &provider_fname);
+void save(std::string const&, std::string const&);
 
 } // config
 
