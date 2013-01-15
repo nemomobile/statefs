@@ -5,9 +5,10 @@ Release: 1
 License: LGPLv2
 Group: System Environment/Tools
 URL: http://github.com/nemomobile/statefs
-Source0: %{name}-%{version}.tar.gz
+Source0: %{name}-%{version}.tar.bz2
 BuildRequires: pkgconfig(fuse)
 BuildRequires: boost-filesystem
+BuildRequires: boost-devel
 BuildRequires: cmake
 
 %description
