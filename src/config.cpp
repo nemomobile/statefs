@@ -346,13 +346,17 @@ void Dump::dump_prop(int level, statefs_property const *prop)
     out << ")";
 }
 
+typedef cor::Handle<intptr_t,
+                    cor::GenericHandleTraits
+                    <intptr_t, 0> > branch_handle_type;
+
 void Dump::dump_ns(int level, statefs_namespace const *ns)
 {
     out << "\n";
     out << "(" << "ns" << " \"" << ns->node.name << "\"";
     dump_info(level, &ns->node);
 
-    cor::Handle<intptr_t> iter
+    branch_handle_type iter
         (statefs_first(&ns->branch),
          [&ns](intptr_t v) {
             statefs_branch_release(&ns->branch, v);
@@ -376,7 +380,7 @@ std::string Dump::dump_provider
     out << "(" << "provider" << " \"" << provider_name << "\"";
     dump_info(0, &provider->node);
     out << " \"" << path << "\"";
-    cor::Handle<intptr_t> iter
+    branch_handle_type iter
         (statefs_first(&provider->branch),
          [&provider](intptr_t v) {
             statefs_branch_release(&provider->branch, v);

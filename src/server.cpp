@@ -676,7 +676,7 @@ private:
         return (fuse_rc) ? fuse_rc : rc;
     }
 
-    char const *cfg_dir;
+    std::string cfg_dir;
     option_parser_type options;
     std::unordered_map<std::string, statefs_cmd> commands;
     option_parser_type::map_type opts;
