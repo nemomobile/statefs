@@ -114,7 +114,8 @@ struct statefs_slot
  * property changing in some discrete intervals so each change can be
  * tracked through event. Continuous property is changing continuously
  * (or maybe, also, very frequently to use events to track it) in time
- * so it should be requested only explicitely
+ * so it should be requested only explicitely. Access to property is
+ * serialized.
  */
 struct statefs_property
 {
