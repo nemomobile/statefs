@@ -1,6 +1,6 @@
 /**
  * @file power.c
- * @brief Example provider - provides fake power supply properties
+ * @brief Example provider, described @ref power_example "here"
  * @author (C) 2012, 2013 Jolla Ltd.
  * Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
  * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
@@ -21,7 +21,38 @@
 
 #include <pthread.h>
 
+/** @defgroup power_example Fake Power provider example
+ *
+ * @brief Example provider - provides fake power supply properties
+ *
+ * Provider root is @ref provider (returned by statefs_provider_get()).
+ *
+ * There is one @ref battery_ns "namespace" and @ref props "array" of
+ * properties. There are 3 properties: continuous @ref props "voltage" and
+ * @ref props "current", and discrete @ref props "is_low".
+ *
+ * On first properties access separate thread is run starting to
+ * generate monotonous fake voltage values changes each second and
+ * updating is_low property when voltage value crosses "low voltage"
+ * barrier. Current (I, A) values are randomly generated. All values
+ * are formatted into fixed-size fields. Provider structures are
+ * statically defined and theoretically functionality can be taken out
+ * into framework but it was not done. Maybe later...
+ *
+ * Access to any node is serialized by server, so @ref power_mutex is
+ * used only to synchronize with voltage values generation thread
+ *
+ */
+
+/** \addtogroup power_example
+ *  @{
+ */
+
+/**
+ * sync generation thread and property access
+ */
 static pthread_mutex_t power_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 static bool is_running = true;
 static pthread_t tid;
 
@@ -107,11 +138,15 @@ struct statefs_power_prop
     size_t max_size;
 };
 
-struct statefs_power_prop * power_prop(struct statefs_property *p)
+static struct statefs_power_prop * power_prop(struct statefs_property *p)
 {
     return container_of(p, struct statefs_power_prop, prop);
 };
 
+/**
+ * array describing properties
+ * @showinitializer
+ */
 static struct statefs_power_prop props[] = {
     {
         .prop = {
@@ -147,7 +182,7 @@ static struct statefs_power_prop props[] = {
         .max_size = is_low_max_len
     }
 };
-    
+
 static void * control_thread(void *arg)
 {
     bool is_low_changed;
@@ -169,11 +204,6 @@ static void * control_thread(void *arg)
     return NULL;
 }
 
-
-struct power_provider
-{
-    struct statefs_provider base;
-};
 
 static struct statefs_node * prop_find
 (struct statefs_branch const* self, char const *name)
@@ -205,20 +235,24 @@ static intptr_t prop_first(struct statefs_branch const* self)
     return 0;
 }
 
+/**
+ * provider main (and the only) namespace
+ * @showinitializer
+ */
 static struct statefs_namespace battery_ns = {
     .node = {
         .type = statefs_node_ns,
         .name = "battery",
     },
     .branch = {
-        .find = &prop_find,
-        .first = &prop_first,
-        .next = &prop_next,
-        .get = &prop_get,
+        .find = prop_find,
+        .first = prop_first,
+        .next = prop_next,
+        .get = prop_get,
     }
 };
 
-struct statefs_node * ns_find
+static struct statefs_node * ns_find
 (struct statefs_branch const* self, char const *name)
 {
     if (strcmp("battery", name))
@@ -271,6 +305,13 @@ static void power_disconnect(struct statefs_property *p)
     pthread_mutex_unlock(&power_mutex);
 }
 
+/**
+ * all example properties are read-only
+ *
+ * is_low property is discrete and this is hardcoded here and also in
+ * power_connect() and power_disconnect() for simplicity
+ *
+ */
 static int power_getattr(struct statefs_property const* p)
 {
     int res = STATEFS_ATTR_READ;
@@ -280,6 +321,13 @@ static int power_getattr(struct statefs_property const* p)
 }
 
 
+/**
+ * property I/O handle
+ *
+ * @param len non-zero if data was already read
+ * @param buf buffer to store formatted value
+ *
+ */
 struct power_handle
 {
     struct statefs_power_prop *p;
@@ -287,11 +335,22 @@ struct power_handle
     char buf[255];
 };
 
+/**
+ * just return maximum size of the property
+ *
+ */
 static ssize_t power_size(struct statefs_property const* p)
 {
     return container_of(p, struct statefs_power_prop, prop)->max_size;
 }
 
+/**
+ * Allocates power_handle structure to be used as a handle.
+ *
+ * On first run also execute initialization of provider including
+ * starting of voltage values generation thread
+ *
+ */
 static intptr_t power_open(struct statefs_property *p, int mode)
 {
     if (mode & O_WRONLY) {
@@ -307,6 +366,10 @@ static intptr_t power_open(struct statefs_property *p, int mode)
     return (intptr_t)h;
 }
 
+/** if reading starting from non-zero offset it is considered read
+ * operation is continued, so previous cached result is used if
+ * exists
+ */
 static int power_read(intptr_t h, char *dst, size_t len, off_t off)
 {
     struct power_handle *ph = (struct power_handle *)h;
@@ -324,33 +387,37 @@ static void power_close(intptr_t h)
     free((struct power_handle*)h);
 }
 
-static struct power_provider provider = {
-    .base = {
-        .version = STATEFS_CURRENT_VERSION,
-        .node = {
-            .type = statefs_node_root,
-            .name = "power",
-            .release = &power_release
-        },
-        .branch = {
-            .find = ns_find,
-            .first = &ns_first,
-            .get = &ns_get
-        },
-        .io = {
-            .getattr = power_getattr,
-            .open = power_open,
-            .read = power_read,
-            .size = power_size,
-            .close = power_close,
-            .connect = power_connect,
-            .disconnect = power_disconnect
-        }
+/**
+ * provider root structure
+ * @showinitializer
+ */
+static struct statefs_provider provider = {
+    .version = STATEFS_CURRENT_VERSION,
+    .node = {
+        .type = statefs_node_root,
+        .name = "power",
+        .release = &power_release
+    },
+    .branch = {
+        .find = ns_find,
+        .first = &ns_first,
+        .get = &ns_get
+    },
+    /** there is no writable properties so .write member is NULL */
+    .io = {
+        .getattr = power_getattr,
+        .open = power_open,
+        .read = power_read,
+        .size = power_size,
+        .close = power_close,
+        .connect = power_connect,
+        .disconnect = power_disconnect
     }
 };
 
+/** @} power_example */
 
 EXTERN_C struct statefs_provider * statefs_provider_get(void)
 {
-    return &provider.base;
+    return &provider;
 }

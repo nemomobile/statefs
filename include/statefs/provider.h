@@ -24,7 +24,11 @@
 
 EXTERN_C_BEGIN
 
-/** \addtogroup provider_api
+/**
+ * @defgroup provider_api Provider API
+ *
+ * @brief Provider API description. Usage is described @ref api "here"
+ *
  *  @{
  */
 
@@ -194,7 +198,7 @@ struct statefs_io
      * connect discrete property to server slot, provider should invoke
      * statefs_slot.on_changed() when property value is changed  
      *
-     * @nb only single connection is opened for single property, so if
+     * @note only single connection is opened for single property, so if
      * called several times provider can just replace previous slot
      * value
      */
