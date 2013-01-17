@@ -322,7 +322,8 @@ public:
 
 };
 
-template <typename DerivedT, typename LockingPolicy = cor::NoLock>
+template <typename DerivedT, typename HandleT = FileHandle,
+          typename LockingPolicy = cor::NoLock>
 class DefaultFile :
     public DefaultTime,
     public DefaultPermissions<DefaultFile<DerivedT, LockingPolicy> >,
@@ -333,7 +334,7 @@ class DefaultFile :
     typedef DefaultFile<DerivedT, LockingPolicy> self_type;
 
 protected:
-    typedef FileHandle handle_type;
+    typedef HandleT handle_type;
     typedef std::shared_ptr<handle_type> handle_ptr;
     typedef std::unordered_map <uint64_t, handle_ptr > handles_type;
 
@@ -342,7 +343,7 @@ public:
 
     int open(struct fuse_file_info &fi)
     {
-        handle_ptr h(new handle_type);
+        handle_ptr h(new handle_type());
         fi.fh = reinterpret_cast<uint64_t>(h.get());
         handles_[fi.fh] = h;
         return 0;
@@ -374,12 +375,14 @@ protected:
     handles_type handles_;
 };
 
-template <size_t Size, typename LockingPolicy = cor::NoLock>
+template <size_t Size, typename HandleT,
+          typename LockingPolicy = cor::NoLock>
 class FixedSizeFile :
-    public DefaultFile<FixedSizeFile<Size, LockingPolicy>, LockingPolicy >
+    public DefaultFile<FixedSizeFile<Size, HandleT, LockingPolicy>,
+                       HandleT, LockingPolicy >
 {
-    typedef DefaultFile
-    <FixedSizeFile<Size, LockingPolicy>, LockingPolicy > base_type;
+    typedef DefaultFile<FixedSizeFile<Size, HandleT, LockingPolicy>,
+                        HandleT, LockingPolicy > base_type;
 public:
     FixedSizeFile() : base_type(0644)
     {
@@ -416,12 +419,13 @@ private:
     std::array<char, Size> arr_;
 };
 
-template <typename LockingPolicy = cor::NoLock>
+template <typename HandleT = FileHandle, typename LockingPolicy = cor::NoLock>
 class BasicTextFile :
-    public DefaultFile<BasicTextFile<LockingPolicy>, LockingPolicy >
+    public DefaultFile<BasicTextFile<HandleT, LockingPolicy>,
+                       HandleT, LockingPolicy >
 {
-    typedef DefaultFile
-    <BasicTextFile<LockingPolicy>, LockingPolicy > base_type;
+    typedef DefaultFile<BasicTextFile<HandleT, LockingPolicy>,
+                        HandleT, LockingPolicy > base_type;
 public:
     BasicTextFile(std::string const &from)
         : base_type(0440), data_(from) { }
