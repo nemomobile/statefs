@@ -24,6 +24,10 @@
 
 EXTERN_C_BEGIN
 
+/** \addtogroup provider_api
+ *  @{
+ */
+
 typedef enum
 {
     statefs_variant_int,
@@ -262,6 +266,10 @@ static inline bool statefs_is_compatible(struct statefs_provider *provider)
     STATEFS_GET_VERSION(STATEFS_CURRENT_VERSION, maj, min);
     return (prov_maj == maj) && (prov_min <= min);
 }
+
+/** @}
+ * provider api
+ */
 
 EXTERN_C_END
 

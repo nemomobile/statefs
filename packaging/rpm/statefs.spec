@@ -16,16 +16,16 @@ BuildRequires: doxygen
 StateFS is the syntetic filesystem to expose current system state
 provided by StateFS plugins as properties wrapped into namespaces.
 
-%package devel
+%package provider-devel
 Summary: Files to develop statefs providers
 Group: System Environment/Libraries
-%description devel
+%description provider-devel
 Headers, libraries etc. needed to develop statefs providers
 
-%package doc
+%package provider-doc
 Summary: Statefs provider developer documentation
 Group: System Environment/Libraries
-%description doc
+%description provider-doc
 Statefs provider developer documentation
 
 %prep
@@ -34,7 +34,7 @@ Statefs provider developer documentation
 %build
 cmake .
 make %{?jobs:-j%jobs}
-make doc
+make provider-doc
 
 %install
 rm -rf %{buildroot}
@@ -42,9 +42,10 @@ install -D -p -m755 src/statefs %{buildroot}%{_bindir}/statefs
 install -D -p -m644 packaging/statefs.service %{buildroot}%{_unitdir}/statefs.service
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
 install -d -D -p -m755 %{buildroot}%{_datarootdir}/doc/statefs/html
-install -D -p doc/html %{buildroot}%{_datarootdir}/doc/statefs/html
+cp -R doc/html/ %{buildroot}%{_datarootdir}/doc/statefs/
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/doc/statefs/html
-install -D -p -m644 include/statefs/provider.h %{buildroot}%{_includedir}/statefs/provider.h
+install -d -D -p -m755 %{buildroot}%{_includedir}/statefs
+install -D -p -m644 include/statefs/* %{buildroot}%{_includedir}/statefs/
 
 %clean
 rm -rf %{buildroot}
@@ -56,12 +57,10 @@ rm -rf %{buildroot}
 %{_sharedstatedir}/statefs
 %{_unitdir}/statefs.service
 
-%files devel
+%files provider-devel
 %defattr(-,root,root,-)
-%{_includedir}/statefs/provider.h
+%{_includedir}/statefs/*.h
 
-%files doc
+%files provider-doc
 %defattr(-,root,root,-)
-%{_includedir}/statefs/provider.h
-%{buildroot}%{_sharedstatedir}/doc/statefs/*
-
+%{_datarootdir}/doc/statefs/html/*
