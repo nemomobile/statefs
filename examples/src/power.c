@@ -1,11 +1,13 @@
 #include <cor/util.h>
 #include <statefs/provider.h>
 #include <statefs/util.h>
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include <sys/param.h>
 
@@ -17,54 +19,62 @@ static pthread_t tid;
 
 static double voltage_now = 3.6;
 static double dvoltage = 0.1;
-static char voltage_buf[255];
-static const char *max_dbl_fmt = "1.0000";
+static const char max_iv_fmt[] = "1.0000";
 
-static int memcpy_offset
-(char *dst, size_t len, off_t off, char const *src, size_t src_len)
-{
-    if (!dst || !src || off >= src_len)
-        return -EINVAL;
-    size_t real_len = MIN(src_len - off, len + off);
-    if (real_len)
-        memcpy(dst, &src[off], real_len);
-    return real_len;
-}
+static bool power_is_initialized = false;
 
-static int read_voltage
-(struct statefs_property *self, char *dst, size_t len, off_t off)
+static void * control_thread(void *);
+
+static int power_init()
 {
-    char buf[sizeof(max_dbl_fmt)];
+    pthread_attr_t attr;
+    int rc = 0;
+
+    if (power_is_initialized)
+        return rc;
 
     pthread_mutex_lock(&power_mutex);
-    sprintf(buf, "%1.4f", voltage_now);
+
+    if (power_is_initialized)
+        goto out;
+    rc = pthread_attr_init(&attr);
+    if (rc < 0)
+        goto out;
+    rc = pthread_create(&tid, &attr, control_thread, NULL);
+    if (rc < 0)
+        goto out;
+
+    power_is_initialized = true;
+
+out:
+    pthread_mutex_unlock(&power_mutex);
+    return rc;
+}
+
+static int read_voltage(char *dst, size_t len)
+{
+    pthread_mutex_lock(&power_mutex);
+    int fmtlen = snprintf(dst, len - 1, "%1.4f", voltage_now);
     pthread_mutex_unlock(&power_mutex);
 
-    return memcpy_offset(dst, len, off, buf, sizeof(buf) - 1);
+    len = MIN(len, fmtlen);
+    return len;
 }
 
-static size_t double_size()
-{
-    return sizeof(max_dbl_fmt) - 1;
-}
+#define iv_max_size (sizeof(max_iv_fmt) - 1)
 
-static int read_current
-(struct statefs_property *self, char *dst, size_t len, off_t off)
+static int read_current(char *dst, size_t len)
 {
-    char buf[sizeof(max_dbl_fmt)];
     double r = (double)rand() * 1.0 / RAND_MAX;
-    sprintf(buf, "%1.4f", r);
-    return memcpy_offset(dst, len, off, buf, sizeof(buf) - 1);
+    int fmtlen = snprintf(dst, len - 1, "%1.4f", r);
+    len = MIN(len, fmtlen);
+    return len;
 }
 
-static const size_t is_low_fmt_len = sizeof("0");
+static const char is_low_fmt[] = "0";
+#define is_low_max_len sizeof(is_low_fmt)
 static bool is_low = false;
 static struct statefs_slot * is_low_slot = NULL;
-
-static size_t is_low_size()
-{
-    return is_low_fmt_len - 1;
-}
 
 static bool update_is_low()
 {
@@ -73,58 +83,60 @@ static bool update_is_low()
     return (prev_is_low != is_low);
 }
 
-static int read_is_low
-(struct statefs_property *self, char *dst, size_t len, off_t off)
+static int read_is_low(char *dst, size_t len)
 {
-    char buf[is_low_fmt_len];
     pthread_mutex_lock(&power_mutex);
-    sprintf(buf, "%s", is_low ? "1" : "0");
-    pthread_mutex_unlock(&power_mutex);
-    return memcpy_offset(dst, len, off, buf, sizeof(buf) - 1);
+    snprintf(dst, len - 1, "%s", is_low ? "1" : "0");
+    int fmtlen = pthread_mutex_unlock(&power_mutex);
+    len = MIN(len, fmtlen);
+    return len;
 }
 
-static bool connect_is_low
-(struct statefs_property *self, struct statefs_slot *slot)
+struct statefs_power_prop
 {
-    is_low_slot = slot;
-    return true;
-}
+    struct statefs_property prop;
+    int (*read)(char *, size_t);
+    size_t max_size;
+};
 
-static void disconnect_is_low
-(struct statefs_property *self, struct statefs_slot *slot)
+struct statefs_power_prop * power_prop(struct statefs_property *p)
 {
-    is_low_slot = NULL;
-}
+    return container_of(p, struct statefs_power_prop, prop);
+};
 
-static struct statefs_property props[] = {
+static struct statefs_power_prop props[] = {
     {
-        .node = {
-            .type = statefs_node_prop,
-            .name = "voltage"
+        .prop = {
+            .node = {
+                .type = statefs_node_prop,
+                .name = "voltage"
+            },
+            .default_value = STATEFS_REAL(3.8)
         },
-        .default_value = STATEFS_REAL(3.8),
         .read = read_voltage,
-        .size = double_size
+        .max_size = iv_max_size
     },
     {
-        .node = {
-            .type = statefs_node_prop,
-            .name = "current"
+        .prop = {
+            .node = {
+                .type = statefs_node_prop,
+                .name = "current"
+            },
+            .default_value = STATEFS_REAL(0),
         },
-        .default_value = STATEFS_REAL(0),
         .read = read_current,
-        .size = double_size
+        .max_size = iv_max_size
     },
     {
-        .node = {
-            .type = statefs_node_prop,
-            .name = "is_low"
+        .prop = {
+            .node = {
+                .type = statefs_node_prop,
+                .name = "is_low"
+            },
+            .default_value = STATEFS_BOOL(false)
         },
-        .default_value = STATEFS_BOOL(false),
         .read = read_is_low,
-        .size = is_low_size,
-        .connect = connect_is_low,
-        .disconnect = disconnect_is_low
+        .max_size = is_low_max_len
     }
 };
     
@@ -143,7 +155,7 @@ static void * control_thread(void *arg)
         pthread_mutex_unlock(&power_mutex);
 
         if (is_low_changed && is_low_slot)
-            is_low_slot->on_changed(is_low_slot, &props[2]);
+            is_low_slot->on_changed(is_low_slot, &props[2].prop);
         sleep(1);
     }
     return NULL;
@@ -160,13 +172,13 @@ static struct statefs_node * prop_find
 {
     int i;
     for (i = 0; i < ARRAY_SIZE(props); ++i)
-        if (!strcmp(props[i].node.name, name))
+        if (!strcmp(props[i].prop.node.name, name))
             break;
     if (i == ARRAY_SIZE(props)) {
         fprintf(stderr, "No such property %s\n", name);
         return NULL;
     }
-    return &props[i].node;
+    return &props[i].prop.node;
 }
 
 static void prop_next(struct statefs_branch const* self, intptr_t *idx_ptr)
@@ -177,7 +189,7 @@ static void prop_next(struct statefs_branch const* self, intptr_t *idx_ptr)
 static struct statefs_node * prop_get
 (struct statefs_branch const* self, intptr_t idx)
 {
-    return (idx < ARRAY_SIZE(props) && idx >= 0) ? &props[idx].node : NULL;
+    return (idx < ARRAY_SIZE(props) && idx >= 0) ? &props[idx].prop.node : NULL;
 }
 
 static intptr_t prop_first(struct statefs_branch const* self)
@@ -217,12 +229,91 @@ static intptr_t ns_first(struct statefs_branch const* self)
     return (intptr_t)&battery_ns;
 }
 
-void power_release(struct statefs_node *node)
+static void power_release(struct statefs_node *node)
 {
+    bool should_join = false;
     pthread_mutex_lock(&power_mutex);
+    should_join = power_is_initialized;
     is_running = false;
     pthread_mutex_unlock(&power_mutex);
-    pthread_join(tid, NULL);
+    if (should_join)
+        pthread_join(tid, NULL);
+}
+
+
+static bool power_connect
+(struct statefs_property *p, struct statefs_slot *slot)
+{
+    if (strcmp(p->node.name, "is_low"))
+        return false;
+
+    pthread_mutex_lock(&power_mutex);
+    is_low_slot = slot;
+    pthread_mutex_unlock(&power_mutex);
+    return true;
+}
+
+static void power_disconnect(struct statefs_property *p)
+{
+    if (strcmp(p->node.name, "is_low"))
+        return;
+
+    pthread_mutex_lock(&power_mutex);
+    is_low_slot = NULL;
+    pthread_mutex_unlock(&power_mutex);
+}
+
+static int power_getattr(struct statefs_property const* p)
+{
+    int res = STATEFS_ATTR_READ;
+    if (!strcmp(p->node.name, "is_low"))
+        res |= STATEFS_ATTR_DISCRETE;
+    return res;
+}
+
+
+struct power_handle
+{
+    struct statefs_power_prop *p;
+    size_t len;
+    char buf[255];
+};
+
+static ssize_t power_size(struct statefs_property const* p)
+{
+    return container_of(p, struct statefs_power_prop, prop)->max_size;
+}
+
+static intptr_t power_open(struct statefs_property *p, int mode)
+{
+    if (mode & O_WRONLY) {
+        errno = EINVAL;
+        return 0;
+    }
+
+    if (power_init() < 0)
+        return 0;
+
+    struct power_handle *h = calloc(1, sizeof(h[0]));
+    h->p = power_prop(p);
+    return (intptr_t)h;
+}
+
+static int power_read(intptr_t h, char *dst, size_t len, off_t off)
+{
+    struct power_handle *ph = (struct power_handle *)h;
+    if (!off || (off && ph->len <= 0))
+        ph->len = ph->p->read(ph->buf, sizeof(ph->buf));
+
+    if (ph->len < 0)
+        return ph->len;
+
+    return memcpy_offset(dst, len, off, ph->buf, ph->len);
+}
+
+static void power_close(intptr_t h)
+{
+    free((struct power_handle*)h);
 }
 
 static struct power_provider provider = {
@@ -237,38 +328,21 @@ static struct power_provider provider = {
             .find = ns_find,
             .first = &ns_first,
             .get = &ns_get
+        },
+        .io = {
+            .getattr = power_getattr,
+            .open = power_open,
+            .read = power_read,
+            .size = power_size,
+            .close = power_close,
+            .connect = power_connect,
+            .disconnect = power_disconnect
         }
     }
 };
 
 
-static bool power_is_initialized = false;
-
-static int power_init()
-{
-    pthread_attr_t attr;
-    int rc = 0;
-
-    pthread_mutex_lock(&power_mutex);
-
-    if (power_is_initialized)
-        goto out;
-    sprintf(voltage_buf, "%1.4f", voltage_now);
-    rc = pthread_attr_init(&attr);
-    if (rc < 0)
-        goto out;
-    rc = pthread_create(&tid, &attr, control_thread, NULL);
-    if (rc < 0)
-        goto out;
-
-    power_is_initialized = true;
-
-out:
-    pthread_mutex_unlock(&power_mutex);
-    return rc;
-}
-
 EXTERN_C struct statefs_provider * statefs_provider_get(void)
 {
-    return !power_init() ? &provider.base : NULL;
+    return &provider.base;
 }

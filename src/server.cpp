@@ -26,12 +26,17 @@ public:
 
     ~Provider() { }
 
-    bool is_loaded() const
+    bool loaded() const
     {
         return provider_ != nullptr;
     }
 
     ns_handle_type ns(std::string const &name) const;
+
+    statefs_io *io()
+    {
+        return loaded() ? &(provider_->io) : nullptr;
+    }
 
 private:
 
@@ -52,7 +57,7 @@ public:
 
     ~Namespace() { }
 
-    bool is_exists() const
+    bool exists() const
     {
         return handle_ != nullptr;
     }
@@ -73,50 +78,81 @@ private:
 class Property
 {
 public:
-    Property(property_handle_type &&h);
+    Property(statefs_io *io, property_handle_type &&h);
 
-    bool is_exists() const
+    bool exists() const
     {
         return handle_ != nullptr;
     }
 
     bool is_discrete() const
     {
-        return is_exists() && (handle_->connect != nullptr);
+        return getattr() & STATEFS_ATTR_DISCRETE;
+    }
+    
+    intptr_t open(int flags)
+    {
+        return io_->open(handle_.get(), flags);
     }
 
-    int read(char *dst, size_t len, off_t off) const
+    void close(intptr_t h)
     {
-        return (is_exists()
-                ? handle_->read(handle_.get(), dst, len, off)
-                : 0);
+        io_->close(h);
     }
+
+    int read(intptr_t, char *, size_t, off_t) const;
+    int write(intptr_t, char const*, size_t, off_t) const;
 
     size_t size() const
     {
-        return is_exists() ? handle_->size() : 0;
+        return exists() ? io_->size(handle_.get()) : 0;
     }
 
+    int getattr() const
+    {
+        return exists() ? io_->getattr(handle_.get()) : 0;
+    }
 
     bool connect(statefs_slot *slot);
-    void disconnect(statefs_slot *slot);
+    void disconnect();
 
 private:
 
+    statefs_io *io_;
     property_handle_type handle_;
 };
 
-bool Property::connect(statefs_slot *slot)
+int Property::read(intptr_t h, char *dst, size_t len, off_t off) const
 {
-    if (!is_exists() || !handle_->connect)
-        return false;
-    return handle_->connect(handle_.get(), slot);
+    if (!exists())
+        return 0;
+
+    return (io_->read
+            ? io_->read(h, dst, len, off)
+            : -ENOTSUP);
 }
 
-void Property::disconnect(statefs_slot *slot)
+int Property::write(intptr_t h, char const* src, size_t len, off_t off) const
 {
-    if (is_exists() && handle_->disconnect)
-        handle_->disconnect(handle_.get(), slot);
+    if (!exists())
+        return 0;
+
+    return (io_->write
+            ? io_->write(h, src, len, off)
+            : -ENOTSUP);
+}
+
+bool Property::connect(statefs_slot *slot)
+{
+    if (!exists() || !is_discrete())
+        return false;
+    return io_->connect(handle_.get(), slot);
+}
+
+void Property::disconnect()
+{
+    if (exists() && is_discrete())
+        io_->disconnect(handle_.get());
 }
 
 Provider::Provider(std::string const &path)
@@ -126,19 +162,19 @@ Provider::Provider(std::string const &path)
 ns_handle_type Provider::ns(std::string const &name) const
 {
     return mk_namespace_handle
-        ((is_loaded() ? statefs_ns_find(provider_.get(), name.c_str())
+        ((loaded() ? statefs_ns_find(provider_.get(), name.c_str())
           : nullptr));
 }
 
 property_handle_type Namespace::property(std::string const &name) const
 {
     return mk_property_handle
-        ((is_exists() ? statefs_prop_find(handle_.get(), name.c_str())
+        ((exists() ? statefs_prop_find(handle_.get(), name.c_str())
           : nullptr));
 }
 
-Property::Property(property_handle_type &&h)
-    : handle_(std::move(h))
+Property::Property(statefs_io *io, property_handle_type &&h)
+    : io_(io), handle_(std::move(h))
 {}
 
 Namespace::Namespace(ns_handle_type &&h)
@@ -188,25 +224,51 @@ private:
     size_t size_;
 };
 
-class ContinuousPropFile : public DefaultFile<ContinuousPropFile, cor::Mutex>
+class StateFsHandle : public FileHandle {
+public:
+    intptr_t h_;
+};
+
+class ContinuousPropFile :
+    public DefaultFile<ContinuousPropFile, StateFsHandle, cor::Mutex>
 {
-    typedef DefaultFile<ContinuousPropFile, cor::Mutex> base_type;
+    typedef DefaultFile<ContinuousPropFile, StateFsHandle,
+                        cor::Mutex> base_type;
 
 public:
     ContinuousPropFile(std::unique_ptr<Property> &prop, int mode)
         : base_type(mode), prop_(std::move(prop))
     {}
 
+    int open(struct fuse_file_info &fi)
+    {
+        int rc = base_type::open(fi);
+        if (rc >= 0) {
+            intptr_t h = prop_->open(fi.flags);
+            if (h)
+                handles_[fi.fh]->h_ = h;
+            else
+                rc = -1;
+        }
+        return rc;
+    }
+
+    int release(struct fuse_file_info &fi)
+    {
+        prop_->close(handle(fi));
+        return base_type::release(fi);
+    }
+
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
     {
-        return prop_->read(buf, size, offset);
+        return prop_->read(handle(fi), buf, size, offset);
     }
 
     int write(const char* src, size_t size,
               off_t offset, struct fuse_file_info &fi)
     {
-        return -ENOTSUP;
+        return prop_->write(handle(fi), src, size, offset);
     }
 
     size_t size() const
@@ -221,6 +283,13 @@ public:
     }
 
 protected:
+
+    intptr_t handle(struct fuse_file_info &fi) const
+    {
+        auto p = reinterpret_cast<StateFsHandle const*>(fi.fh);
+        return p->h_;
+    }
+
     std::unique_ptr<Property> prop_;
 };
 
@@ -244,7 +313,7 @@ public:
 
     virtual ~DiscretePropFile()
     {
-        prop_->disconnect(this);
+        prop_->disconnect();
     }
 
 	int poll(struct fuse_file_info &fi,
@@ -268,7 +337,7 @@ public:
     {
         int rc = ContinuousPropFile::release(fi);
         if (handles_.empty())
-            prop_->disconnect(this);
+            prop_->disconnect();
         return rc;
     }
 
@@ -325,8 +394,9 @@ void PluginNsDir::load(std::shared_ptr<Provider> prov)
         (new Namespace(prov->ns(info_->value())));
     for (auto cfg : info_->props_) {
         std::string name = cfg->value();
-        std::unique_ptr<Property> prop(new Property(ns->property(name)));
-        if (!prop->is_exists()) {
+        std::unique_ptr<Property> prop
+            (new Property(prov->io(), ns->property(name)));
+        if (!prop->exists()) {
             std::cerr << "PROPERTY " << name << "is absent\n";
             add_file(name, mk_file_entry(new BasicTextFile<>(cfg->defval())));
         } else {
@@ -351,7 +421,8 @@ void PluginNsDir::load_fake()
     }
 }
 
-
+/// extracted into separate class from PluginDir to initialize later
+/// in the proper order
 class PluginStorage
 {
 protected:
@@ -401,7 +472,7 @@ void PluginDir::load()
     trace() << "Loading plugin " << info_->path << std::endl;
     provider_.reset(new Provider(info_->path));
 
-    if (!provider_->is_loaded()) {
+    if (!provider_->loaded()) {
         std::cerr << "Can't load " << info_->path
                   << ", using fake values" << std::endl;
         namespaces_init(&PluginNsDir::load_fake);

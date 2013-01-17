@@ -130,13 +130,13 @@ template <typename ReceiverT>
 void from_file(std::string const &cfg_src, ReceiverT receiver)
 {
     trace() << "Loading config from " << cfg_src << std::endl;
+    std::ifstream input(cfg_src);
     try {
-        std::ifstream input(cfg_src);
         using namespace std::placeholders;
         parse(input, std::bind(receiver, cfg_src, _1));
     } catch (...) {
-        std::cerr << "Error parsing " << cfg_src << ", skiping..."
-                  << std::endl;
+        std::cerr << "Error parsing " << cfg_src << ":" << input.tellg()
+                  << ", skiping..." << std::endl;
     }
 }
 

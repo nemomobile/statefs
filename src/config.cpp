@@ -308,18 +308,22 @@ static std::string statefs_variant_2str(struct statefs_variant const *src)
 class Dump
 {
 public:
-    Dump(std::ostream &out) : out(out) {}
+    Dump(std::ostream &out, provider_handle_type &&provider)
+        : out(out), provider_(std::move(provider)) {}
 
-    std::string dump_library(std::string const&);
-    std::string dump_provider(provider_handle_type, std::string const&);
+    std::string dump(std::string const&);
 
 private:
+
+    Dump(Dump const&);
+    Dump & operator = (Dump const&);
 
     void dump_info(int level, statefs_node const *node);
     void dump_prop(int level, statefs_property const *prop);
     void dump_ns(int level, statefs_namespace const *ns);
 
     std::ostream &out;
+    provider_handle_type provider_;
 };
 
 void Dump::dump_info(int level, statefs_node const *node)
@@ -341,7 +345,8 @@ void Dump::dump_prop(int level, statefs_property const *prop)
     out << "(" << "prop" << " \"" << prop->node.name << "\" "
         << statefs_variant_2str(&prop->default_value);
     dump_info(level, &prop->node);
-    if (!prop->connect)
+    int attr = provider_->io.getattr(prop);
+    if (!(attr & STATEFS_ATTR_DISCRETE))
         out << " :behavior continuous";
     out << ")";
 }
@@ -373,27 +378,26 @@ void Dump::dump_ns(int level, statefs_namespace const *ns)
     out << ")";
 }
 
-std::string Dump::dump_provider
-(provider_handle_type provider, std::string const& path)
+std::string Dump::dump(std::string const& path)
 {
-    auto provider_name = provider->node.name;
+    auto provider_name = provider_->node.name;
     out << "(" << "provider" << " \"" << provider_name << "\"";
-    dump_info(0, &provider->node);
+    dump_info(0, &provider_->node);
     out << " \"" << path << "\"";
     branch_handle_type iter
-        (statefs_first(&provider->branch),
-         [&provider](intptr_t v) {
-            statefs_branch_release(&provider->branch, v);
+        (statefs_first(&provider_->branch),
+         [this](intptr_t v) {
+            statefs_branch_release(&provider_->branch, v);
         });
 
-    auto next = [&provider, &iter]() {
+    auto next = [this, &iter]() {
         return mk_namespace_handle
-        (statefs_ns_get(&provider->branch, iter.value()));
+        (statefs_ns_get(&provider_->branch, iter.value()));
     };
     auto ns = next();
     while (ns) {
         dump_ns(1, ns.get());
-        statefs_next(&provider->branch, &iter.ref());
+        statefs_next(&provider_->branch, &iter.ref());
         ns = next();
     }
     out << ")\n";
@@ -408,7 +412,7 @@ static std::string mk_provider_path(std::string const &path)
     return provider_path.generic_string();
 }
 
-std::string Dump::dump_library(std::string const &path)
+std::string dump(std::ostream &dst, std::string const &path)
 {
     auto full_path = mk_provider_path(path);
     cor::SharedLib lib(full_path, RTLD_LAZY);
@@ -416,12 +420,7 @@ std::string Dump::dump_library(std::string const &path)
     if (!lib.is_loaded())
         throw cor::Error("Can't load library %s", path.c_str());
 
-    return dump_provider(mk_provider_handle(lib), full_path);
-}
-
-std::string dump(std::ostream &dst, std::string const &path)
-{
-    return Dump(dst).dump_library(path);
+    return Dump(dst, mk_provider_handle(lib)).dump(full_path);
 }
 
 void save(std::string const &cfg_dir, std::string const &provider_fname)

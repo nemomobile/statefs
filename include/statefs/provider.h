@@ -108,25 +108,37 @@ struct statefs_slot
                        struct statefs_property *);
 };
 
+#define STATEFS_ATTR_READ (1)
+#define STATEFS_ATTR_WRITE (1 << 1)
+#define STATEFS_ATTR_DISCRETE (1 << 2)
+
 /**
- * depending in which methods are implemented properties can be
- * readable/writable and discrete/continuous. Discrete property is the
- * property changing in some discrete intervals so each change can be
- * tracked through event. Continuous property is changing continuously
- * (or maybe, also, very frequently to use events to track it) in time
- * so it should be requested only explicitely. Access to property is
- * serialized.
+ * Properties can be readable/writable and
+ * discrete/continuous. Discrete property is the property changing in
+ * some discrete intervals so each change can be tracked through
+ * event. Continuous property is changing continuously (or maybe,
+ * also, very frequently to use events to track it) so it should be
+ * requested only explicitely. Access to property is serialized.
  */
 struct statefs_property
 {
     struct statefs_node node;
     struct statefs_variant default_value;
-    int (*read)(struct statefs_property *, char *, size_t, off_t);
-    int (*write)(struct statefs_property *, char *, size_t, off_t);
-    size_t (*size)(void);
+};
+
+struct statefs_io
+{
+    int (*getattr)(struct statefs_property const *);
+    ssize_t (*size)(struct statefs_property const *);
+
+    intptr_t (*open)(struct statefs_property *, int);
+    int (*read)(intptr_t, char *, size_t, off_t);
+    int (*write)(intptr_t, char const*, size_t, off_t);
+    void (*close)(intptr_t);
+
     /** only single connection is opened for single property */
     bool (*connect)(struct statefs_property *, struct statefs_slot *);
-    void (*disconnect)(struct statefs_property *, struct statefs_slot *);
+    void (*disconnect)(struct statefs_property *);
 };
 
 struct statefs_namespace
@@ -140,6 +152,7 @@ struct statefs_provider
     unsigned version;
     struct statefs_node node;
     struct statefs_branch branch;
+    struct statefs_io io;
 };
 
 typedef struct statefs_provider * (*statefs_provider_fn)(void);
