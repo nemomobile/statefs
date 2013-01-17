@@ -1,5 +1,11 @@
 #ifndef _STATEFS_PROVIDER_H_
 #define _STATEFS_PROVIDER_H_
+/**
+ * @file provider.h
+ * @brief Provider API
+ * @author (C) 2012 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
 
 #include <sys/types.h>
 #include <stdbool.h>
@@ -48,12 +54,18 @@ struct statefs_variant
 #define STATEFS_BOOL(v) { .tag = statefs_variant_bool, .b = (v) }
 #define STATEFS_CSTR(v) { .tag = statefs_variant_cstr, .s = (v) }
 
+/**
+ * Node metadata, it can be documentation or anything else :)
+ */
 struct statefs_meta
 {
-    char const *name;
-    struct statefs_variant value;
+    char const *name; /** < attribute name, no spaces allowed */
+    struct statefs_variant value; /** < attribute data */
 };
 
+/**
+ * Tree node type 
+ */
 typedef enum
 {
     statefs_node_root = 0,
@@ -62,29 +74,24 @@ typedef enum
 } statefs_node_type;
 
 /** 
- * StateFS information tree consists of nodes, node type is determined
- * by statefs_node_type enumeration. Each node has metadata (array of
- * struct statefs_meta items). There is a single root node (struct
- * statefs_provider), namespace nodes (struct statefs_namespace) and
- * property nodes (struct statefs_property).
- *
- * Root node and namespace nodes has ability to has children nodes
- * (branch nodes (struct statefs_branch). Property nodes are tree
- * leafs.
+ * Node of statefs tree
  */
 struct statefs_node
 {
+    /** 
+     *there are provider root node, namespace nodes and property nodes
+     */
     statefs_node_type type;
     /** name - c string */
     char const *name;
     /** if not NULL called to free resources used by node */  
     void (*release)(struct statefs_node*);
-    /** node metadata */
+    /** array of node metadata, last element has NULL name member */
     struct statefs_meta const* info;
 };
 
 /**
- * each node has children is a branch node
+ * if node has children it is a branch node
  */
 struct statefs_branch
 {
@@ -102,15 +109,17 @@ struct statefs_branch
 
 struct statefs_property;
 
+/** Callback with context to monitor discrete property changes */
 struct statefs_slot
 {
+    /**
+     * should be invoked by provider if value of the property
+     * connected to this slot by means of statefs_io.connect is
+     * changed
+     */
     void (*on_changed)(struct statefs_slot *,
                        struct statefs_property *);
 };
-
-#define STATEFS_ATTR_READ (1)
-#define STATEFS_ATTR_WRITE (1 << 1)
-#define STATEFS_ATTR_DISCRETE (1 << 2)
 
 /**
  * Properties can be readable/writable and
@@ -123,40 +132,111 @@ struct statefs_slot
 struct statefs_property
 {
     struct statefs_node node;
+    /**
+     * used to initialize property file with initial value. It is used
+     * when provider is not available or can't provide data
+     */
     struct statefs_variant default_value;
 };
 
+/** readable */
+#define STATEFS_ATTR_READ (1)
+/** writeable */
+#define STATEFS_ATTR_WRITE (1 << 1)
+/** discrete, statefs_slot can be connected using statefs_io.connect */
+#define STATEFS_ATTR_DISCRETE (1 << 2)
+
+/**
+ * API to access properties. The API itself can be accessed
+ * concurently but access to separate properties and opened property
+ * handles is serialized.
+ */
 struct statefs_io
 {
+    /**
+     * get property attributes
+     * @retval mask @ref STATEFS_ATTR_DISCRETE | @ref STATEFS_ATTR_WRITE
+     * | @ref STATEFS_ATTR_READ
+     */
     int (*getattr)(struct statefs_property const *);
+
+    /** 
+     * get property size. If property length is variable it is
+     * better to return maximum property size
+     */
     ssize_t (*size)(struct statefs_property const *);
 
-    intptr_t (*open)(struct statefs_property *, int);
-    int (*read)(intptr_t, char *, size_t, off_t);
+    /**
+     * open property for I/O
+     * @param flags [O_RDONLY, O_RDWR, O_WRONLY]
+     * @retval opaque handle to be used for I/O operations
+     */
+    intptr_t (*open)(struct statefs_property *self, int flags);
+
+    /**
+     * read property value (len bytes starting from off)
+     */
+    int (*read)(intptr_t h, char *dst, size_t len, off_t off);
+
+    /**
+     * write property value (len bytes starting from off)
+     */
     int (*write)(intptr_t, char const*, size_t, off_t);
+
+    /** close I/O handle */
     void (*close)(intptr_t);
 
-    /** only single connection is opened for single property */
+    /** 
+     * connect discrete property to server slot, provider should invoke
+     * statefs_slot.on_changed() when property value is changed  
+     *
+     * @nb only single connection is opened for single property, so if
+     * called several times provider can just replace previous slot
+     * value
+     */
     bool (*connect)(struct statefs_property *, struct statefs_slot *);
+    /** disconnect previously connected slot */
     void (*disconnect)(struct statefs_property *);
 };
 
+/** 
+ * Namespace node
+ */
 struct statefs_namespace
 {
     struct statefs_node node;
     struct statefs_branch branch;
 };
 
+/**
+ * Root provider node
+ */
 struct statefs_provider
 {
+    /**
+     * Used to verify API compatibility. Provider should initialize
+     * it with STATEFS_CURRENT_VERSION
+     */
     unsigned version;
+
     struct statefs_node node;
     struct statefs_branch branch;
+
+    /**
+     * API to access property properties and data
+     */
     struct statefs_io io;
 };
 
+/** 
+ * Signature of statefs_provider_get function must be defined by
+ * provider
+ */
 typedef struct statefs_provider * (*statefs_provider_fn)(void);
 
+/** 
+ * Function defined in provider library to access the root node
+ */
 struct statefs_provider * statefs_provider_get(void);
 
 #define STATEFS_MK_VERSION(major, minor)                                \
