@@ -38,5 +38,8 @@ link_directories(
   ${FUSE_LIBRARY_DIRS}
 )
 
+add_custom_target(doc
+  COMMAND doxygen ${CMAKE_CURRENT_SOURCE_DIR}/doc/Doxyfile)
+
 add_subdirectory(src)
 add_subdirectory(examples/src)
