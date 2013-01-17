@@ -23,6 +23,6 @@ git archive --prefix=statefs-${TAG}/cor/tut/ --format=tar -o ${TUT} HEAD
 echo "Merge"
 tar -Af ${MAIN} ${COR}
 tar -Af ${MAIN} ${TUT}
-rm ${MAIN}.bz2
+rm -f ${MAIN}.bz2
 bzip2 ${MAIN}
 rm ${COR} ${TUT}

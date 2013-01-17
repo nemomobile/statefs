@@ -1,6 +1,6 @@
 Summary: Syntetic filesystem to expose system state
 Name: statefs
-Version: 0.1
+Version: 0.2
 Release: 1
 License: LGPLv2
 Group: System Environment/Tools
