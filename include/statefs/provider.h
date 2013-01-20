@@ -247,6 +247,7 @@ typedef struct statefs_provider * (*statefs_provider_fn)(void);
  */
 struct statefs_provider * statefs_provider_get(void);
 
+
 #define STATEFS_MK_VERSION(major, minor)                                \
     (((unsigned)major << (sizeof(unsigned) * 4)) | ((unsigned)minor))
 
@@ -262,6 +263,9 @@ struct statefs_provider * statefs_provider_get(void);
  */
 #define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(1, 0)
 
+/**
+ * used by server to check compatibility with provider version
+ */
 static inline bool statefs_is_compatible(struct statefs_provider *provider)
 {
     unsigned short maj, min;
