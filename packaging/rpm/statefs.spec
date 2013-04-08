@@ -9,8 +9,9 @@ Source0: %{name}-%{version}.tar.bz2
 BuildRequires: pkgconfig(fuse)
 BuildRequires: boost-filesystem
 BuildRequires: boost-devel
-BuildRequires: cmake
+BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
+BuildRequires: pkgconfig(cor)
 
 %description
 StateFS is the syntetic filesystem to expose current system state

@@ -8,6 +8,7 @@ set(Boost_FILESYSTEM_LIBRARY ADVANCED)
 find_package(Boost COMPONENTS filesystem system REQUIRED)
 
 pkg_check_modules(FUSE fuse REQUIRED)
+pkg_check_modules(COR cor REQUIRED)
 
 set(CMAKE_CXX_FLAGS
   "${CMAKE_CXX_FLAGS} -Wall -O2 -feliminate-unused-debug-types -std=c++0x -DFUSE_USE_VERSION=28 -DDEBUG"
@@ -23,19 +24,18 @@ set(CMAKE_CXX_FLAGS
   "${CMAKE_CXX_FLAGS} -gdwarf-3"
   )
 
-add_subdirectory(cor)
-
 INCLUDE_DIRECTORIES(
   ${BOOST_INCLUDE_DIR}
   ${FUSE_INCLUDE_DIRS}
+  ${COR_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/cor/include
   ${CMAKE_CURRENT_SOURCE_DIR}/metafuse/include
 )
 
 link_directories(
   ${BOOST_LIBRARY_DIRS}
   ${FUSE_LIBRARY_DIRS}
+  ${COR_LIBRARY_DIRS}
 )
 
 add_custom_target(provider-doc
