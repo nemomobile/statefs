@@ -162,7 +162,7 @@ Provider::Provider(std::string const &path)
 ns_handle_type Provider::ns(std::string const &name) const
 {
     return mk_namespace_handle
-        ((loaded() ? statefs_ns_find(provider_.get(), name.c_str())
+        ((loaded() ? statefs_ns_find(&provider_->root, name.c_str())
           : nullptr));
 }
 

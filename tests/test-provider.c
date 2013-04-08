@@ -240,15 +240,17 @@ static void test_prov_close(intptr_t h)
 
 static struct statefs_provider provider = {
     .version = STATEFS_CURRENT_VERSION,
-    .node = {
-        .type = statefs_node_root,
-        .name = "test",
-        .release = &test_prov_release
-    },
-    .branch = {
-        .find = ns_find,
-        .first = &ns_first,
-        .get = &ns_get
+    .root = {
+        .node = {
+            .type = statefs_node_root,
+            .name = "test",
+            .release = &test_prov_release
+        },
+        .branch = {
+            .find = ns_find,
+            .first = &ns_first,
+            .get = &ns_get
+        }
     },
     .io = {
         .getattr = test_prov_getattr,

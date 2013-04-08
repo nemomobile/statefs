@@ -25,7 +25,7 @@ bool ensure_dir_exists(std::string const &dir_name)
 provider_handle_type mk_provider_handle(cor::SharedLib &lib)
 {
     static auto deleter = [](statefs_provider *p) {
-        if (p) statefs_node_release(&p->node);
+        statefs_provider_release(p);
     };
     static const char *sym_name = "statefs_provider_get";
 

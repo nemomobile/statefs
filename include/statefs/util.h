@@ -19,6 +19,18 @@ static inline void statefs_node_release(struct statefs_node *node)
         node->release(node);
 }
 
+static inline void statefs_ns_release(struct statefs_namespace *ns)
+{
+    if (ns)
+        statefs_node_release(&ns->node);
+}
+
+static inline void statefs_provider_release(struct statefs_provider *p)
+{
+    if (p)
+        statefs_ns_release(&p->root);
+}
+
 static inline intptr_t statefs_first(struct statefs_branch const* self)
 {
     return (self->first ? self->first(self) : 0);
@@ -54,14 +66,18 @@ static inline struct statefs_property * statefs_prop_get
             : NULL);
 }
 
+static inline struct statefs_namespace *
+statefs_node2ns(struct statefs_node *n)
+{
+    return (n && n->type | statefs_node_ns
+            ? container_of(n, struct statefs_namespace, node)
+            : NULL);
+}
+
 static inline struct statefs_namespace * statefs_ns_get
 (struct statefs_branch const* self, intptr_t iter)
 {
-    struct statefs_node *n = statefs_get(self, iter);
-    return (n && n->type == statefs_node_ns
-            ? container_of(n, struct statefs_namespace, node)
-            : NULL);
-
+    return statefs_node2ns(statefs_get(self, iter));
 }
 
 static inline struct statefs_property * statefs_prop_find
@@ -74,10 +90,10 @@ static inline struct statefs_property * statefs_prop_find
 }
 
 static inline struct statefs_namespace * statefs_ns_find
-(struct statefs_provider *self, char const *name)
+(struct statefs_namespace *self, char const *name)
 {
     struct statefs_node *res = self->branch.find(&self->branch, name);
-    return ( (res && res->type == statefs_node_ns)
+    return ( (res && res->type | statefs_node_ns)
              ? container_of(res, struct statefs_namespace, node)
              : NULL );
 }

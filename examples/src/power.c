@@ -393,15 +393,17 @@ static void power_close(intptr_t h)
  */
 static struct statefs_provider provider = {
     .version = STATEFS_CURRENT_VERSION,
-    .node = {
-        .type = statefs_node_root,
-        .name = "power",
-        .release = &power_release
-    },
-    .branch = {
-        .find = ns_find,
-        .first = &ns_first,
-        .get = &ns_get
+    .root = {
+        .node = {
+            .type = statefs_node_root,
+            .name = "power",
+            .release = &power_release
+        },
+        .branch = {
+            .find = ns_find,
+            .first = &ns_first,
+            .get = &ns_get
+        }
     },
     /** there is no writable properties so .write member is NULL */
     .io = {

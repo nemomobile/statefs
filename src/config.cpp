@@ -380,24 +380,25 @@ void Dump::dump_ns(int level, statefs_namespace const *ns)
 
 std::string Dump::dump(std::string const& path)
 {
-    auto provider_name = provider_->node.name;
+    auto const &root = provider_->root;
+    auto provider_name = root.node.name;
     out << "(" << "provider" << " \"" << provider_name << "\"";
-    dump_info(0, &provider_->node);
+    dump_info(0, &root.node);
     out << " \"" << path << "\"";
     branch_handle_type iter
-        (statefs_first(&provider_->branch),
-         [this](intptr_t v) {
-            statefs_branch_release(&provider_->branch, v);
+        (statefs_first(&root.branch),
+         [&root](intptr_t v) {
+            statefs_branch_release(&root.branch, v);
         });
 
-    auto next = [this, &iter]() {
+    auto next = [&root, &iter]() {
         return mk_namespace_handle
-        (statefs_ns_get(&provider_->branch, iter.value()));
+        (statefs_ns_get(&root.branch, iter.value()));
     };
     auto ns = next();
     while (ns) {
         dump_ns(1, ns.get());
-        statefs_next(&provider_->branch, &iter.ref());
+        statefs_next(&root.branch, &iter.ref());
         ns = next();
     }
     out << ")\n";

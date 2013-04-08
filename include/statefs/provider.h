@@ -76,9 +76,9 @@ struct statefs_meta
  */
 typedef enum
 {
-    statefs_node_root = 0,
-    statefs_node_ns,
-    statefs_node_prop
+    statefs_node_prop = 1,
+    statefs_node_ns = 2,
+    statefs_node_root = statefs_node_ns | 4
 } statefs_node_type;
 
 /** 
@@ -227,8 +227,7 @@ struct statefs_provider
      */
     unsigned version;
 
-    struct statefs_node node;
-    struct statefs_branch branch;
+    struct statefs_namespace root;
 
     /**
      * API to access property properties and data
