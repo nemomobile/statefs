@@ -298,9 +298,10 @@ static std::string statefs_variant_2str(struct statefs_variant const *src)
         ss << src->r;
         break;
     case statefs_variant_cstr:
-        return src->s;
+        ss << "\"" << src->s << "\"";
+        break;
     default:
-        return "";
+        return "\"\"";
     }
     return ss.str();
 }
