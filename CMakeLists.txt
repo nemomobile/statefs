@@ -50,3 +50,4 @@ add_custom_target(provider-doc
 add_subdirectory(src)
 add_subdirectory(examples/src)
 add_subdirectory(tests)
+add_subdirectory(contextkit-bridge)

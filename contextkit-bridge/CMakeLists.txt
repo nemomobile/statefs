@@ -27,8 +27,8 @@ link_directories(
 
 add_definitions(-DQT_SHARED)
 
-set(SRC bridge.cpp util.cpp)
-set(HDRS bridge.hpp)
+set(SRC bridge.cpp util.cpp QCoreAppWrapper.cpp provider.cpp)
+set(HDRS bridge.hpp QCoreAppWrapper.hpp)
 qt4_wrap_cpp(MOC_SRC ${HDRS})
 
 #add_executable(bridge ${SRC} ${MOC_SRC})
