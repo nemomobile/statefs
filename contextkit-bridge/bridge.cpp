@@ -1,7 +1,7 @@
 #include "util.hpp"
 #include "bridge.hpp"
 
-#include <statefs/provider.h>
+#include <statefs/provider.hpp>
 #include <statefs/util.h>
 
 #include <cor/error.hpp>
@@ -19,231 +19,14 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+#include <chrono>
 
 #include <fcntl.h>
 
 
-namespace statefs {
-
-template <typename NodeT>
-class Node : public NodeT
-{
-public:
-    Node(char const *name, statefs_node const& node_template)
-    {
-        memcpy(&this->node, &node_template, sizeof(this->node));
-        this->node.name = strdup(name);
-    }
-    virtual ~Node()
-    {
-        free(const_cast<char*>(this->node.name));
-    }
-};
-
-template <typename BranchT>
-class Branch : public Node<BranchT>
-{
-public:
-    Branch
-    (char const *name
-     , statefs_node const& node_template
-     , statefs_branch const &branch_template)
-        : Node<BranchT>(name, node_template)
-    {
-        memcpy(&this->branch, &branch_template, sizeof(this->branch));
-    }
-
-};
-
-class Child
-{
-public:
-    virtual statefs_node *get_node() =0;
-    virtual statefs_node const* get_node() const =0;
-    virtual statefs_node_type get_type() const =0;
-    virtual ~Child() {}
-};
-
-class Namespace : public Branch<statefs_namespace>
-{
-protected:
-    typedef std::unique_ptr<Child> child_ptr;
-    typedef std::map<std::string, child_ptr> storage_type;
-    typedef storage_type::const_iterator iter_type;
-
-private:
-    static statefs_node node_template;
-    static statefs_branch branch_template;
-
-    static statefs_node * child_find(statefs_branch const*, char const *);
-
-    static statefs_node * child_get(statefs_branch const*, intptr_t);
-
-    static intptr_t child_first(statefs_branch const*);
-    static void child_next(statefs_branch const*, intptr_t *);
-    static bool child_release(statefs_branch const*, intptr_t);
-
-    static Namespace const *self_cast(statefs_branch const* branch);
-
-public:
-    Namespace(char const *name)
-        : Branch<statefs_namespace>
-          (name, node_template, branch_template)
-    {
-    }
-
-    void insert(std::string const &name, Child *prop)
-    {
-        props_.insert(std::make_pair(name, child_ptr(prop)));
-    }
-
-protected:
-
-    storage_type props_;
-};
-
-statefs_node Namespace::node_template = {
-    statefs_node_ns,
-    nullptr,
-    nullptr,
-    nullptr
-};
-
-
-Namespace const *Namespace::self_cast(statefs_branch const* branch)
-{
-    auto ns = container_of(branch, statefs_namespace, branch);
-    return static_cast<Namespace const*>(ns);
-}
-
-statefs_node * Namespace::child_find
-(statefs_branch const* branch, char const *name)
-{
-    auto self = self_cast(branch);
-    auto iter = self->props_.find(name);
-    if (iter == self->props_.end())
-        return nullptr;
-    auto const &p = iter->second;
-    return p.get()->get_node();
-}
-
-statefs_node * Namespace::child_get(statefs_branch const *branch, intptr_t h)
-{
-    auto self = self_cast(branch);
-    auto piter = cor::tagged_handle_pointer<iter_type>(h);
-    if (!piter)
-        return nullptr;
-
-    if (*piter == self->props_.end())
-        return nullptr;
-
-    auto const &p = (*piter)->second;
-    if (!p)
-        throw cor::Error("Child is not initialized");
-    return p.get()->get_node();
-}
-
-intptr_t Namespace::child_first(statefs_branch const* branch)
-{
-    auto self = self_cast(branch);
-    return cor::new_tagged_handle<iter_type>(self->props_.begin());
-}
-
-void Namespace::child_next(statefs_branch const*, intptr_t *h)
-{
-    auto p = cor::tagged_handle_pointer<iter_type>(*h);
-    if (p)
-        ++*p;
-}
-
-bool Namespace::child_release(statefs_branch const*, intptr_t h)
-{
-    cor::delete_tagged_handle<iter_type>(h);
-    return true;
-}
-
-statefs_branch Namespace::branch_template = {
-        &Namespace::child_find,
-        &Namespace::child_first,
-        &Namespace::child_next,
-        &Namespace::child_get,
-        &Namespace::child_release
-};
-
-class PropertyWrapper : public statefs_property
-{
-public:
-    PropertyWrapper()
-    {
-        default_value.tag = statefs_variant_cstr;
-        default_value.s = "";
-    }
-};
-
-class Property : public statefs::Child
-{
-    static statefs_node node_template;
-protected:
-    typedef statefs::Node<PropertyWrapper> node_type;
-public:
-    static Property *self_cast(statefs_property*);
-    static Property const* self_cast(statefs_property const*);
-
-    Property(char const* name)
-        : prop_(name, node_template)
-    {
-    }
-
-    virtual statefs_node *get_node();
-    virtual statefs_node const* get_node() const;
-    virtual statefs_node_type get_type() const;
-protected:
-    node_type prop_;
-    static node_type Property::* prop_offset;
-};
-
-Property::node_type Property::* Property::prop_offset = &Property::prop_;
-
-Property *Property::self_cast(statefs_property *p)
-{
-    auto n = static_cast<node_type*>(p);
-    return container_of(n, Property, prop_);
-}
-
-Property const* Property::self_cast(statefs_property const *p)
-{
-    auto n = static_cast<node_type const*>(p);
-    return container_of(n, Property, prop_);
-}
-
-statefs_node Property::node_template = {
-    statefs_node_prop,
-    nullptr,
-    nullptr,
-    nullptr
-};
-
-
-statefs_node *Property::get_node()
-{
-    return &prop_.node;
-}
-
-statefs_node const* Property::get_node() const
-{
-    return &prop_.node;
-}
-
-statefs_node_type Property::get_type() const
-{
-    return prop_.node.type;
-}
-
-} // namespace
 
 // --------------------------------------------------
 
-typedef ContextSubscriber::PluginFactoryFunc plugin_factory_type;
 
 class PropInfo;
 typedef std::shared_ptr<PropInfo> property_ptr;
@@ -251,57 +34,171 @@ typedef std::map<QString, std::list<property_ptr> > plugin_properties_type;
 
 typedef std::map<QString, property_ptr> prop_info_type;
 typedef std::map<QString, prop_info_type> info_tree_type;
-
 typedef std::shared_ptr<QLibrary> plugin_ptr;
-typedef std::map<QString, plugin_ptr> plugins_type;
 
+class NamespaceNode;
+
+static std::vector<std::unique_ptr<NamespaceNode> > namespaces;
+static std::unique_ptr<QtBridge> qt_app;
+
+
+class ProviderFactory
+{
+public:
+    ProviderFactory(QString const &id) : id_(id) {}
+    virtual provider_ptr get() =0;
+    QString get_id() const { return id_; }
+private:
+    QString id_;
+};
+
+class SharedObjFactory : public ProviderFactory
+{
+public:
+    SharedObjFactory(QString const &baseName
+                     , QString const &plugin
+                     , QString const &constructionString)
+        : ProviderFactory(baseName)
+        , plugin_name_(plugin)
+        , constructionString_(constructionString)
+    {}
+    
+    virtual ~SharedObjFactory() {}
+    virtual provider_ptr get()
+    {
+        if (provider_)
+            return provider_;
+
+        plugin_ = plugin_get(plugin_name_);
+
+        auto factory = reinterpret_cast<plugin_factory_type>
+            (plugin_->resolve("pluginFactory"));
+        if (!factory) {
+            auto msg = QString("No pluginFactory in ") + plugin_name_;
+            throw cor::Error(msg.toStdString());
+        }
+
+        provider_.reset(factory(constructionString_));
+        return provider_;
+    }
+
+private:
+
+    static plugin_ptr plugin_get(QString const &name);
+
+    QString plugin_name_;
+    QString constructionString_;
+    plugin_ptr plugin_;
+    provider_ptr provider_;
+};
+
+
+plugin_ptr SharedObjFactory::plugin_get(QString const &name)
+{
+    // TODO hard-coded path
+    static const QString plugins_path
+        = "/usr/lib/contextkit/subscriber-plugins/";
+
+    auto path = plugins_path + name + ".so";
+    plugin_ptr lib(new QLibrary(path));
+    lib->load();
+    if (!lib->isLoaded())
+        throw cor::Error((QString("Can't find ") + path).toStdString());
+
+    return lib;
+}
+
+class DBusFactory : public ProviderFactory
+{
+public:
+    DBusFactory(QString const &baseName
+                , QString const &bus
+                , QString const &service)
+        : ProviderFactory(baseName)
+        , bus_(bus)
+        , service_(service)
+    {}
+
+    virtual provider_ptr get()
+    {
+        if (!provider_)
+            initialize();
+
+        return provider_;
+    }
+private:
+
+    void initialize()
+    {
+        auto sym = ::dlsym(RTLD_DEFAULT, "contextKitPluginFactory");
+        auto factory = reinterpret_cast<plugin_factory_type>(sym);
+        
+        QStringList parts({bus_, service_});
+        provider_.reset(factory
+                        ? factory(parts.join(":"))
+                        : nullptr);
+    }
+
+    QString bus_;
+    QString service_;
+    provider_ptr provider_;
+};
 
 class PropInfo
 {
 public:
-    static property_ptr create(QString const&, QString const&);
+    static property_ptr create(QString const&, provider_factory_ptr);
 
 private:
-    PropInfo(QString const &full_name, QString const &ns
-             , QString const &name, QString const &plugin)
-        : full_name_(full_name), ns_(ns), name_(name), plugin_(plugin)
+    PropInfo(QString const &full_name
+             , QString const &ns
+             , QString const &name
+             , provider_factory_ptr factory)
+        : full_name_(full_name)
+        , ns_(ns)
+        , name_(name)
+        , factory_(factory)
     {}
 
 public:
     QString full_name_;
     QString ns_;
     QString name_;
-    QString plugin_;
+    provider_factory_ptr factory_;
 };
 
 QDebug & operator << (QDebug &dst, PropInfo const &src)
 {
     dst << src.ns_ << "." << src.name_
         << " (" << src.full_name_ << ")"
-        << "->" << src.plugin_;
+        << "->" << src.factory_->get_id();
     return dst;
 }
 
-property_ptr PropInfo::create(QString const& name, QString const& plugin)
+property_ptr PropInfo::create
+(QString const& name, provider_factory_ptr factory)
 {
     QStringList parts;
     if (!getPropertyInfo(name, parts) || parts.size() != 2)
         throw cor::Error((name + " is not correct?").toStdString());
-    return property_ptr(new PropInfo(name, parts[0], parts[1], plugin));
+    return property_ptr(new PropInfo(name, parts[0], parts[1], factory));
 }
 
-static void read_plugin_info(QString const &fileName, plugin_properties_type &dst)
+static bool read_plugin_info(QFileInfo const &fileInfo, plugin_properties_type &dst)
 {
-    QDomDocument doc;
+    QString baseName(fileInfo.baseName());
+
+    QString fileName(fileInfo.canonicalFilePath());
     QFile file(fileName);
-    if (!file.open(QIODevice::ReadOnly)) {
+    if (!file.open(QIODevice::ReadOnly)){ 
         qDebug() << "No file";
-        return;
+        return false;
     }
 
+    QDomDocument doc;
     if (!doc.setContent(&file)) {
         qDebug() << "No content";
-        return;
+        return false;
     }
     file.close();
 
@@ -309,98 +206,56 @@ static void read_plugin_info(QString const &fileName, plugin_properties_type &ds
     if (docElem.tagName() != "provider") {
         qDebug() << "Invalid context xml, root tag is " << docElem.tagName()
                  << " expected 'provider'";
-        return;
+        return false;
     }
 
     auto plugin = docElem.attribute("plugin");
-    plugin.replace(QRegExp("^/"), "");
-    auto &info = dst[plugin];
+    auto constructionString = docElem.attribute("constructionString");
+    auto &info = dst[baseName];
+    provider_factory_ptr factory;
 
+    if (plugin.size()) {
+        plugin.replace(QRegExp("^/"), "");
+        factory.reset
+            (new SharedObjFactory(baseName, plugin, constructionString));
+    } else {
+        auto bus = docElem.attribute("bus");
+        auto service = docElem.attribute("service");
+
+        if (!(bus.size() && service.size())) {
+            qDebug() << "Unknown plugin description, skipping";
+            return false;
+        }
+        factory.reset(new DBusFactory(baseName, bus, service));
+        
+    }
     auto nodes = docElem.elementsByTagName("key");
 
     for(int i = 0; i < nodes.count(); ++i) {
         auto e = nodes.at(i).toElement();
         auto name = e.attribute("name");
-        info.push_back(PropInfo::create(name, plugin));
+        info.push_back(PropInfo::create(name, factory));
     }
+    return true;
 }
 
-static void build_tree(plugins_type &plugins, info_tree_type &infoTree)
+static void build_tree(info_tree_type &infoTree)
 {
     static const QString info_path("/usr/share/contextkit/providers");
     plugin_properties_type plugins_info;
     QStringList filters({"*.context"});
     QDir info_dir(info_path);
-    for (auto const &f: info_dir.entryList(filters)) {
-        qDebug() << info_dir.filePath(f);
-        read_plugin_info(info_dir.filePath(f), plugins_info);
+    for (auto const &f: info_dir.entryInfoList(filters)) {
+        read_plugin_info(f, plugins_info);
     }
 
     for(auto const& plugin_props: plugins_info) {
         auto name = plugin_props.first;
-        plugins[name] = nullptr;
-        qDebug() << name;
         for (auto prop: plugin_props.second) {
             auto &ns = infoTree[prop->ns_];
             ns[prop->name_] = prop;
         }
     }
-}
-
-class NamespaceNode;
-
-static info_tree_type info_tree;
-static plugins_type plugins;
-static std::vector<std::unique_ptr<NamespaceNode> > namespaces;
-
-static const QString plugins_path = "/usr/lib/contextkit/subscriber-plugins/";
-
-static plugin_ptr plugin_get(QString const &name)
-{
-    auto p = plugins.find(name);
-    if (p == plugins.end())
-        throw cor::Error((QString("No such plugin ") + name).toStdString());
-
-    if (!p->second) {
-        auto path = plugins_path + name + ".so";
-        plugin_ptr lib(new QLibrary(path));
-        lib->load();
-        if (!lib->isLoaded()) {
-            throw cor::Error((QString("Can't find ") + path).toStdString());
-        }
-        p->second = lib;
-    }
-    return p->second;
-}
-
-static plugin_factory_type plugin_factory_get(QString const &name)
-{
-    auto p = plugin_get(name);
-    plugin_factory_type factory
-        = reinterpret_cast<plugin_factory_type>(p->resolve("pluginFactory"));
-    if (!factory)
-        throw cor::Error(std::string("No pluginFactory in ") + name.toStdString());
-    return factory;
-}
-
-static provider_ptr provider_get(QString const &name)
-{
-    auto factory = plugin_factory_get(name);
-    return provider_ptr(factory(name));
-}
-
-typedef std::shared_ptr<ProviderBridge> bridge_ptr;
-static std::map<QString, bridge_ptr> bridges;
-
-bridge_ptr bridge_get(QString const& name)
-{
-    auto iter = bridges.find(name);
-    if (iter != bridges.end())
-        return iter->second;
-
-    bridge_ptr p(new ProviderBridge(name));
-    bridges.insert(std::make_pair(name, p));
-    return p;
 }
 
 class CKitProperty : public statefs::Property
@@ -411,8 +266,12 @@ public:
         , info_(p)
         , slot_(nullptr)
         , conn_count_(0)
-    {
-    }
+        , is_first_access_(true)
+        , is_initialized_(false)
+    {}
+
+    ~CKitProperty() {}
+
     std::string get_name() const
     {
         return info_->name_.toStdString();
@@ -421,6 +280,12 @@ public:
     void notify(QVariant const &v)
     {
         v_ = v.toString();
+        is_initialized_ = true;
+        do {
+            std::lock_guard<std::mutex> lock(mutex_);
+            initialized_.notify_all();
+        } while(0);
+
         if (slot_)
             slot_->on_changed(slot_, &prop_);
     }
@@ -428,9 +293,11 @@ public:
     void connect(statefs_slot *slot)
     {
         if (!bridge_) {
-            bridge_ = bridge_get(info_->plugin_);
-            bridge_->subscribe(info_->full_name_, this);
+            bridge_ = qt_app->bridge_get(info_->factory_);
         }
+        if (!conn_count_)
+            bridge_->subscribe(info_->full_name_, this);
+
         if (slot)
             slot_ = slot;
         ++conn_count_;
@@ -439,18 +306,25 @@ public:
     void disconnect()
     {
         if (--conn_count_) {
-            bridge_->unsubscribe(info_->full_name_);
+            if (bridge_)
+                bridge_->unsubscribe(info_->full_name_);
             slot_ = nullptr;
         }
     }
 
     QString value() const
     {
+        if (is_first_access_) {
+            std::unique_lock<std::mutex> lock(mutex_);
+            initialized_.wait_for(lock,  std::chrono::milliseconds(1000)
+                                  , [this]() { return is_initialized_; });
+            is_first_access_ = false;
+        }
         return v_;
     }
 
     size_t size() const {
-        return 256; // TODO tmp
+        return is_initialized_ ? v_.size() : 1024;
     }
     static CKitProperty *self_cast(statefs_property*);
     static CKitProperty const* self_cast(statefs_property const*);
@@ -461,6 +335,11 @@ private:
     bridge_ptr bridge_;
     statefs_slot *slot_;
     int conn_count_;
+
+    mutable std::mutex mutex_;
+    mutable std::condition_variable initialized_;
+    mutable bool is_first_access_;
+    mutable bool is_initialized_;
 };
 
 CKitProperty *CKitProperty::self_cast(statefs_property *from)
@@ -516,19 +395,29 @@ class NamespaceNode : public statefs::Namespace
 public:
     NamespaceNode(QString const &aname)
         : statefs::Namespace(aname.toUtf8().constData())
-    {
-    }
+    {}
+
+    virtual ~NamespaceNode() {}
+
     void insert(CKitProperty *p) {
         Namespace::insert(p->get_name(), p);
     }
 };
 
+ProviderBridge::ProviderBridge(provider_factory_ptr factory, ProviderThread *parent)
+    : factory_(factory), parent_(parent)
+{}
+
 ProviderBridge::~ProviderBridge()
 {
-    if (provider_)
+    if (provider_) {
+        disconnect(provider_.get(), SIGNAL(subscribeFinished(QString, TimedValue))
+                , this, SLOT(onSubscribed(QString, TimedValue)));
+        disconnect(provider_.get(), SIGNAL(subscribeFinished(QString))
+                   , this, SLOT(onSubscribed(QString)));
         disconnect(provider_.get(), SIGNAL(valueChanged(QString, QVariant))
                    , this, SLOT(onValue(QString, QVariant)));
-
+    }
     for (auto &v: subscribers_) {
         QSet<QString> nset;
         nset.insert(v.first);
@@ -541,31 +430,133 @@ void ProviderBridge::subscribe(QString const &name, CKitProperty *dst)
     subscribers_[name] = dst;
     QSet<QString> nset;
     nset.insert(name);
+
     provider()->subscribe(nset);
+    auto p = cache_.find(name);
+    if (p != cache_.end()) {
+        // provider is already supplied it, notify subscriber
+        dst->notify(p->second);
+    }
 }
 
 void ProviderBridge::unsubscribe(QString const &name)
 {
     subscribers_.erase(name);
+
+    QSet<QString> nset;
+    nset.insert(name);
+    provider()->unsubscribe(nset);
 }
 
 void ProviderBridge::onValue(QString key, QVariant value)
 {
     auto p = subscribers_[key];
-    if (p)
+    if (p) {
         p->notify(value);
+    } else {
+        // not subscribed but contextkit already issued value,
+        // remember it to instantly provide to subscriber later
+        cache_[key] = value;
+    }
+}
+
+void ProviderBridge::onSubscribed(QString key)
+{
+}
+
+void ProviderBridge::onSubscribed(QString key, TimedValue value)
+{
+    onValue(key, value.value);
 }
 
 provider_ptr ProviderBridge::provider()
 {
     if (!provider_) {
-        provider_ = provider_get(name_);
+        provider_ = factory_->get();
         connect(provider_.get(), SIGNAL(valueChanged(QString, QVariant))
                 , this, SLOT(onValue(QString, QVariant)));
+        connect(provider_.get(), SIGNAL(subscribeFinished(QString))
+                , this, SLOT(onSubscribed(QString)));
+        connect(provider_.get(), SIGNAL(subscribeFinished(QString, TimedValue))
+                , this, SLOT(onSubscribed(QString, TimedValue)));
     }
     return provider_;
 }
 
+bridge_ptr QtBridge::bridge_get(provider_factory_ptr factory)
+{
+    auto name = factory->get_id();
+    auto iter = bridges.find(name);
+    if (iter != bridges.end())
+        return iter->second;
+
+    bridge_ptr p(new ProviderThread(factory));
+    bridges.insert(std::make_pair(name, p));
+    return p;
+}
+
+ProviderThread::ProviderThread(provider_factory_ptr factory)
+    : factory_(factory)
+{
+    mutex_.lock();
+    start();
+    cond_.wait(&mutex_, 200);
+    mutex_.unlock();
+}
+
+ProviderThread::~ProviderThread()
+{
+    // TODO there should be another condition to wait on
+    exit(0);
+    while (!isFinished()) {
+        usleep(1000);
+    }
+}
+
+void ProviderThread::run()
+{
+    bridge_.reset(new ProviderBridge(factory_, this));
+    mutex_.lock();
+    cond_.wakeAll();
+    mutex_.unlock();
+    exec();
+}
+
+void ProviderThread::subscribe(QString const &name, CKitProperty *dst)
+{
+    QCoreApplication::postEvent
+        (bridge_.get(), new ProviderSubscribe(name, dst));
+}
+
+void ProviderThread::unsubscribe(QString const &name)
+{
+    QCoreApplication::postEvent(bridge_.get(), new ProviderUnsubscribe(name));
+}
+
+bool ProviderBridge::event(QEvent *e)
+{
+    try {
+        switch (static_cast<ProviderEvent::Type>(e->type())) {
+        case (ProviderEvent::Subscribe): {
+            auto s = static_cast<ProviderSubscribe*>(e);
+            subscribe(s->name_, s->dst_);
+            return true;
+        }
+        case (ProviderEvent::Unsubscribe): {
+            auto s = static_cast<ProviderUnsubscribe*>(e);
+            unsubscribe(s->name_);
+            return true;
+        }
+        default:
+            return QObject::event(e);
+        }
+    } catch (cor::Error const &e) {
+        qDebug() << "Caught cor::Error " << e.what();
+    } catch (...) { // Qt does not allow exceptions from event handlers
+        qDebug() << "event: caught unknown exception";
+    }
+    return false;
+}
 
 static struct statefs_node * ns_find
 (struct statefs_branch const* self, char const *name)
@@ -622,13 +613,11 @@ static int ckit_getattr(struct statefs_property const* p)
 static ssize_t ckit_size(struct statefs_property const* p)
 {
     auto self = CKitProperty::self_cast(p);
-    qDebug() << "S " << self->size();
     return self->size();
 }
 
 static intptr_t ckit_open(struct statefs_property *p, int mode)
 {
-    qDebug() << "Opening";
     if (mode & O_WRONLY) {
         errno = EINVAL;
         return 0;
@@ -650,8 +639,9 @@ static void ckit_close(intptr_t h)
 
 static void ckit_release(struct statefs_node *node)
 {
-    qDebug() << "Clear";
     namespaces.clear();
+    //info_tree.clear();
+    //qt_app.reset(nullptr);
 }
 
 static struct statefs_provider provider = {
@@ -689,18 +679,17 @@ static void load_info()
     if (is_loaded)
         return;
 
-    build_tree(plugins, info_tree);
+    qt_app.reset(new QtBridge());
+    info_tree_type info_tree;
+    build_tree(info_tree);
 
     namespaces.resize(info_tree.size());
     auto pns = namespaces.begin();
     for (auto const &ns_prop: info_tree) {
         pns->reset(new NamespaceNode(ns_prop.first));
 
-        // debuggin
-        // qDebug() << "NS:" << ns_prop.first;
         for (auto const &prop: ns_prop.second) {
             auto pinfo = prop.second;
-            // qDebug() << prop.first << "->" << *pinfo;
             (*pns)->insert(new CKitProperty(prop.second));
         }
         ++pns;
@@ -713,48 +702,3 @@ EXTERN_C struct statefs_provider * statefs_provider_get(void)
     load_info();
     return &provider;
 }
-
-// int main()
-// {
-//     build_tree(plugins, info_tree);
-
-//     namespaces.resize(info_tree.size());
-//     auto pns = namespaces.begin();
-//     for (auto const &ns_prop: info_tree) {
-//         pns->reset(new NamespaceNode(ns_prop.first));
-
-//         // debuggin
-//         qDebug() << "NS:" << ns_prop.first;
-//         for (auto const &prop: ns_prop.second) {
-//             auto pinfo = prop.second;
-//             qDebug() << prop.first << "->" << *pinfo;
-//             (*pns)->insert(new CKitProperty(prop.second));
-//         }
-//         ++pns;
-//     }
-
-//     auto pp = provider_get("upower");
-//     qDebug() << pp.get();
-
-//     auto x = ns_first(nullptr);
-//     while (true) {
-//         auto n = ns_get(nullptr, x);
-//         if (!n)
-//             break;
-//         qDebug() << "N:" << n->name;
-//         ns_next(nullptr, &x);
-//     }
-//     auto n = ns_find(nullptr, "Battery");
-//     if (n)
-//         qDebug() << "Found Battery" << n->name;
-//     else
-//         qDebug() << "Not Found Battery!!!";
-
-//     n = ns_find(nullptr, "System");
-//     if (n)
-//         qDebug() << "Found System" << n->name;
-//     else
-//         qDebug() << "Not Found System!!!";
-
-//     return 0;
-// }
