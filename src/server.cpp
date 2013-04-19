@@ -653,9 +653,23 @@ enum statefs_cmd {
     statefs_cmd_register
 };
 
-static FuseFs<RootDirEntry> & fuse()
+namespace metafuse {
+
+typedef FuseFs<RootDirEntry> fuse_root_type;
+static std::unique_ptr<fuse_root_type> fuse_root;
+
+template<> fuse_root_type&
+fuse_root_type::instance()
 {
-    static auto &fuse = FuseFs<RootDirEntry>::instance();
+    return *fuse_root;
+}
+}
+
+static fuse_root_type & fuse()
+{
+    if (!fuse_root)
+        fuse_root.reset(new fuse_root_type());
+    static auto &fuse = fuse_root_type::instance();
     return fuse;
 }
 
@@ -674,6 +688,10 @@ public:
                       {"register", statefs_cmd_register}})
     {
         options.parse(argc, argv, opts, params);
+    }
+
+    ~Server() {
+        fuse_root.reset(nullptr);
     }
 
     int operator()()

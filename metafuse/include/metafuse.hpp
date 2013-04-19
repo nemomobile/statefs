@@ -844,20 +844,13 @@ public:
                          &ops, NULL);
     }
 
-
-    static FuseFs &instance()
-    {
-        static FuseFs self;
-        return self;
-    }
+    static FuseFs &instance();
 
     static RootT& impl()
     {
         return instance().root_;
     }
 
-
-private:
 
     FuseFs()
     {
@@ -880,6 +873,8 @@ private:
         ops.poll = FuseFs::poll;
         ops.readlink = FuseFs::readlink;
     }
+
+private:
 
     template <typename OpT, typename ... Args>
     static int invoke(const char* path, OpT op, Args&... args)
