@@ -89,7 +89,7 @@ public:
     {
         return getattr() & STATEFS_ATTR_DISCRETE;
     }
-    
+
     intptr_t open(int flags)
     {
         return io_->open(handle_.get(), flags);
@@ -186,12 +186,22 @@ Namespace::Namespace(ns_handle_type &&h)
     : handle_(std::move(h))
 {}
 
+/// file interface implementation used to load provider interface
+/// implementation on accessing file for the first time
 template <typename LoadT>
 class PluginLoadFile : public DefaultFile<PluginLoadFile<LoadT> >
 {
     typedef DefaultFile<PluginLoadFile<LoadT> > base_type;
 
 public:
+
+    /**
+     * @param interface loader used to load actual implementation
+     * @param mode file mode
+     * @param size initial size in bytes, it is better to use some
+     *        fake big size because many tools are checking size only
+     *        at the beginning
+     */
     PluginLoadFile(LoadT loader, int mode, size_t size)
         : base_type(mode), load_(loader), size_(size) {}
 
@@ -302,6 +312,7 @@ protected:
 class DiscretePropFile : public statefs_slot, public ContinuousPropFile
 {
 
+    /// used as a bridge between C callback and C++ object
     static void slot_on_changed
     (struct statefs_slot *slot, struct statefs_property *)
     {
@@ -734,7 +745,7 @@ private:
     {
         if (params.size() < 3)
             return show_help(-1);
-        
+
         config::dump(std::cout, params[2]);
         return 0;
     }
