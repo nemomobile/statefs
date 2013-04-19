@@ -419,8 +419,10 @@ std::string dump(std::ostream &dst, std::string const &path)
     auto full_path = mk_provider_path(path);
     cor::SharedLib lib(full_path, RTLD_LAZY);
 
-    if (!lib.is_loaded())
-        throw cor::Error("Can't load library %s", path.c_str());
+    if (!lib.is_loaded()) {
+        throw cor::Error("Can't load library %s: %s"
+                         , path.c_str(), ::dlerror());
+    }
 
     return Dump(dst, mk_provider_handle(lib)).dump(full_path);
 }

@@ -29,6 +29,10 @@ provider_handle_type mk_provider_handle(cor::SharedLib &lib)
     };
     static const char *sym_name = "statefs_provider_get";
 
+    if (!lib.is_loaded()) {
+        std::cerr << "Lib loading error " << ::dlerror() << std::endl;
+        return provider_handle_type(nullptr, deleter);
+    }
     auto fn = lib.sym<statefs_provider_fn>(sym_name);
     if (!fn) {
         std::cerr << "Can't resolve " << sym_name << std::endl;
