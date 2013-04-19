@@ -377,8 +377,12 @@ public:
                 plugin_load();
                 return acquire(name);
             };
+
+            // initially adding loader file - it accesses provider
+            // implementation only on first read/write access to the
+            // file itself. Default size is 1Kb
             add_file(name, mk_file_entry
-                     (mk_loader(load_get, prop->mode(), prop->defval().size())));
+                     (mk_loader(load_get, prop->mode(), 1024)));
         }
     }
 
