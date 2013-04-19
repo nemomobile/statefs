@@ -318,7 +318,11 @@ public:
 
     virtual ~DiscretePropFile()
     {
-        prop_->disconnect();
+        if (!handles_.empty()) {
+            trace() << "DiscretePropFile " << prop_->name()
+                    << " was not released?";
+            prop_->disconnect();
+        }
     }
 
 	int poll(struct fuse_file_info &fi,
