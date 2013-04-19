@@ -98,6 +98,11 @@ static inline struct statefs_namespace * statefs_ns_find
              : NULL );
 }
 
+static inline char const* statefs_prop_name(struct statefs_property const* p)
+{
+    return p->node.name;
+}
+
 EXTERN_C_END
 
 #endif // _STATEFS_UTIL_H_

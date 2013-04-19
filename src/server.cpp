@@ -116,6 +116,11 @@ public:
     bool connect(statefs_slot *slot);
     void disconnect();
 
+    char const* name() const
+    {
+        return handle_ ? statefs_prop_name(handle_.get()) : "";
+    }
+
 private:
 
     statefs_io *io_;
