@@ -7,3 +7,5 @@ target_link_libraries(statefs
   ${FUSE_LIBRARIES}
   -ldl
 )
+
+install(TARGETS statefs DESTINATION bin)

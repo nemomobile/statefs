@@ -1,0 +1,8 @@
+prefix=/usr
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: statefs
+Description: Statefs provider
+Version: 0.1.0
+Cflags: -I${includedir}

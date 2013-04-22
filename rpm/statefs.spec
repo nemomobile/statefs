@@ -1,6 +1,6 @@
 Summary: Syntetic filesystem to expose system state
 Name: statefs
-Version: 0.2
+Version: 0.2.1
 Release: 1
 License: LGPLv2
 Group: System Environment/Tools
@@ -29,24 +29,36 @@ Group: System Environment/Libraries
 %description provider-doc
 Statefs provider developer documentation
 
+%package -n statefs-contextkit-provider
+Summary: Provider to expose contextkit providers properties
+Group: System Environment/Libraries
+Requires: statefs
+%description -n statefs-contextkit-provider
+Provider exposes all contextkit providers properties
+
+%package -n statefs-contextkit-subscriber
+Summary: Contextkit property interface using statefs
+Group: System Environment/Libraries
+Requires: statefs
+%description -n statefs-contextkit-subscriber
+Contextkit property interface using statefs instead of contextkit
+
 %prep
 %setup -q
 
 %build
-cmake .
+%cmake
 make %{?jobs:-j%jobs}
 make provider-doc
 
 %install
 rm -rf %{buildroot}
-install -D -p -m755 src/statefs %{buildroot}%{_bindir}/statefs
+make install DESTDIR=%{buildroot}
 install -D -p -m644 packaging/statefs.service %{buildroot}%{_unitdir}/statefs.service
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
 install -d -D -p -m755 %{buildroot}%{_datarootdir}/doc/statefs/html
 cp -R doc/html/ %{buildroot}%{_datarootdir}/doc/statefs/
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/doc/statefs/html
-install -d -D -p -m755 %{buildroot}%{_includedir}/statefs
-install -D -p -m644 include/statefs/* %{buildroot}%{_includedir}/statefs/
 
 %clean
 rm -rf %{buildroot}
@@ -65,3 +77,20 @@ rm -rf %{buildroot}
 %files provider-doc
 %defattr(-,root,root,-)
 %{_datarootdir}/doc/statefs/html/*
+
+%files -n statefs-contextkit-provider
+%defattr(-,root,root,-)
+%{_libdir}/libstatefs-provider-contextkit.so
+%{_libdir}/pkgconfig/statefs.pc
+
+%files -n statefs-contextkit-subscriber
+%defattr(-,root,root,-)
+%{_libdir}/libcontextkit-statefs.so
+%{_libdir}/pkgconfig/contextkit-statefs.pc
+
+%post
+systemctl start statefs.service
+
+%post -n statefs-contextkit-provider
+statefs register %{_libdir}/statefs-provider-contextkit.so
+
