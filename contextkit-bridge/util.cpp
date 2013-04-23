@@ -36,8 +36,7 @@ QString getStateFsPath(const QString &name)
         qDebug() << "Unexpected name structure: " << name;
         return "";
     }
-    parts.push_front("/var/state");
     parts.push_front("namespaces");
+    parts.push_front("/var/run/state"); // TODO hardcoded path!
     return parts.join("/");
 }
-
