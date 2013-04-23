@@ -89,6 +89,7 @@ rm -rf %{buildroot}
 %{_libdir}/pkgconfig/contextkit-statefs.pc
 
 %post
+systemctl enable statefs.service
 systemctl start statefs.service
 
 %post -n statefs-contextkit-provider
