@@ -43,6 +43,13 @@ Requires: statefs
 %description -n statefs-contextkit-subscriber
 Contextkit property interface using statefs instead of contextkit
 
+%package -n statefs-contextkit-subscriber-devel
+Summary: Contextkit property interface using statefs
+Group: System Environment/Libraries
+Requires: statefs-contextkit-subscriber
+%description -n statefs-contextkit-subscriber-devel
+Contextkit property interface using statefs instead of contextkit
+
 %prep
 %setup -q
 
@@ -73,6 +80,7 @@ rm -rf %{buildroot}
 %files provider-devel
 %defattr(-,root,root,-)
 %{_includedir}/statefs/*.h
+%{_libdir}/pkgconfig/statefs.pc
 
 %files provider-doc
 %defattr(-,root,root,-)
@@ -81,11 +89,13 @@ rm -rf %{buildroot}
 %files -n statefs-contextkit-provider
 %defattr(-,root,root,-)
 %{_libdir}/libstatefs-provider-contextkit.so
-%{_libdir}/pkgconfig/statefs.pc
 
 %files -n statefs-contextkit-subscriber
 %defattr(-,root,root,-)
 %{_libdir}/libcontextkit-statefs.so
+
+%files -n statefs-contextkit-subscriber-devel
+%defattr(-,root,root,-)
 %{_libdir}/pkgconfig/contextkit-statefs.pc
 
 %post
@@ -93,5 +103,5 @@ systemctl enable statefs.service
 systemctl start statefs.service
 
 %post -n statefs-contextkit-provider
-statefs register %{_libdir}/statefs-provider-contextkit.so
+statefs register %{_libdir}/libstatefs-provider-contextkit.so
 
