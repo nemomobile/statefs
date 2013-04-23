@@ -85,7 +85,7 @@ QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
     if (!file_.isOpen())
         return defVal;
 
-    return QVariant(file_.readAll());
+    return cKitValueDecode(QString(file_.readAll()));
 }
 
 QVariant ContextPropertyPrivate::value() const

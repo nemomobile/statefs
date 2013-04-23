@@ -279,7 +279,7 @@ public:
 
     void notify(QVariant const &v)
     {
-        v_ = v.toString();
+        v_ = cKitValueEncode(v);
         is_initialized_ = true;
         do {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -312,7 +312,7 @@ public:
         }
     }
 
-    QString value() const
+    QString const& value() const
     {
         if (is_first_access_) {
             std::unique_lock<std::mutex> lock(mutex_);
