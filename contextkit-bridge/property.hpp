@@ -41,6 +41,9 @@ private slots:
     void handleActivated(int);
 
 private:
+
+    bool openSource() const;
+
     QString key_;
     mutable QFile file_;
     mutable QScopedPointer<QSocketNotifier> notifier_;

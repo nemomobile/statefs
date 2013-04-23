@@ -9,10 +9,12 @@ ContextProperty::ContextProperty(const QString &key, QObject *parent)
     : QObject(parent)
     , priv(new ContextPropertyPrivate(key, this))
 {
+    connect(priv, SIGNAL(valueChanged()), this, SIGNAL(valueChanged()));
 }
 
 ContextProperty::~ContextProperty()
 {
+    disconnect(priv, SIGNAL(valueChanged()), this, SIGNAL(valueChanged()));
 }
 
 QString ContextProperty::key() const
@@ -69,10 +71,12 @@ ContextPropertyPrivate::ContextPropertyPrivate(const QString &key, QObject *pare
     , file_(getStateFsPath(key))
     , notifier_(nullptr)
 {
+    subscribe();
 }
 
 ContextPropertyPrivate::~ContextPropertyPrivate()
 {
+    unsubscribe();
 }
 
 QString ContextPropertyPrivate::key() const
@@ -82,7 +86,7 @@ QString ContextPropertyPrivate::key() const
 
 QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
 {
-    if (!file_.isOpen())
+    if (!openSource())
         return defVal;
 
     return cKitValueDecode(QString(file_.readAll()));
@@ -103,21 +107,32 @@ void ContextPropertyPrivate::handleActivated(int)
     emit valueChanged();
 }
 
+bool ContextPropertyPrivate::openSource() const
+{
+    if (file_.isOpen())
+        return true;
+
+    if (!file_.exists()) {
+        qWarning() << "Property file " << file_.fileName()
+                   << " does not exist";
+        return false;
+    }
+    file_.open(QIODevice::ReadOnly);
+    if (!file_.isOpen()) {
+        qWarning() << "Can't open " << file_.fileName();
+        return false;
+    }
+    return true;
+}
+
 void ContextPropertyPrivate::subscribe () const
 {
     if (file_.isOpen())
         return;
 
-    if (!file_.exists()) {
-        qWarning() << "Property file " << file_.fileName()
-                   << " does not exist";
+    if (!openSource())
         return;
-    }
-    file_.open(QIODevice::ReadOnly);
-    if (!file_.isOpen()) {
-        qWarning() << "Can't open " << file_.fileName();
-        return;
-    }
+
     notifier_.reset(new QSocketNotifier(file_.handle(), QSocketNotifier::Read));
     connect(notifier_.data(), SIGNAL(activated(int)), this, SLOT(handleActivated(int)));
     notifier_->setEnabled(true);
