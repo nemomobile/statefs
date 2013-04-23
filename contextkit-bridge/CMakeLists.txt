@@ -13,6 +13,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-psabi -std=c++0x")
 # using offsetof to "cast" members to wrapper
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-invalid-offsetof")
 
+set(CMAKE_AUTOMOC TRUE)
+
 include_directories(
   ${QT_INCLUDE_DIR}
   ${CONTEXTSUBSCRIBER_INCLUDE_DIRS}
@@ -23,20 +25,23 @@ link_directories(
   ${CONTEXTSUBSCRIBER_LIBRARY_DIRS}
   ${CONTEXTPROVIDER_LIBRARY_DIRS}
 )
-#set(QT4_AUTOMOC ON)
 
 add_definitions(-DQT_SHARED)
 
 set(SRC bridge.cpp util.cpp QCoreAppWrapper.cpp provider.cpp)
 set(HDRS bridge.hpp QCoreAppWrapper.hpp)
-qt4_wrap_cpp(MOC_SRC ${HDRS})
 
-#add_executable(bridge ${SRC} ${MOC_SRC})
-add_library(statefs-provider-contextkit SHARED ${SRC} ${MOC_SRC})
+add_library(statefs-provider-contextkit
+  SHARED
+  ${SRC}
+)
 
-set(LIB_HDRS property.hpp)
-qt4_wrap_cpp(LIB_MOC_SRC ${LIB_HDRS})
-add_library(contextkit-statefs SHARED property.cpp ${LIB_MOC_SRC})
+# dirty hack: absolute path, moc is $$$
+qt4_wrap_cpp(LIB_MOC_SRC /usr/include/contextsubscriber/contextproperty.h)
+add_library(contextkit-statefs
+  SHARED property.cpp util.cpp
+  ${LIB_MOC_SRC}
+)
 
 target_link_libraries(statefs-provider-contextkit
   ${QT_QTCORE_LIBRARY}
