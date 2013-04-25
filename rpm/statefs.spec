@@ -1,6 +1,6 @@
 Summary: Syntetic filesystem to expose system state
 Name: statefs
-Version: 0.2.1
+Version: 0.2.2
 Release: 1
 License: LGPLv2
 Group: System Environment/Tools
@@ -12,6 +12,9 @@ BuildRequires: boost-devel
 BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
 BuildRequires: pkgconfig(cor)
+BuildRequires: pkgconfig(QtCore)
+BuildRequires: pkgconfig(QtXml)
+BuildRequires: contextkit-devel
 
 %description
 StateFS is the syntetic filesystem to expose current system state
