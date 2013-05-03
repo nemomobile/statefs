@@ -43,7 +43,7 @@ private slots:
 private:
 
     bool openSource() const;
-
+    void reopen() const;
     QString key_;
     mutable QFile file_;
     mutable QScopedPointer<QSocketNotifier> notifier_;

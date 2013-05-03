@@ -84,6 +84,14 @@ QString ContextPropertyPrivate::key() const
     return key_;
 }
 
+void ContextPropertyPrivate::reopen() const
+{
+    bool was_subscribed = (!!notifier_);
+    unsubscribe();
+    if (was_subscribed)
+        subscribe();
+}
+
 QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
 {
     if (!openSource())
