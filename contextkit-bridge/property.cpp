@@ -94,10 +94,30 @@ void ContextPropertyPrivate::reopen() const
 
 QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
 {
-    if (!openSource())
+    if (!openSource()) {
+        qWarning() << "Can't open " << file_.fileName();
         return defVal;
+    }
 
-    return cKitValueDecode(QString(file_.readAll()));
+    QVariant res(defVal);
+
+    file_.seek(0);
+    auto size = file_.size();
+    if (buffer_.size() < size)
+        buffer_.resize(size + 8);
+
+    int rc = file_.read(buffer_.data(), size + 7);
+    if (rc >= 0) {
+        buffer_[rc] = '\0';
+        qDebug() << "Got <" << rc << " bytes, size " << size << "=" << QString(buffer_) << ">";
+        res = cKitValueDecode(QString(buffer_));
+        if (notifier_)
+            notifier_->setEnabled(true);
+    } else {
+        qDebug() << "Is Error? " << rc << "..." << file_.fileName();
+        reopen();
+    }
+    return res;
 }
 
 QVariant ContextPropertyPrivate::value() const
@@ -125,11 +145,12 @@ bool ContextPropertyPrivate::openSource() const
                    << " does not exist";
         return false;
     }
-    file_.open(QIODevice::ReadOnly);
+    file_.open(QIODevice::ReadOnly | QIODevice::Unbuffered);
     if (!file_.isOpen()) {
         qWarning() << "Can't open " << file_.fileName();
         return false;
     }
+
     return true;
 }
 

@@ -6,6 +6,7 @@
 #include <QVariant>
 #include <QFile>
 #include <QScopedPointer>
+#include <QByteArray>
 
 class ContextPropertyInfo;
 class QSocketNotifier;
@@ -47,6 +48,7 @@ private:
     QString key_;
     mutable QFile file_;
     mutable QScopedPointer<QSocketNotifier> notifier_;
+    mutable QByteArray buffer_;
 };
 
 #endif // _STATEFS_CKIT_PROPERTY_HPP_
