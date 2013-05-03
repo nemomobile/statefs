@@ -63,14 +63,15 @@ public:
     int update_time(int mask)
     {
         const time_t now(::time(0));
-        if (mask & change_time_)
+        if (mask & change_time_bit)
             change_time_ = now;
 
-        if (mask & modification_time_)
+        if (mask & modification_time_bit)
             modification_time_ = now;
 
-        if (mask & access_time_)
+        if (mask & access_time_bit)
             access_time_ = now;
+
         return 0;
     }
 
