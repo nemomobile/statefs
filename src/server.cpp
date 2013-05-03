@@ -247,10 +247,10 @@ public:
 class ContinuousPropFile :
     public DefaultFile<ContinuousPropFile, StateFsHandle, cor::Mutex>
 {
+public:
     typedef DefaultFile<ContinuousPropFile, StateFsHandle,
                         cor::Mutex> base_type;
 
-public:
     ContinuousPropFile(std::unique_ptr<Property> &prop, int mode)
         : base_type(mode), prop_(std::move(prop))
     {}
@@ -297,6 +297,12 @@ public:
         return -ENOTSUP;
     }
 
+    int getattr(struct stat *buf)
+    {
+        update_time(modification_time_bit | change_time_bit | access_time_bit);
+        return base_type::getattr(buf);
+    }
+
 protected:
 
     intptr_t handle(struct fuse_file_info &fi) const
@@ -334,6 +340,11 @@ public:
                     << " was not released?";
             prop_->disconnect();
         }
+    }
+
+    int getattr(struct stat *buf)
+    {
+        return ContinuousPropFile::base_type::getattr(buf);
     }
 
 	int poll(struct fuse_file_info &fi,

@@ -73,10 +73,9 @@ public:
         return -ENOENT;
     }
 
-    virtual int getattr(path_ptr path, struct stat &stbuf)
+    virtual int getattr(path_ptr path, struct stat *stbuf)
     {
-        trace() << "getattr:" << *path << std::endl;
-        memset(&stbuf, 0, sizeof(stbuf));
+        memset(stbuf, 0, sizeof(stbuf[0]));
         return -ENOENT;
     }
 
@@ -174,7 +173,7 @@ public:
         return node_op(W(), &impl_type::poll, fi, ph, reventsp);
     }
 
-    virtual int getattr(path_ptr path, struct stat &buf)
+    virtual int getattr(path_ptr path, struct stat *buf)
     {
         return node_op(W(), &impl_type::getattr, buf);
     }
@@ -226,7 +225,7 @@ public:
 
     SymlinkEntry(ImplT *impl) : impl_(impl) {}
 
-    virtual int getattr(path_ptr path, struct stat &buf)
+    virtual int getattr(path_ptr path, struct stat *buf)
     {
         return node_op(R(), &impl_type::getattr, buf);
     }
@@ -389,7 +388,7 @@ public:
              fi, ph, reventsp);
     }
 
-    virtual int getattr(path_ptr path, struct stat &buf)
+    virtual int getattr(path_ptr path, struct stat *buf)
     {
         return this->node_op
             (R(), &impl_type::getattr, &Entry::getattr, std::move(path), buf);

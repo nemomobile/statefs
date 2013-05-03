@@ -75,11 +75,11 @@ public:
         return 0;
     }
 
-    int timeattr(struct stat &buf)
+    int timeattr(struct stat *buf)
     {
-        buf.st_ctime = change_time();
-        buf.st_atime = access_time();
-        buf.st_mtime = modification_time();
+        buf->st_ctime = change_time();
+        buf->st_atime = access_time();
+        buf->st_mtime = modification_time();
         return 0;
     }
 
@@ -307,12 +307,12 @@ public:
         return 0;
     }
 
-    int getattr(struct stat &buf)
+    int getattr(struct stat *buf)
     {
-        memset(&buf, 0, sizeof(buf));
-        buf.st_mode = type_flag | this->mode();
-        buf.st_nlink = 1;
-        buf.st_size = 0;
+        trace() << "Base getattr";
+        memset(buf, 0, sizeof(buf[0]));
+        buf->st_mode = type_flag | this->mode();
+        buf->st_nlink = 1;
         return timeattr(buf);
     }
 
@@ -358,12 +358,12 @@ public:
         return 0;
     }
 
-    int getattr(struct stat &buf)
+    int getattr(struct stat *buf)
     {
-        memset(&buf, 0, sizeof(buf));
-        buf.st_mode = type_flag | this->mode();
-        buf.st_nlink = 1;
-        buf.st_size = static_cast<DerivedT&>(*this).size();
+        memset(buf, 0, sizeof(buf[0]));
+        buf->st_mode = type_flag | this->mode();
+        buf->st_nlink = 1;
+        buf->st_size = static_cast<DerivedT&>(*this).size();
         return timeattr(buf);
     }
 
@@ -525,12 +525,12 @@ public:
         return target_;
     }
 
-    int getattr(struct stat &stbuf)
+    int getattr(struct stat *stbuf)
     {
-        memset(&stbuf, 0, sizeof(stbuf));
-        stbuf.st_mode = type_flag | this->mode();
-        stbuf.st_nlink = 1;
-        stbuf.st_size = target_.size();
+        memset(stbuf, 0, sizeof(stbuf[0]));
+        stbuf->st_mode = type_flag | this->mode();
+        stbuf->st_nlink = 1;
+        stbuf->st_size = target_.size();
         return timeattr(stbuf);
     }
 
@@ -608,12 +608,12 @@ public:
         return 0;
     }
 
-    int getattr(struct stat &stbuf)
+    int getattr(struct stat *stbuf)
     {
-        memset(&stbuf, 0, sizeof(stbuf));
-        stbuf.st_mode = type_flag | this->mode();
-        stbuf.st_nlink = dirs.size() + files.size() + 2;
-        stbuf.st_size = 0;
+        memset(stbuf, 0, sizeof(stbuf[0]));
+        stbuf->st_mode = type_flag | this->mode();
+        stbuf->st_nlink = dirs.size() + files.size() + 2;
+        stbuf->st_size = 0;
         return timeattr(stbuf);
     }
 
