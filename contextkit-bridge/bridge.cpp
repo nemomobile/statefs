@@ -500,7 +500,7 @@ ProviderThread::ProviderThread(provider_factory_ptr factory)
 {
     mutex_.lock();
     start();
-    cond_.wait(&mutex_, 200);
+    cond_.wait(&mutex_, 1000);
     mutex_.unlock();
 }
 
