@@ -305,7 +305,7 @@ public:
 
     void disconnect()
     {
-        if (--conn_count_) {
+        if (--conn_count_ == 0) {
             if (bridge_)
                 bridge_->unsubscribe(info_->full_name_);
             slot_ = nullptr;
