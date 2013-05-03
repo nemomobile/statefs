@@ -506,11 +506,10 @@ ProviderThread::ProviderThread(provider_factory_ptr factory)
 
 ProviderThread::~ProviderThread()
 {
-    // TODO there should be another condition to wait on
+    mutex_.lock();
     exit(0);
-    while (!isFinished()) {
-        usleep(1000);
-    }
+    exit_cond_.wait(&mutex_, 1000);
+    mutex_.unlock();
 }
 
 void ProviderThread::run()
@@ -519,7 +518,12 @@ void ProviderThread::run()
     mutex_.lock();
     cond_.wakeAll();
     mutex_.unlock();
+
     exec();
+
+    mutex_.lock();
+    exit_cond_.wakeAll();
+    mutex_.unlock();
 }
 
 void ProviderThread::subscribe(QString const &name, CKitProperty *dst)

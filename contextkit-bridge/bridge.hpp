@@ -70,8 +70,9 @@ private:
 
     std::unique_ptr<ProviderBridge> bridge_;
     provider_factory_ptr factory_;
-    QWaitCondition cond_;
     QMutex mutex_;
+    QWaitCondition cond_;
+    QWaitCondition exit_cond_;
 };
 
 typedef std::shared_ptr<ProviderThread> bridge_ptr;
