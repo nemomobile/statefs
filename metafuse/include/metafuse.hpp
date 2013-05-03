@@ -104,7 +104,8 @@ public:
 
     int chmod(mode_t permissions)
     {
-        static_cast<DerivedT&>(*this).update_time(modification_time_bit);
+        static_cast<DerivedT&>(*this).update_time
+            (change_time_bit | access_time_bit);
         value_ = permissions;
         return 0;
     }
