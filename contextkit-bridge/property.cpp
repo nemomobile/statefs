@@ -132,6 +132,7 @@ const ContextPropertyInfo* ContextPropertyPrivate::info() const
 
 void ContextPropertyPrivate::handleActivated(int)
 {
+    notifier_->setEnabled(false);
     emit valueChanged();
 }
 
