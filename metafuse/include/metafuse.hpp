@@ -242,12 +242,12 @@ private:
 class FileHandle
 {
 public:
-    FileHandle() : pos(0), is_changed_(false) {}
+    FileHandle() : pos(0), is_changed_(true) {}
 
     void notify()
     {
+        is_changed_ = true;
         if (poll_) {
-            is_changed_ = true;
             fuse_notify_poll(poll_.get());
             poll_ = nullptr;
         }

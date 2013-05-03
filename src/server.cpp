@@ -351,8 +351,9 @@ public:
              poll_handle_type &ph, unsigned *reventsp)
     {
         auto p = reinterpret_cast<handle_type*>(fi.fh);
-        if (p->is_changed())
+        if (p->is_changed() && reventsp)
             *reventsp |= POLLIN;
+
         p->poll(ph);
         return 0;
     }
