@@ -22,7 +22,7 @@ set(CMAKE_CXX_FLAGS
 add_definitions(${FUSE_CFLAGS})
 
 set(CMAKE_C_FLAGS
-  "${CMAKE_C_FLAGS} -Wall -O2 -feliminate-unused-debug-types -DDEBUG"
+  "${CMAKE_C_FLAGS} -Wall -O2 -feliminate-unused-debug-types"
   )
 
 # fix for gcc 4.6 specific compiling/linking issues, no dwarf-4
