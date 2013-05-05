@@ -125,8 +125,8 @@ static bool update_is_low()
 static int read_is_low(char *dst, size_t len)
 {
     pthread_mutex_lock(&power_mutex);
-    snprintf(dst, len - 1, "%s", is_low ? "1" : "0");
-    int fmtlen = pthread_mutex_unlock(&power_mutex);
+    int fmtlen = snprintf(dst, len - 1, "%s", is_low ? "1" : "0");
+    pthread_mutex_unlock(&power_mutex);
     len = MIN(len, fmtlen);
     return len;
 }
