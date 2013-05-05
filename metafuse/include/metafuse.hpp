@@ -950,7 +950,7 @@ private:
 
     static int getattr(const char* path, struct stat* stbuf)
     {
-        return invoke(path, &RootT::getattr, *stbuf);
+        return invoke(path, &RootT::getattr, stbuf);
     }
 
     static int read(const char* path, char* buf, size_t size,
