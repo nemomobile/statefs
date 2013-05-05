@@ -101,12 +101,18 @@ QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
 
     QVariant res(defVal);
 
+    // WORKAROUND: file is just opened and closed before reading from
+    // real source to make vfs (?) reread file data to cache
+    QFile touchFile(file_.fileName());
+    touchFile.open(QIODevice::ReadOnly | QIODevice::Unbuffered);
+
     file_.seek(0);
     auto size = file_.size();
     if (buffer_.size() < size)
         buffer_.resize(size + 8);
 
     int rc = file_.read(buffer_.data(), size + 7);
+    touchFile.close();
     if (rc >= 0) {
         buffer_[rc] = '\0';
         qDebug() << "Got <" << rc << " bytes, size " << size << "=" << QString(buffer_) << ">";
