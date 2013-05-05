@@ -377,6 +377,7 @@ public:
     {
         auto l(cor::wlock(*this));
 
+        update_time(modification_time_bit | change_time_bit | access_time_bit);
         for (auto h : handles_)
             h.second->notify();
     }
