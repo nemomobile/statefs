@@ -323,9 +323,11 @@ public:
         return v_;
     }
 
-    size_t size() const {
+    size_t size() const
+    {
         return is_initialized_ ? v_.size() : 1024;
     }
+
     static CKitProperty *self_cast(statefs_property*);
     static CKitProperty const* self_cast(statefs_property const*);
 

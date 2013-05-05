@@ -362,6 +362,7 @@ public:
     {
         if (handles_.empty())
             prop_->connect(this);
+
         return ContinuousPropFile::open(fi);
     }
 
@@ -370,11 +371,13 @@ public:
         int rc = ContinuousPropFile::release(fi);
         if (handles_.empty())
             prop_->disconnect();
+
         return rc;
     }
 
     void notify()
     {
+        // call is originated from provider, so acquire lock
         auto l(cor::wlock(*this));
 
         update_time(modification_time_bit | change_time_bit | access_time_bit);
