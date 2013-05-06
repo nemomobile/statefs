@@ -3,8 +3,8 @@ Description=StateFS FUSE filesystem
 After=syslog.target
 
 [Service]
-ExecStartPre=/bin/mkdir -p /var/run/state
-ExecStart=/usr/bin/statefs -f /var/run/state -o allow_other
+ExecStartPre=/usr/bin/statefs-prerun
+ExecStart=/usr/bin/statefs -f /run/state -o allow_other
 Restarts=Always
 RestartSec=1
 

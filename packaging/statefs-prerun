@@ -1,0 +1,11 @@
+#!/bin/bash
+is_mounted=`mount | grep /run/state | wc -l`
+
+if [ $is_mounted ]; then
+    fusermount -u /run/state
+fi
+
+if [ ! -e /run/state ]; then
+    echo "no dir, creating"
+    mkdir -p /run/state
+fi

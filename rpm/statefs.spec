@@ -1,6 +1,6 @@
 Summary: Syntetic filesystem to expose system state
 Name: statefs
-Version: 0.2.2
+Version: 0.2.4
 Release: 1
 License: LGPLv2
 Group: System Environment/Tools
@@ -77,6 +77,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %doc COPYING
 %{_bindir}/statefs
+%{_bindir}/statefs-prerun
 %{_sharedstatedir}/statefs
 %{_unitdir}/statefs.service
 
@@ -104,6 +105,10 @@ rm -rf %{buildroot}
 %post
 systemctl enable statefs.service
 systemctl start statefs.service
+
+%preun
+systemctl stop statefs.service
+systemctl disable statefs.service
 
 %post -n statefs-contextkit-provider
 statefs register %{_libdir}/libstatefs-provider-contextkit.so

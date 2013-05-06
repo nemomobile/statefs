@@ -51,7 +51,7 @@ add_subdirectory(src)
 add_subdirectory(examples/src)
 add_subdirectory(tests)
 add_subdirectory(contextkit-bridge)
-
+add_subdirectory(packaging)
 install(DIRECTORY include/statefs DESTINATION include FILES_MATCHING REGEX "\\.h$")
 # TODO provider.hpp will become a part of public headers when library will be 
 # extracted from contextkit statefs provider
