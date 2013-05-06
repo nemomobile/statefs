@@ -17,7 +17,7 @@ pkg_check_modules(FUSE fuse REQUIRED)
 pkg_check_modules(COR cor REQUIRED)
 
 set(CMAKE_CXX_FLAGS
-  "${CMAKE_CXX_FLAGS} -Wall -O2 -feliminate-unused-debug-types -std=c++0x -DFUSE_USE_VERSION=28 -DDEBUG"
+  "${CMAKE_CXX_FLAGS} -Wall -O2 -feliminate-unused-debug-types -std=c++0x -DFUSE_USE_VERSION=28"
   )
 add_definitions(${FUSE_CFLAGS})
 
