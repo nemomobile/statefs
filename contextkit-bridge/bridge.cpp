@@ -267,7 +267,6 @@ public:
         , slot_(nullptr)
         , conn_count_(0)
         , is_first_access_(true)
-        , is_initialized_(false)
     {}
 
     ~CKitProperty() {}
@@ -280,11 +279,13 @@ public:
     void notify(QVariant const &v)
     {
         v_ = cKitValueEncode(v);
-        is_initialized_ = true;
-        do {
+        if (is_first_access_) {
             std::lock_guard<std::mutex> lock(mutex_);
-            initialized_.notify_all();
-        } while(0);
+            if (is_first_access_) {
+                initialized_.notify_all();
+            }
+            is_first_access_ = false;
+        }
 
         if (slot_)
             slot_->on_changed(slot_, &prop_);
@@ -314,18 +315,23 @@ public:
 
     QString const& value() const
     {
+        // if value is read w/o preceeding polling there is no way to
+        // read it until provider notify about it, so waiting for
+        // notification a bit but only on first access
         if (is_first_access_) {
             std::unique_lock<std::mutex> lock(mutex_);
-            initialized_.wait_for(lock,  std::chrono::milliseconds(1000)
-                                  , [this]() { return is_initialized_; });
-            is_first_access_ = false;
+            if (is_first_access_) {
+                initialized_.wait_for(lock,  std::chrono::milliseconds(100)
+                                      , [this]() { return is_first_access_; });
+                is_first_access_ = false;
+            }
         }
         return v_;
     }
 
     size_t size() const
     {
-        return is_initialized_ ? v_.size() : 1024;
+        return is_first_access_ ? 1024 : v_.size();
     }
 
     static CKitProperty *self_cast(statefs_property*);
@@ -338,10 +344,12 @@ private:
     statefs_slot *slot_;
     int conn_count_;
 
+    //@{ qt event loop is working in another thread, so need thread
+    // sync
     mutable std::mutex mutex_;
     mutable std::condition_variable initialized_;
     mutable bool is_first_access_;
-    mutable bool is_initialized_;
+    //@}
 };
 
 CKitProperty *CKitProperty::self_cast(statefs_property *from)
