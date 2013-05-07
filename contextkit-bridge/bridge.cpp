@@ -62,7 +62,7 @@ public:
         , plugin_name_(plugin)
         , constructionString_(constructionString)
     {}
-    
+
     virtual ~SharedObjFactory() {}
     virtual provider_ptr get()
     {
@@ -132,7 +132,7 @@ private:
     {
         auto sym = ::dlsym(RTLD_DEFAULT, "contextKitPluginFactory");
         auto factory = reinterpret_cast<plugin_factory_type>(sym);
-        
+
         QStringList parts({bus_, service_});
         provider_.reset(factory
                         ? factory(parts.join(":"))
@@ -184,13 +184,21 @@ property_ptr PropInfo::create
     return property_ptr(new PropInfo(name, parts[0], parts[1], factory));
 }
 
+/**
+ * reads information from contextkit plugin description file (*.context)
+ *
+ * @param fileInfo
+ * @param dst destination properties container
+ *
+ * @return
+ */
 static bool read_plugin_info(QFileInfo const &fileInfo, plugin_properties_type &dst)
 {
     QString baseName(fileInfo.baseName());
 
     QString fileName(fileInfo.canonicalFilePath());
     QFile file(fileName);
-    if (!file.open(QIODevice::ReadOnly)){ 
+    if (!file.open(QIODevice::ReadOnly)){
         qDebug() << "No file";
         return false;
     }
@@ -214,6 +222,8 @@ static bool read_plugin_info(QFileInfo const &fileInfo, plugin_properties_type &
     auto &info = dst[baseName];
     provider_factory_ptr factory;
 
+    // if has "plugin" attr it is just a standard plugin, otherwise -
+    // dbus service
     if (plugin.size()) {
         plugin.replace(QRegExp("^/"), "");
         factory.reset
@@ -227,7 +237,7 @@ static bool read_plugin_info(QFileInfo const &fileInfo, plugin_properties_type &
             return false;
         }
         factory.reset(new DBusFactory(baseName, bus, service));
-        
+
     }
     auto nodes = docElem.elementsByTagName("key");
 
@@ -239,8 +249,14 @@ static bool read_plugin_info(QFileInfo const &fileInfo, plugin_properties_type &
     return true;
 }
 
+/**
+ * builds tree describing contextkit providers and their properties
+ *
+ * @param infoTree
+ */
 static void build_tree(info_tree_type &infoTree)
 {
+    // NB! path is hardcoded
     static const QString info_path("/usr/share/contextkit/providers");
     plugin_properties_type plugins_info;
     QStringList filters({"*.context"});
@@ -466,14 +482,15 @@ void ProviderBridge::onValue(QString key, QVariant value)
     if (p) {
         p->notify(value);
     } else {
-        // not subscribed but contextkit already issued value,
-        // remember it to instantly provide to subscriber later
+        // not subscribed yet but provider already sent first value,
+        // so remember it to instantly provide to subscriber later
         cache_[key] = value;
     }
 }
 
 void ProviderBridge::onSubscribed(QString key)
 {
+    qDebug() << "Subscribed for " << key << " but no value provided";
 }
 
 void ProviderBridge::onSubscribed(QString key, TimedValue value)
