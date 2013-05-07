@@ -40,6 +40,7 @@ private slots:
     void onValue(QString, QVariant);
     void onSubscribed(QString);
     void onSubscribed(QString, TimedValue);
+    void onSubscribeFailed(QString, QString);
 
 private:
     provider_ptr provider();

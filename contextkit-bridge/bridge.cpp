@@ -427,6 +427,8 @@ ProviderBridge::~ProviderBridge()
                    , this, SLOT(onSubscribed(QString)));
         disconnect(provider_.get(), SIGNAL(valueChanged(QString, QVariant))
                    , this, SLOT(onValue(QString, QVariant)));
+        disconnect(provider_.get(), SIGNAL(subscribeFailed(QString, QString))
+                , this, SLOT(onSubscribeFailed(QString, QString)));
     }
     for (auto &v: subscribers_) {
         QSet<QString> nset;
@@ -479,6 +481,13 @@ void ProviderBridge::onSubscribed(QString key, TimedValue value)
     onValue(key, value.value);
 }
 
+void ProviderBridge::onSubscribeFailed(QString failedKey, QString error)
+{
+    qDebug() << "Can't subscribe for " << failedKey
+             << ": " << error << ". Providing empty value";
+    onValue(failedKey, QVariant());
+}
+
 provider_ptr ProviderBridge::provider()
 {
     if (!provider_) {
@@ -487,6 +496,8 @@ provider_ptr ProviderBridge::provider()
                 , this, SLOT(onValue(QString, QVariant)));
         connect(provider_.get(), SIGNAL(subscribeFinished(QString))
                 , this, SLOT(onSubscribed(QString)));
+        connect(provider_.get(), SIGNAL(subscribeFailed(QString, QString))
+                , this, SLOT(onSubscribeFailed(QString, QString)));
         connect(provider_.get(), SIGNAL(subscribeFinished(QString, TimedValue))
                 , this, SLOT(onSubscribed(QString, TimedValue)));
     }
