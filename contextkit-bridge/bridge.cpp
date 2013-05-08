@@ -415,7 +415,7 @@ public:
 };
 
 ProviderBridge::ProviderBridge(provider_factory_ptr factory, ProviderThread *parent)
-    : factory_(factory), parent_(parent)
+    : QObject(parent), factory_(factory)
 {}
 
 ProviderBridge::~ProviderBridge()
@@ -535,7 +535,7 @@ ProviderThread::~ProviderThread()
 
 void ProviderThread::run()
 {
-    bridge_.reset(new ProviderBridge(factory_, this));
+    bridge_ = new ProviderBridge(factory_, this);
     mutex_.lock();
     cond_.wakeAll();
     mutex_.unlock();
@@ -550,12 +550,12 @@ void ProviderThread::run()
 void ProviderThread::subscribe(QString const &name, CKitProperty *dst)
 {
     QCoreApplication::postEvent
-        (bridge_.get(), new ProviderSubscribe(name, dst));
+        (bridge_, new ProviderSubscribe(name, dst));
 }
 
 void ProviderThread::unsubscribe(QString const &name)
 {
-    QCoreApplication::postEvent(bridge_.get(), new ProviderUnsubscribe(name));
+    QCoreApplication::postEvent(bridge_, new ProviderUnsubscribe(name));
 }
 
 bool ProviderBridge::event(QEvent *e)

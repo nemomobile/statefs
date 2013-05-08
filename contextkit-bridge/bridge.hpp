@@ -46,7 +46,6 @@ private:
     provider_ptr provider();
 
     provider_factory_ptr factory_;
-    ProviderThread *parent_;
     provider_ptr provider_;
     std::map<QString, CKitProperty *> subscribers_;
     QThread *thread_;
@@ -69,7 +68,7 @@ public:
 private:
     void run();
 
-    std::unique_ptr<ProviderBridge> bridge_;
+    ProviderBridge* bridge_;
     provider_factory_ptr factory_;
     QMutex mutex_;
     QWaitCondition cond_;
