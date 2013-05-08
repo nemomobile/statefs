@@ -10,6 +10,7 @@
 
 class ContextPropertyInfo;
 class QSocketNotifier;
+class QTimer;
 
 class ContextPropertyPrivate : public QObject
 {
@@ -40,15 +41,20 @@ signals:
 
 private slots:
     void handleActivated(int);
+    void trySubscribe() const;
 
 private:
 
-    bool openSource() const;
-    void reopen() const;
+    bool tryOpen() const;
+    void resubscribe() const;
+
     QString key_;
     mutable QFile file_;
     mutable QScopedPointer<QSocketNotifier> notifier_;
     mutable QByteArray buffer_;
+    mutable int reopen_interval_;
+    mutable QTimer *reopen_timer_;
+    mutable bool is_subscribed_;
 };
 
 #endif // _STATEFS_CKIT_PROPERTY_HPP_

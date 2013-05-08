@@ -3,6 +3,7 @@
 
 #include <contextproperty.h>
 #include <QDebug>
+#include <QTimer>
 #include <QSocketNotifier>
 
 ContextProperty::ContextProperty(const QString &key, QObject *parent)
@@ -70,7 +71,12 @@ ContextPropertyPrivate::ContextPropertyPrivate(const QString &key, QObject *pare
     , key_(key)
     , file_(getStateFsPath(key))
     , notifier_(nullptr)
+    , reopen_interval_(100)
+    , reopen_timer_(new QTimer())
+    , is_subscribed_(false)
 {
+    reopen_timer_->setSingleShot(true);
+    connect(reopen_timer_, SIGNAL(timeout()), this, SLOT(trySubscribe()));
     subscribe();
 }
 
@@ -84,22 +90,39 @@ QString ContextPropertyPrivate::key() const
     return key_;
 }
 
-void ContextPropertyPrivate::reopen() const
+void ContextPropertyPrivate::trySubscribe() const
 {
-    bool was_subscribed = (!!notifier_);
+    if (tryOpen()) {
+        reopen_interval_ = 100;
+        return subscribe();
+    }
+
+    reopen_interval_ *= 2;
+    if (reopen_interval_ > 1000 * 60 * 3)
+        reopen_interval_ = 1000 * 60 * 3;
+
+    qDebug() << "Waiting " << reopen_interval_ << "ms until "
+             << file_.fileName() << " will be available";
+    reopen_timer_->start(reopen_interval_);
+}
+
+void ContextPropertyPrivate::resubscribe() const
+{
+    bool was_subscribed = is_subscribed_;
     unsubscribe();
+
     if (was_subscribed)
         subscribe();
 }
 
 QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
 {
-    if (!openSource()) {
-        qWarning() << "Can't open " << file_.fileName();
-        return defVal;
-    }
-
     QVariant res(defVal);
+
+    if (!tryOpen()) {
+        qWarning() << "Can't open " << file_.fileName();
+        return res;
+    }
 
     // WORKAROUND: file is just opened and closed before reading from
     // real source to make vfs (?) reread file data to cache
@@ -115,13 +138,12 @@ QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
     touchFile.close();
     if (rc >= 0) {
         buffer_[rc] = '\0';
-        qDebug() << "Got <" << rc << " bytes, size " << size << "=" << QString(buffer_) << ">";
         res = cKitValueDecode(QString(buffer_));
         if (notifier_)
             notifier_->setEnabled(true);
     } else {
-        qDebug() << "Is Error? " << rc << "..." << file_.fileName();
-        reopen();
+        qWarning() << "Error accessing? " << rc << "..." << file_.fileName();
+        resubscribe();
     }
     return res;
 }
@@ -142,7 +164,7 @@ void ContextPropertyPrivate::handleActivated(int)
     emit valueChanged();
 }
 
-bool ContextPropertyPrivate::openSource() const
+bool ContextPropertyPrivate::tryOpen() const
 {
     if (file_.isOpen())
         return true;
@@ -161,23 +183,25 @@ bool ContextPropertyPrivate::openSource() const
     return true;
 }
 
-void ContextPropertyPrivate::subscribe () const
+void ContextPropertyPrivate::subscribe() const
 {
-    if (file_.isOpen())
-        return;
+    is_subscribed_ = true;
 
-    if (!openSource())
-        return;
+    if (!tryOpen())
+        trySubscribe();
 
     notifier_.reset(new QSocketNotifier(file_.handle(), QSocketNotifier::Read));
-    connect(notifier_.data(), SIGNAL(activated(int)), this, SLOT(handleActivated(int)));
+    connect(notifier_.data(), SIGNAL(activated(int))
+            , this, SLOT(handleActivated(int)));
     notifier_->setEnabled(true);
 }
 
-void ContextPropertyPrivate::unsubscribe () const
+void ContextPropertyPrivate::unsubscribe() const
 {
+    is_subscribed_ = false;
     if (!file_.isOpen())
         return;
+
     notifier_->setEnabled(false);
     notifier_.reset();
     file_.close();
