@@ -11,9 +11,10 @@ BuildRequires: boost-filesystem
 BuildRequires: boost-devel
 BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
-BuildRequires: pkgconfig(cor)
+BuildRequires: pkgconfig(cor) >= 0.1.2
 BuildRequires: pkgconfig(QtCore)
 BuildRequires: pkgconfig(QtXml)
+BuildRequires: pkgconfig(Qt5Core)
 BuildRequires: contextkit-devel
 
 %description
@@ -39,6 +40,20 @@ Requires: statefs
 %description -n statefs-contextkit-provider
 Provider exposes all contextkit providers properties
 
+%package -n statefs-contextkit-subscriber-qt4
+Summary: Contextkit property interface using statefs
+Group: System Environment/Libraries
+Requires: statefs
+%description -n statefs-contextkit-subscriber-qt4
+Contextkit property interface using statefs instead of contextkit
+
+%package -n statefs-contextkit-subscriber-qt4-devel
+Summary: Contextkit property interface using statefs
+Group: System Environment/Libraries
+Requires: statefs-contextkit-subscriber-qt4
+%description -n statefs-contextkit-subscriber-qt4-devel
+Contextkit property interface using statefs instead of contextkit
+
 %package -n statefs-contextkit-subscriber
 Summary: Contextkit property interface using statefs
 Group: System Environment/Libraries
@@ -57,12 +72,17 @@ Contextkit property interface using statefs instead of contextkit
 %setup -q
 
 %build
-%cmake
+%cmake -DUSEQT=4
 make %{?jobs:-j%jobs}
 make provider-doc
+%cmake -DUSEQT=5
+make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}
+%cmake -DUSEQT=4
+make install DESTDIR=%{buildroot}
+%cmake -DUSEQT=5
 make install DESTDIR=%{buildroot}
 install -D -p -m644 packaging/statefs.service %{buildroot}%{_unitdir}/statefs.service
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
@@ -94,12 +114,21 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_libdir}/libstatefs-provider-contextkit.so
 
+%files -n statefs-contextkit-subscriber-qt4
+%defattr(-,root,root,-)
+%{_libdir}/libcontextkit-statefs-qt4.so
+
+%files -n statefs-contextkit-subscriber-qt4-devel
+%defattr(-,root,root,-)
+%{_libdir}/pkgconfig/contextkit-statefs-qt4.pc
+
 %files -n statefs-contextkit-subscriber
 %defattr(-,root,root,-)
 %{_libdir}/libcontextkit-statefs.so
 
 %files -n statefs-contextkit-subscriber-devel
 %defattr(-,root,root,-)
+%{_includedir}/contextproperty.h
 %{_libdir}/pkgconfig/contextkit-statefs.pc
 
 %post

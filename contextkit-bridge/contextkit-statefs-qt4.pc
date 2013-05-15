@@ -1,0 +1,9 @@
+prefix=/usr
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: contextkit-statefs
+Description: Contextkit subscriber interface to statefs
+Version: 0.1.0
+Libs: -lcontextkit-statefs-qt4
+Cflags: -I${includedir}
