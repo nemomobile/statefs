@@ -21,8 +21,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -Wno-psabi -std=c++0x")
 # using offsetof to "cast" members to wrapper
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-invalid-offsetof")
 
-set(CMAKE_AUTOMOC TRUE)
-
 if(${USEQT} STREQUAL "4")
 
 find_package(PkgConfig REQUIRED)
@@ -41,14 +39,15 @@ link_directories(
 
 set(SRC bridge.cpp util.cpp QCoreAppWrapper.cpp provider.cpp)
 set(HDRS bridge.hpp QCoreAppWrapper.hpp)
+qt4_wrap_cpp(BRIDGE_MOC_SRC ${HDRS})
 
 add_library(statefs-provider-contextkit
   SHARED
-  ${SRC}
+  ${SRC} ${BRIDGE_MOC_SRC}
 )
 
 # dirty hack: absolute path, moc is $$$
-qt4_wrap_cpp(LIB_MOC_SRC /usr/include/contextsubscriber/contextproperty.h)
+qt4_wrap_cpp(LIB_MOC_SRC /usr/include/contextsubscriber/contextproperty.h property.hpp)
 
 target_link_libraries(statefs-provider-contextkit
   ${QT_QTCORE_LIBRARY}
@@ -77,9 +76,11 @@ elseif(${USEQT} STREQUAL "5")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Core_EXECUTABLE_COMPILE_FLAGS}")
 
 qt5_wrap_cpp(LIB_MOC_SRC ${CMAKE_SOURCE_DIR}/include/contextproperty.h)
+# to avoid clashing with qt4 version when building in the same dir
+qt5_generate_moc(property.hpp moc_property_qt5.cpp)
 
 add_library(contextkit-statefs
-  SHARED property.cpp util.cpp
+  SHARED property.cpp util.cpp moc_property_qt5.cpp
   ${LIB_MOC_SRC}
 )
 
