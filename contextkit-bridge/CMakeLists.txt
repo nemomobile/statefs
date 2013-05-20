@@ -56,8 +56,8 @@ target_link_libraries(statefs-provider-contextkit
   ${CONTEXTPROVIDER_LIBRARIES}
 )
 
-install(TARGETS statefs-provider-contextkit DESTINATION lib${LIB_SUFFIX})
-install(FILES statefs.pc DESTINATION lib${LIB_SUFFIX}/pkgconfig)
+install(TARGETS statefs-provider-contextkit DESTINATION ${DST_LIB})
+install(FILES statefs.pc DESTINATION ${DST_LIB}/pkgconfig)
 
 add_library(contextkit-statefs-qt4
   SHARED property.cpp util.cpp
@@ -68,8 +68,8 @@ target_link_libraries(contextkit-statefs-qt4
   ${QT_QTCORE_LIBRARY}
 )
 
-install(TARGETS contextkit-statefs-qt4 DESTINATION lib${LIB_SUFFIX})
-install(FILES contextkit-statefs-qt4.pc DESTINATION lib${LIB_SUFFIX}/pkgconfig)
+install(TARGETS contextkit-statefs-qt4 DESTINATION ${DST_LIB})
+install(FILES contextkit-statefs-qt4.pc DESTINATION ${DST_LIB}/pkgconfig)
 
 elseif(${USEQT} STREQUAL "5")
 
@@ -88,8 +88,8 @@ target_link_libraries(contextkit-statefs
   ${Qt5Core_LIBRARIES}
 )
 
-install(TARGETS contextkit-statefs DESTINATION lib${LIB_SUFFIX})
-install(FILES contextkit-statefs.pc DESTINATION lib${LIB_SUFFIX}/pkgconfig)
+install(TARGETS contextkit-statefs DESTINATION ${DST_LIB})
+install(FILES contextkit-statefs.pc DESTINATION ${DST_LIB}/pkgconfig)
 
 endif(${USEQT} STREQUAL "4")
 
