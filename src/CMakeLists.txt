@@ -9,3 +9,9 @@ target_link_libraries(statefs
 )
 
 install(TARGETS statefs DESTINATION bin)
+
+add_library(statefspp
+  SHARED provider.cpp
+)
+
+install(TARGETS statefspp DESTINATION ${DST_LIB})

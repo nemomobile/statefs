@@ -1,7 +1,7 @@
 #include "util.hpp"
 #include "bridge.hpp"
 
-#include <statefs/provider.hpp>
+#include "provider.hpp"
 #include <statefs/util.h>
 
 #include <cor/error.hpp>
