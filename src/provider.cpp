@@ -4,12 +4,61 @@
 
 namespace statefs {
 
+ANode::~ANode() {}
+
+ABranch::~ABranch() {}
+
+PropertyWrapper::PropertyWrapper(char const *name)
+    : base_type(name, node_template)
+{
+    default_value.tag = statefs_variant_cstr;
+    default_value.s = "";
+}
+
+PropertyWrapper::~PropertyWrapper() {}
+
+APropertyAccessor::~APropertyAccessor() {}
+
+AProperty::AProperty(char const *name)
+    : PropertyWrapper(name)
+{}
+
+AProperty::~AProperty() {}
+
+AProvider::~AProvider() {}
+
+Namespace::Namespace(char const *name)
+    : base_type(name, node_template)
+{}
+
+Namespace::~Namespace() {}
+
 template <>
 statefs_provider* node_to<statefs_provider>(::statefs_node *n)
 {
     auto ns = cor::member_container(n, &statefs_namespace::node);
     return cor::member_container(ns, &statefs_provider::root);
 }
+
+BranchStorage::BranchStorage()
+{}
+
+void BranchStorage::insert(child_ptr child)
+{
+    if (child)
+        props_.insert(
+            std::move(std::make_pair(
+                          child->get_name(), child)));
+}
+
+void BranchStorage::insert(ANode *child)
+{
+    if (child)
+        props_.insert(
+            std::move(std::make_pair(
+                          child->get_name(), child_ptr(child))));
+}
+
 
 statefs_node * BranchStorage::find(char const *name) const
 {
@@ -201,5 +250,13 @@ AProvider::AProvider(char const *name)
 {
     init_data();
 }
+
+
+template class NodeWrapper<statefs_property>;
+template class NodeWrapper<statefs_namespace>;
+template class NodeWrapper<statefs_provider>;
+
+template class BranchWrapper<statefs_provider>;
+template class BranchWrapper<statefs_namespace>;
 
 }

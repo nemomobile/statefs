@@ -23,7 +23,7 @@ public:
     virtual ::statefs_node_type get_type() const =0;
     virtual std::string get_name() const =0;
     virtual void release() =0;
-    virtual ~ANode() {}
+    virtual ~ANode();
 };
 
 class ABranch
@@ -31,7 +31,7 @@ class ABranch
 public:
     virtual ::statefs_branch *get_branch() =0;
     virtual ::statefs_branch const* get_branch() const =0;
-    virtual ~ABranch() {}
+    virtual ~ABranch();
 };
 
 
@@ -188,23 +188,10 @@ protected:
 
 public:
 
-    BranchStorage() {}
+    BranchStorage();
     
-    void insert(child_ptr child)
-    {
-        if (child)
-            props_.insert(
-                std::move(std::make_pair(
-                              child->get_name(), child)));
-    }
-
-    void insert(ANode *child)
-    {
-        if (child)
-            props_.insert(
-                std::move(std::make_pair(
-                              child->get_name(), child_ptr(child))));
-    }
+    void insert(child_ptr child);
+    void insert(ANode *child);
 
 protected:
 
@@ -284,12 +271,8 @@ class PropertyWrapper : public NodeWrapper<statefs_property>
 
     static const statefs_node node_template;
 public:
-    PropertyWrapper(char const *name)
-        : base_type(name, node_template)
-    {
-        default_value.tag = statefs_variant_cstr;
-        default_value.s = "";
-    }
+    PropertyWrapper(char const *name);
+    virtual ~PropertyWrapper();
 
     static PropertyWrapper *self_cast(::statefs_property *);
     static PropertyWrapper const* self_cast(::statefs_property const*);
@@ -298,7 +281,7 @@ public:
 class APropertyAccessor
 {
 public:
-    virtual ~APropertyAccessor() {}
+    virtual ~APropertyAccessor();
 
     virtual int read(char *dst, size_t len, off_t off) =0;
     virtual int write(char const*, size_t, off_t) =0;
@@ -307,7 +290,8 @@ public:
 class AProperty : public PropertyWrapper
 {
 public:
-    AProperty(char const *name) : PropertyWrapper(name) {}
+    AProperty(char const *name);
+    virtual ~AProperty();
 
     virtual int getattr() const =0;
     virtual ssize_t size() const =0;
@@ -393,15 +377,11 @@ public:
 class Namespace : public Branch<statefs_namespace>
 {
     typedef Branch<statefs_namespace> base_type;
-
     static const statefs_node node_template;
 
 public:
-
-    Namespace(char const *name)
-        : base_type(name, node_template)
-    {}
-
+    Namespace(char const *name);
+    virtual ~Namespace();
 };
 
 class AProvider : public Branch<statefs_provider>
@@ -424,9 +404,10 @@ class AProvider : public Branch<statefs_provider>
 
 protected:
     static AProvider* self_cast();
-public:
 
+public:
     AProvider(char const *name);
+    virtual ~AProvider();
 };
 
 // class Namespace : public ABranch
@@ -461,6 +442,13 @@ public:
 //     data_type data_;
 //     static data_type Namespace::* data_offset_;
 // };
+
+extern template class NodeWrapper<statefs_property>;
+extern template class NodeWrapper<statefs_namespace>;
+extern template class NodeWrapper<statefs_provider>;
+
+extern template class BranchWrapper<statefs_provider>;
+extern template class BranchWrapper<statefs_namespace>;
 
 } // namespace
 
