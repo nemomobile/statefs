@@ -21,6 +21,12 @@ BuildRequires: contextkit-devel
 StateFS is the syntetic filesystem to expose current system state
 provided by StateFS plugins as properties wrapped into namespaces.
 
+%package pp
+Summary: Statefs framework for C++ providers
+Group: System Environment/Libraries
+%description pp
+Statefs framework to be used to write providers in C++
+
 %package provider-devel
 Summary: Files to develop statefs providers
 Group: System Environment/Libraries
@@ -104,7 +110,13 @@ rm -rf %{buildroot}
 %files provider-devel
 %defattr(-,root,root,-)
 %{_includedir}/statefs/*.h
+%{_includedir}/statefs/*.hpp
 %{_libdir}/pkgconfig/statefs.pc
+%{_libdir}/pkgconfig/statefs-cpp.pc
+
+%files pp
+%defattr(-,root,root,-)
+%{_libdir}/libstatefspp.so
 
 %files provider-doc
 %defattr(-,root,root,-)
