@@ -40,6 +40,11 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}/metafuse/include
 )
 
+if(${USEQT} STREQUAL "5")
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include/contextsubscriber)
+install(FILES include/contextsubscriber/contextproperty.h DESTINATION include)
+endif(${USEQT} STREQUAL "5")
+
 link_directories(
   ${BOOST_LIBRARY_DIRS}
   ${FUSE_LIBRARY_DIRS}
@@ -58,8 +63,3 @@ add_subdirectory(packaging)
 add_subdirectory(tests)
 
 install(DIRECTORY include/statefs DESTINATION include FILES_MATCHING REGEX "\\.hp?p?$")
-
-if(${USEQT} STREQUAL "5")
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include/contextsubscriber)
-install(FILES include/contextsubscriber/contextproperty.h DESTINATION include)
-endif(${USEQT} STREQUAL "5")
