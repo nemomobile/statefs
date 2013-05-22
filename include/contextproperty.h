@@ -58,8 +58,6 @@ Q_SIGNALS:
 
 private:
     ContextPropertyPrivate *priv;
-private Q_SLOTS:
-    void onValueChanged();
 };
 
 #endif
