@@ -153,7 +153,7 @@ public:
     ::statefs_branch *branch_cast()
     { return branch_from(static_cast<BranchT*>(this)); }
     ::statefs_branch const* branch_cast() const
-    { return node_from(static_cast<BranchT const*>(this)); }
+    { return branch_from(static_cast<BranchT const*>(this)); }
 
     BranchWrapper
     (char const *name
