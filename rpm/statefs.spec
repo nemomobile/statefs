@@ -39,6 +39,12 @@ Group: System Environment/Libraries
 %description provider-doc
 Statefs provider developer documentation
 
+%package examples
+Summary: Statefs provider examples
+Group: System Environment/Libraries
+%description examples
+%summary
+
 %package contextkit-provider
 Summary: Provider to expose contextkit providers properties
 Group: System Environment/Libraries
@@ -122,6 +128,11 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_datarootdir}/doc/statefs/html/*
 
+%files examples
+%defattr(-,root,root,-)
+%{_libdir}/statefs/libexample_power.so
+%{_libdir}/statefs/libexample_statefspp.so
+
 %files contextkit-provider
 %defattr(-,root,root,-)
 %{_libdir}/libstatefs-provider-contextkit.so
@@ -153,4 +164,8 @@ systemctl disable statefs.service
 
 %post contextkit-provider
 statefs register %{_libdir}/libstatefs-provider-contextkit.so
+
+%post examples
+statefs register %{_libdir}/statefs/libexample_power.so
+statefs register %{_libdir}/statefs/libexample_statefspp.so
 
