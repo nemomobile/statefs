@@ -12,7 +12,10 @@ if(${USEQT} STREQUAL "4")
 find_package(Qt4 4.7.0 REQUIRED)
 include(${QT_USE_FILE})
 add_definitions(-DQT_SHARED)
-include_directories(${QT_INCLUDE_DIR})
+include_directories(
+  ${QT_INCLUDE_DIR}
+  ${CONTEXTSUBSCRIBER_INCLUDE_DIRS}
+)
 set(SUBSCRIBER_LIB contextkit-statefs-qt4)
 
 elseif(${USEQT} STREQUAL "5")
