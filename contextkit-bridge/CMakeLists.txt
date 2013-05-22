@@ -58,6 +58,7 @@ target_link_libraries(statefs-provider-contextkit
 
 install(TARGETS statefs-provider-contextkit DESTINATION ${DST_LIB})
 install(FILES statefs.pc DESTINATION ${DST_LIB}/pkgconfig)
+install(FILES statefs-cpp.pc DESTINATION ${DST_LIB}/pkgconfig)
 
 add_library(contextkit-statefs-qt4
   SHARED property.cpp util.cpp
