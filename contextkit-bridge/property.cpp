@@ -66,6 +66,10 @@ void ContextProperty::setTypeCheck(bool typeCheck)
 {
 }
 
+#if QT_VERSION < 0x050000
+void ContextProperty::onValueChanged() { }
+#endif
+
 ContextPropertyPrivate::ContextPropertyPrivate(const QString &key, QObject *parent)
     : QObject(parent)
     , key_(key)

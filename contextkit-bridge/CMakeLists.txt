@@ -76,7 +76,7 @@ elseif(${USEQT} STREQUAL "5")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Qt5Core_EXECUTABLE_COMPILE_FLAGS}")
 
-qt5_wrap_cpp(LIB_MOC_SRC ${CMAKE_SOURCE_DIR}/include/contextproperty.h)
+qt5_wrap_cpp(LIB_MOC_SRC ${CMAKE_SOURCE_DIR}/include/contextsubscriber/contextproperty.h)
 # to avoid clashing with qt4 version when building in the same dir
 qt5_generate_moc(property.hpp moc_property_qt5.cpp)
 

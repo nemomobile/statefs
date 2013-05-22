@@ -51,13 +51,15 @@ add_custom_target(provider-doc
 
 add_subdirectory(src)
 add_subdirectory(examples/src)
-add_subdirectory(tests)
 if(CONTEXTKIT)
 add_subdirectory(contextkit-bridge)
 endif(CONTEXTKIT)
 add_subdirectory(packaging)
+add_subdirectory(tests)
+
 install(DIRECTORY include/statefs DESTINATION include FILES_MATCHING REGEX "\\.hp?p?$")
 
 if(${USEQT} STREQUAL "5")
-install(FILES include/contextproperty.h DESTINATION include)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include/contextsubscriber)
+install(FILES include/contextsubscriber/contextproperty.h DESTINATION include)
 endif(${USEQT} STREQUAL "5")
