@@ -6,3 +6,6 @@ find_package(Threads)
 target_link_libraries(example_power
   ${CMAKE_THREAD_LIBS_INIT}
 )
+
+add_library(example_statefspp SHARED example_statefspp.cpp)
+target_link_libraries(example_statefspp statefspp)
