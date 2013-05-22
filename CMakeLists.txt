@@ -52,7 +52,9 @@ add_custom_target(provider-doc
 add_subdirectory(src)
 add_subdirectory(examples/src)
 add_subdirectory(tests)
+if(CONTEXTKIT)
 add_subdirectory(contextkit-bridge)
+endif(CONTEXTKIT)
 add_subdirectory(packaging)
 install(DIRECTORY include/statefs DESTINATION include FILES_MATCHING REGEX "\\.hp?p?$")
 

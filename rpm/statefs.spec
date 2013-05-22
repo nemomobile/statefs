@@ -84,17 +84,17 @@ Contextkit property interface using statefs instead of contextkit
 %setup -q
 
 %build
-%cmake -DUSEQT=4
+%cmake -DUSEQT=4 -DCONTEXTKIT=1
 make %{?jobs:-j%jobs}
 make provider-doc
-%cmake -DUSEQT=5
+%cmake -DUSEQT=5 -DCONTEXTKIT=1
 make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}
-%cmake -DUSEQT=4
+%cmake -DUSEQT=4 -DCONTEXTKIT=1
 make install DESTDIR=%{buildroot}
-%cmake -DUSEQT=5
+%cmake -DUSEQT=5 -DCONTEXTKIT=1
 make install DESTDIR=%{buildroot}
 install -D -p -m644 packaging/statefs.service %{buildroot}%{_unitdir}/statefs.service
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
