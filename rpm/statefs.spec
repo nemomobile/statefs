@@ -39,39 +39,39 @@ Group: System Environment/Libraries
 %description provider-doc
 Statefs provider developer documentation
 
-%package -n statefs-contextkit-provider
+%package contextkit-provider
 Summary: Provider to expose contextkit providers properties
 Group: System Environment/Libraries
 Requires: statefs
-%description -n statefs-contextkit-provider
+%description contextkit-provider
 Provider exposes all contextkit providers properties
 
-%package -n statefs-contextkit-subscriber-qt4
+%package contextkit-subscriber-qt4
 Summary: Contextkit property interface using statefs
 Group: System Environment/Libraries
 Requires: statefs
-%description -n statefs-contextkit-subscriber-qt4
+%description contextkit-subscriber-qt4
 Contextkit property interface using statefs instead of contextkit
 
-%package -n statefs-contextkit-subscriber-qt4-devel
+%package contextkit-subscriber-qt4-devel
 Summary: Contextkit property interface using statefs
 Group: System Environment/Libraries
 Requires: statefs-contextkit-subscriber-qt4
-%description -n statefs-contextkit-subscriber-qt4-devel
+%description contextkit-subscriber-qt4-devel
 Contextkit property interface using statefs instead of contextkit
 
-%package -n statefs-contextkit-subscriber
+%package contextkit-subscriber
 Summary: Contextkit property interface using statefs
 Group: System Environment/Libraries
 Requires: statefs
-%description -n statefs-contextkit-subscriber
+%description contextkit-subscriber
 Contextkit property interface using statefs instead of contextkit
 
-%package -n statefs-contextkit-subscriber-devel
+%package contextkit-subscriber-devel
 Summary: Contextkit property interface using statefs
 Group: System Environment/Libraries
 Requires: statefs-contextkit-subscriber
-%description -n statefs-contextkit-subscriber-devel
+%description contextkit-subscriber-devel
 Contextkit property interface using statefs instead of contextkit
 
 %prep
@@ -122,23 +122,23 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_datarootdir}/doc/statefs/html/*
 
-%files -n statefs-contextkit-provider
+%files contextkit-provider
 %defattr(-,root,root,-)
 %{_libdir}/libstatefs-provider-contextkit.so
 
-%files -n statefs-contextkit-subscriber-qt4
+%files contextkit-subscriber-qt4
 %defattr(-,root,root,-)
 %{_libdir}/libcontextkit-statefs-qt4.so
 
-%files -n statefs-contextkit-subscriber-qt4-devel
+%files contextkit-subscriber-qt4-devel
 %defattr(-,root,root,-)
 %{_libdir}/pkgconfig/contextkit-statefs-qt4.pc
 
-%files -n statefs-contextkit-subscriber
+%files contextkit-subscriber
 %defattr(-,root,root,-)
 %{_libdir}/libcontextkit-statefs.so
 
-%files -n statefs-contextkit-subscriber-devel
+%files contextkit-subscriber-devel
 %defattr(-,root,root,-)
 %{_includedir}/contextproperty.h
 %{_libdir}/pkgconfig/contextkit-statefs.pc
@@ -151,6 +151,6 @@ systemctl start statefs.service
 systemctl stop statefs.service
 systemctl disable statefs.service
 
-%post -n statefs-contextkit-provider
+%post contextkit-provider
 statefs register %{_libdir}/libstatefs-provider-contextkit.so
 
