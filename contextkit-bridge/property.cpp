@@ -200,8 +200,10 @@ bool ContextPropertyPrivate::tryOpen() const
 
 void ContextPropertyPrivate::subscribe() const
 {
-    is_subscribed_ = true;
+    if (is_subscribed_)
+        return;
 
+    is_subscribed_ = true;
     if (!tryOpen())
         trySubscribe();
 
@@ -213,6 +215,9 @@ void ContextPropertyPrivate::subscribe() const
 
 void ContextPropertyPrivate::unsubscribe() const
 {
+    if (!is_subscribed_)
+        return;
+
     is_subscribed_ = false;
     if (!file_.isOpen())
         return;
