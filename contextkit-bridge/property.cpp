@@ -78,6 +78,7 @@ ContextPropertyPrivate::ContextPropertyPrivate(const QString &key, QObject *pare
     , reopen_interval_(100)
     , reopen_timer_(new QTimer())
     , is_subscribed_(false)
+    , is_cached_(false)
 {
     reopen_timer_->setSingleShot(true);
     connect(reopen_timer_, SIGNAL(timeout()), this, SLOT(trySubscribe()));
@@ -123,6 +124,9 @@ QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
 {
     QVariant res(defVal);
 
+    if (is_cached_)
+        return cache_;
+
     if (!tryOpen()) {
         qWarning() << "Can't open " << file_.fileName();
         return res;
@@ -142,7 +146,13 @@ QVariant ContextPropertyPrivate::value(const QVariant &defVal) const
     touchFile.close();
     if (rc >= 0) {
         buffer_[rc] = '\0';
-        res = cKitValueDecode(QString(buffer_));
+        auto s = QString(buffer_);
+        if (s.size()) // use read data if not empty
+            res = cKitValueDecode(s);
+
+        cache_ = res;
+        is_cached_ = true;
+
         if (notifier_)
             notifier_->setEnabled(true);
     } else {
@@ -165,6 +175,7 @@ const ContextPropertyInfo* ContextPropertyPrivate::info() const
 void ContextPropertyPrivate::handleActivated(int)
 {
     notifier_->setEnabled(false);
+    is_cached_ = false;
     emit valueChanged();
 }
 
@@ -183,7 +194,7 @@ bool ContextPropertyPrivate::tryOpen() const
         qWarning() << "Can't open " << file_.fileName();
         return false;
     }
-
+    is_cached_ = false;
     return true;
 }
 

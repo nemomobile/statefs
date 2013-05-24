@@ -55,6 +55,8 @@ private:
     mutable int reopen_interval_;
     mutable QTimer *reopen_timer_;
     mutable bool is_subscribed_;
+    mutable bool is_cached_;
+    mutable QVariant cache_;
 };
 
 #endif // _STATEFS_CKIT_PROPERTY_HPP_
