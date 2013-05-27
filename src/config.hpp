@@ -183,7 +183,6 @@ public:
     ~Monitor();
 
 private:
-    void load();
     int watch_thread();
     bool process_poll();
     int watch();

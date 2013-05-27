@@ -157,20 +157,22 @@ namespace inotify = cor::inotify;
 
 Monitor::Monitor
 (std::string const &path, on_changed_type on_changed)
-    : path_(path)
-    , event_(eventfd(0, 0))
+    : path_([](std::string const &path) {
+            trace() << "Config monitor for " << path << std::endl;
+            if (!ensure_dir_exists(path))
+                throw cor::Error("No config dir %s", path.c_str());
+            return path;
+        }(path))
+    , event_(eventfd(0, 0), cor::only_valid_handle)
     , on_changed_(on_changed)
+    , watch_(new inotify::Watch
+             (inotify_, path, IN_CREATE | IN_DELETE | IN_MODIFY))
+      // run thread before loading config to avoid missing configuration
+    , mon_thread_(std::bind(std::mem_fn(&Monitor::watch_thread), this))
 {
-    trace() << "Config monitor for " << path << std::endl;
-    if (!event_.is_valid())
-        throw cor::Error("Event was not initialized\n");
-
-    watch_.reset(new inotify::Watch(inotify_, path,
-                                    IN_CREATE | IN_DELETE | IN_MODIFY));
-
-    // run thread before loading config to avoid missing configuration
-    mon_thread_ = std::thread(std::bind(std::mem_fn(&Monitor::watch_thread), this));
-    load();
+    using namespace std::placeholders;
+    config::load(path_, std::bind(std::mem_fn(&Monitor::plugin_add),
+                                  this, _1, _2));
 }
 
 Monitor::~Monitor()
@@ -187,16 +189,6 @@ void Monitor::plugin_add(std::string const &cfg_path,
     auto fname = fs::path(cfg_path).filename().string();
     files_providers_[fname] = p;
     on_changed_(Added, p);
-}
-
-void Monitor::load()
-{
-    if (!ensure_dir_exists(path_))
-        throw cor::Error("No config dir %s", path_.c_str());
-
-    using namespace std::placeholders;
-    config::load(path_, std::bind(std::mem_fn(&Monitor::plugin_add),
-                                  this, _1, _2));
 }
 
 int Monitor::watch_thread()
@@ -352,9 +344,9 @@ void Dump::dump_prop(int level, statefs_property const *prop)
     out << ")";
 }
 
-typedef cor::Handle<intptr_t,
-                    cor::GenericHandleTraits
-                    <intptr_t, 0> > branch_handle_type;
+typedef cor::Handle<
+    cor::GenericHandleTraits<
+        intptr_t, 0> > branch_handle_type;
 
 void Dump::dump_ns(int level, statefs_namespace const *ns)
 {

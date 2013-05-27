@@ -474,8 +474,9 @@ class PluginDir : public PluginStorage,
 {
 public:
     typedef DirEntry<PluginNsDir> ns_type;
+    typedef std::shared_ptr<config::Plugin> info_ptr;
 
-    PluginDir(std::shared_ptr<config::Plugin> info);
+    PluginDir(info_ptr info);
     void load();
 
 private:
@@ -492,16 +493,23 @@ private:
         }
     }
 
-    std::shared_ptr<config::Plugin> info_;
+    info_ptr load_namespaces(info_ptr);
+
+    info_ptr info_;
 };
 
-PluginDir::PluginDir(std::shared_ptr<config::Plugin> info)
-    : info_(info)
+PluginDir::info_ptr
+PluginDir::load_namespaces(info_ptr p)
 {
     auto plugin_load = std::bind(&PluginDir::load, this);
-    for (auto ns : info->namespaces_)
+    for (auto ns : p->namespaces_)
         add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns, plugin_load)));
+    return p;
 }
+
+PluginDir::PluginDir(info_ptr info)
+    : info_(load_namespaces(info))
+{ }
 
 void PluginDir::load()
 {
@@ -526,7 +534,7 @@ class PluginsDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
 public:
     PluginsDir() { }
 
-    void add(std::shared_ptr<config::Plugin> p)
+    void add(PluginDir::info_ptr p)
     {
         trace() << "Plugin " << p->value() << std::endl;
         auto d = std::make_shared<PluginDir>(p);
@@ -537,14 +545,14 @@ public:
 class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    NamespaceDir(std::shared_ptr<config::Plugin> p,
+    NamespaceDir(PluginDir::info_ptr p,
                  std::shared_ptr<config::Namespace> ns);
 
     void rm_props(std::shared_ptr<config::Namespace> ns);
 };
 
 NamespaceDir::NamespaceDir
-(std::shared_ptr<config::Plugin> p, std::shared_ptr<config::Namespace> ns)
+(PluginDir::info_ptr p, std::shared_ptr<config::Namespace> ns)
 {
     Path path = {"..", "..", "providers", p->value(), ns->value()};
     for (auto prop : ns->props_) {
@@ -567,14 +575,14 @@ void NamespaceDir::rm_props(std::shared_ptr<config::Namespace> ns)
 class NamespacesDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    void plugin_add(std::shared_ptr<config::Plugin> p)
+    void plugin_add(PluginDir::info_ptr p)
     {
         auto lock(cor::wlock(*this));
         for (auto ns : p->namespaces_)
             add_dir(ns->value(), mk_dir_entry(new NamespaceDir(p, ns)));
     }
 
-    void plugin_rm(std::shared_ptr<config::Plugin> p)
+    void plugin_rm(PluginDir::info_ptr p)
     {
         auto lock(cor::wlock(*this));
         for (auto ns : p->namespaces_) {
@@ -607,7 +615,7 @@ public:
     void init(std::string const &cfg_dir)
     {
         auto on_config_changed = [this](config::Monitor::Event ev,
-                                    std::shared_ptr<config::Plugin> p) {
+                                    PluginDir::info_ptr p) {
             switch (ev) {
             case config::Monitor::Added:
                 plugin_add(p);
@@ -639,14 +647,14 @@ public:
 
 private:
 
-    void plugin_add(std::shared_ptr<config::Plugin> p)
+    void plugin_add(PluginDir::info_ptr p)
     {
         auto lock(cor::wlock(*this));
         plugins->add(p);
         namespaces->plugin_add(p);
     }
 
-    void plugin_rm(std::shared_ptr<config::Plugin> p)
+    void plugin_rm(PluginDir::info_ptr p)
     {
         auto lock(cor::wlock(*this));
         trace() << "removing " << p->value() << std::endl;
