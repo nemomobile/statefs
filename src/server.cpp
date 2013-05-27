@@ -604,11 +604,12 @@ public:
 class RootDir : public RODir<DirFactory, FileFactory, cor::NoLock>
 {
     typedef RODir<DirFactory, FileFactory, cor::NoLock> base_type;
+    typedef void (RootDir::*self_fn_type)();
 public:
     RootDir()
         : plugins(new PluginsDir())
         , namespaces(new NamespacesDir())
-        , before_readdir([]() { throw cor::Error("No config set"); })
+        , before_access_(&RootDir::access_before_init)
     {
         add_dir("providers", mk_dir_entry(plugins));
         add_dir("namespaces", mk_dir_entry(namespaces));
@@ -616,49 +617,70 @@ public:
 
     void init(std::string const &cfg_dir)
     {
-        auto on_config_changed = [this](config::Monitor::Event ev,
-                                    PluginDir::info_ptr p) {
-            switch (ev) {
-            case config::Monitor::Added:
-                plugin_add(p);
-                break;
-            case config::Monitor::Removed:
-                plugin_rm(p);
-                break;
-            }
-        };
-        before_readdir = [cfg_dir, on_config_changed, this]() {
-            cfg_mon_.reset(new config::Monitor(cfg_dir, on_config_changed));
-        };
+        cfg_dir_ = cfg_dir;
+        before_access_ = &RootDir::load_monitor;
     }
 
     int readdir(void* buf, fuse_fill_dir_t filler,
                 off_t offset, fuse_file_info &fi)
     {
-        before_readdir();
-        before_readdir = []() {};
+        (this->*before_access_)();
+        before_access_ = &RootDir::dummy;
         return base_type::readdir(buf, filler, offset, fi);
+    }
+
+    int getattr(struct stat *stbuf)
+    {
+        (this->*before_access_)();
+        before_access_ = &RootDir::dummy;
+        return base_type::getattr(stbuf);
     }
 
     entry_ptr acquire(std::string const &name)
     {
-        before_readdir();
-        before_readdir = []() {};
+        (this->*before_access_)();
+        before_access_ = &RootDir::dummy;
         return base_type::acquire(name);
     }
 
 private:
 
-    void plugin_add(PluginDir::info_ptr p)
+    void access_before_init()
+    {
+        throw cor::Error("No config set");
+    }
+
+    void load_monitor()
+    {
+        using namespace std::placeholders;
+        auto cb = std::bind(std::mem_fn(&RootDir::on_config_changed), this, _1, _2);
+        cfg_mon_.reset(new config::Monitor(cfg_dir_, cb));
+    }
+
+    void on_config_changed(config::Monitor::Event ev,
+                           PluginDir::info_ptr p)
     {
         auto lock(cor::wlock(*this));
+        switch (ev) {
+        case config::Monitor::Added:
+            plugin_add(p);
+            break;
+        case config::Monitor::Removed:
+            plugin_rm(p);
+            break;
+        }
+    }
+
+    void dummy() {}
+
+    void plugin_add(PluginDir::info_ptr p)
+    {
         plugins->add(p);
         namespaces->plugin_add(p);
     }
 
     void plugin_rm(PluginDir::info_ptr p)
     {
-        auto lock(cor::wlock(*this));
         trace() << "removing " << p->value() << std::endl;
         namespaces->plugin_rm(p);
         plugins->unlink(p->value());
@@ -666,8 +688,10 @@ private:
 
     std::shared_ptr<PluginsDir> plugins;
     std::shared_ptr<NamespacesDir> namespaces;
-    std::function<void ()> before_readdir;
+    self_fn_type before_access_;
+    //std::function<void ()> before_access;
     std::unique_ptr<config::Monitor> cfg_mon_;
+    std::string cfg_dir_;
 };
 
 class RootDirEntry : public DirEntry<RootDir>
