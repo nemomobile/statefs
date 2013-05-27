@@ -397,8 +397,10 @@ class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
     typedef RODir<DirFactory, FileFactory, Mutex> base_type;
 public:
 
+    typedef std::shared_ptr<config::Namespace> info_ptr;
+
     template <typename PluginLoaderT>
-    PluginNsDir(std::shared_ptr<config::Namespace> info, PluginLoaderT plugin_load)
+    PluginNsDir(info_ptr info, PluginLoaderT plugin_load)
         : info_(info)
     {
         for (auto prop : info->props_) {
@@ -422,7 +424,7 @@ public:
 
 private:
 
-    std::shared_ptr<config::Namespace> info_;
+    info_ptr info_;
     std::unique_ptr<Namespace> ns_;
 };
 
@@ -546,13 +548,13 @@ class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
     NamespaceDir(PluginDir::info_ptr p,
-                 std::shared_ptr<config::Namespace> ns);
+                 PluginNsDir::info_ptr ns);
 
-    void rm_props(std::shared_ptr<config::Namespace> ns);
+    void rm_props(PluginNsDir::info_ptr ns);
 };
 
 NamespaceDir::NamespaceDir
-(PluginDir::info_ptr p, std::shared_ptr<config::Namespace> ns)
+(PluginDir::info_ptr p, PluginNsDir::info_ptr ns)
 {
     Path path = {"..", "..", "providers", p->value(), ns->value()};
     for (auto prop : ns->props_) {
@@ -562,7 +564,7 @@ NamespaceDir::NamespaceDir
     }
 }
 
-void NamespaceDir::rm_props(std::shared_ptr<config::Namespace> ns)
+void NamespaceDir::rm_props(PluginNsDir::info_ptr ns)
 {
     for (auto prop : ns->props_) {
         auto name = prop->value();
