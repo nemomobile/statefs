@@ -4,7 +4,6 @@
 #include <QObject>
 #include <QThread>
 #include <QCoreApplication>
-#include <thread>
 
 class QCoreAppWrapper : public QThread
 {
@@ -19,8 +18,6 @@ private:
     static char* argv_[];
     static QCoreApplication *app_;
 
-    mutable std::mutex mutex_;
-    mutable std::condition_variable exited_;
 private slots:
     //void OnExec();
 };

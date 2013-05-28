@@ -20,6 +20,7 @@
 #include <set>
 #include <stdexcept>
 #include <chrono>
+#include <thread>
 
 #include <fcntl.h>
 
@@ -544,10 +545,8 @@ ProviderThread::ProviderThread(provider_factory_ptr factory)
 
 ProviderThread::~ProviderThread()
 {
-    mutex_.lock();
     exit(0);
-    exit_cond_.wait(&mutex_, 1000);
-    mutex_.unlock();
+    wait(5000);
 }
 
 void ProviderThread::run()
@@ -558,10 +557,6 @@ void ProviderThread::run()
     mutex_.unlock();
 
     exec();
-
-    mutex_.lock();
-    exit_cond_.wakeAll();
-    mutex_.unlock();
 }
 
 void ProviderThread::subscribe(QString const &name, CKitProperty *dst)

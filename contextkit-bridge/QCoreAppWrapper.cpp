@@ -15,15 +15,11 @@ void QCoreAppWrapper::run()
     {
         app_ = new QCoreApplication(argc_, argv_);
         app_->exec();
-        std::lock_guard<std::mutex> lock(mutex_);
-        exited_.notify_one();
     }
 }
 
 QCoreAppWrapper::~QCoreAppWrapper()
 {
-    std::unique_lock<std::mutex> lock(mutex_);
     QCoreApplication::quit();
-    exited_.wait_for(lock,  std::chrono::milliseconds(2000)
-                     , [this]() { return isFinished(); });
+    wait(5000);
 }

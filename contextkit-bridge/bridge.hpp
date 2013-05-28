@@ -31,8 +31,6 @@ class ProviderBridge : public QObject
 public:
     ProviderBridge(provider_factory_ptr, ProviderThread *);
     ~ProviderBridge();
-    void subscribe(QString const &name, CKitProperty *dst);
-    void unsubscribe(QString const &name);
 
     virtual bool event(QEvent *);
 
@@ -43,6 +41,9 @@ private slots:
     void onSubscribeFailed(QString, QString);
 
 private:
+    void subscribe(QString const &name, CKitProperty *dst);
+    void unsubscribe(QString const &name);
+
     provider_ptr provider();
 
     provider_factory_ptr factory_;
@@ -72,7 +73,6 @@ private:
     provider_factory_ptr factory_;
     QMutex mutex_;
     QWaitCondition cond_;
-    QWaitCondition exit_cond_;
 };
 
 typedef std::shared_ptr<ProviderThread> bridge_ptr;
