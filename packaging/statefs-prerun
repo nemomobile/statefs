@@ -1,11 +1,12 @@
-#!/bin/bash
-is_mounted=`mount | grep /run/state | wc -l`
+#!/bin/sh
+uid=`id -u`
+dir=/run/user/$uid/state
+is_mounted=`mount | grep $dir | wc -l`
 
-if [ $is_mounted ]; then
-    fusermount -u /run/state
+if [ "X$is_mounted" != "X0" ]; then
+    fusermount -u $dir
 fi
 
-if [ ! -e /run/state ]; then
-    echo "no dir, creating"
-    mkdir -p /run/state
+if [ ! -e $dir ]; then
+    mkdir -p $dir
 fi

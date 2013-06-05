@@ -1,12 +1,11 @@
 [Unit]
 Description=StateFS FUSE filesystem
-After=syslog.target
 
 [Service]
 ExecStartPre=/usr/bin/statefs-prerun
-ExecStart=/usr/bin/statefs -f /run/state -o allow_other
-Restarts=Always
+ExecStart=/usr/bin/statefs ${XDG_RUNTIME_DIR}/state -f
+Restart=always
 RestartSec=1
 
 [Install]
-WantedBy=basic.target
+WantedBy=default.target

@@ -1,0 +1,21 @@
+#!/bin/sh
+
+users=`ps -eo user,comm | grep systemd | grep -v '^ *root ' | sed -e 's/^ *//' | cut -d ' ' -f 1`
+for u in "$users"; do
+    uid=`id -u $u`
+    env="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/dbus/user_bus_socket"
+    case $1 in
+        install)
+            su $u -c "$env systemctl --user enable statefs.service"
+            su $u -c "$env systemctl --user restart statefs.service"
+            ;;
+        uninstall)
+            su $u -c "$env systemctl --user stop statefs.service"
+            su $u -c "$env systemctl --user disable statefs.service"
+            ;;
+        *)
+            echo "Unknown option $1"
+            exit 1
+    esac
+done
+

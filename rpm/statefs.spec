@@ -96,7 +96,7 @@ rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
 %cmake -DUSEQT=5 -DCONTEXTKIT=1
 make install DESTDIR=%{buildroot}
-install -D -p -m644 packaging/statefs.service %{buildroot}%{_unitdir}/statefs.service
+install -D -p -m644 packaging/statefs.service %{buildroot}%{_libdir}/systemd/user/statefs.service
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
 install -d -D -p -m755 %{buildroot}%{_datarootdir}/doc/statefs/html
 cp -R doc/html/ %{buildroot}%{_datarootdir}/doc/statefs/
@@ -110,8 +110,9 @@ rm -rf %{buildroot}
 %doc COPYING
 %{_bindir}/statefs
 %{_bindir}/statefs-prerun
+%{_bindir}/statefs-systemd
 %{_sharedstatedir}/statefs
-%{_unitdir}/statefs.service
+%{_libdir}/systemd/user/statefs.service
 
 %files provider-devel
 %defattr(-,root,root,-)
@@ -155,12 +156,10 @@ rm -rf %{buildroot}
 %{_libdir}/pkgconfig/contextkit-statefs.pc
 
 %post
-systemctl enable statefs.service
-systemctl start statefs.service
+%{_bindir}/statefs-systemd install
 
 %preun
-systemctl stop statefs.service
-systemctl disable statefs.service
+%{_bindir}/statefs-systemd uninstall
 
 %post contextkit-provider
 statefs register %{_libdir}/libstatefs-provider-contextkit.so

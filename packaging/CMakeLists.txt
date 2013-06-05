@@ -1,1 +1,2 @@
 INSTALL(PROGRAMS statefs-prerun DESTINATION bin)
+INSTALL(PROGRAMS statefs-systemd DESTINATION bin)
