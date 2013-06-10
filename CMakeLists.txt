@@ -40,11 +40,6 @@ INCLUDE_DIRECTORIES(
   ${CMAKE_CURRENT_SOURCE_DIR}/metafuse/include
 )
 
-if(${USEQT} STREQUAL "5")
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include/contextsubscriber)
-install(FILES include/contextsubscriber/contextproperty.h DESTINATION include)
-endif(${USEQT} STREQUAL "5")
-
 link_directories(
   ${BOOST_LIBRARY_DIRS}
   ${FUSE_LIBRARY_DIRS}
@@ -56,9 +51,6 @@ add_custom_target(provider-doc
 
 add_subdirectory(src)
 add_subdirectory(examples/src)
-if(CONTEXTKIT)
-add_subdirectory(contextkit-bridge)
-endif(CONTEXTKIT)
 add_subdirectory(packaging)
 add_subdirectory(tests)
 

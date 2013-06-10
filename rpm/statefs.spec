@@ -12,10 +12,6 @@ BuildRequires: boost-devel
 BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
 BuildRequires: pkgconfig(cor) >= 0.1.3
-BuildRequires: pkgconfig(QtCore)
-BuildRequires: pkgconfig(QtXml)
-BuildRequires: pkgconfig(Qt5Core)
-BuildRequires: contextkit-devel
 
 %description
 StateFS is the syntetic filesystem to expose current system state
@@ -45,56 +41,16 @@ Group: System Environment/Libraries
 %description examples
 %summary
 
-%package contextkit-provider
-Summary: Provider to expose contextkit providers properties
-Group: System Environment/Libraries
-Requires: statefs
-%description contextkit-provider
-Provider exposes all contextkit providers properties
-
-%package contextkit-subscriber-qt4
-Summary: Contextkit property interface using statefs
-Group: System Environment/Libraries
-Requires: statefs
-%description contextkit-subscriber-qt4
-Contextkit property interface using statefs instead of contextkit
-
-%package contextkit-subscriber-qt4-devel
-Summary: Contextkit property interface using statefs
-Group: System Environment/Libraries
-Requires: statefs-contextkit-subscriber-qt4
-%description contextkit-subscriber-qt4-devel
-Contextkit property interface using statefs instead of contextkit
-
-%package contextkit-subscriber
-Summary: Contextkit property interface using statefs
-Group: System Environment/Libraries
-Requires: statefs
-%description contextkit-subscriber
-Contextkit property interface using statefs instead of contextkit
-
-%package contextkit-subscriber-devel
-Summary: Contextkit property interface using statefs
-Group: System Environment/Libraries
-Requires: statefs-contextkit-subscriber
-%description contextkit-subscriber-devel
-Contextkit property interface using statefs instead of contextkit
-
 %prep
 %setup -q
 
 %build
-%cmake -DUSEQT=4 -DCONTEXTKIT=1
+%cmake
 make %{?jobs:-j%jobs}
 make provider-doc
-%cmake -DUSEQT=5 -DCONTEXTKIT=1
-make %{?jobs:-j%jobs}
 
 %install
 rm -rf %{buildroot}
-%cmake -DUSEQT=4 -DCONTEXTKIT=1
-make install DESTDIR=%{buildroot}
-%cmake -DUSEQT=5 -DCONTEXTKIT=1
 make install DESTDIR=%{buildroot}
 install -D -p -m644 packaging/statefs.service %{buildroot}%{_libdir}/systemd/user/statefs.service
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
@@ -134,35 +90,11 @@ rm -rf %{buildroot}
 %{_libdir}/statefs/libexample_power.so
 %{_libdir}/statefs/libexample_statefspp.so
 
-%files contextkit-provider
-%defattr(-,root,root,-)
-%{_libdir}/libstatefs-provider-contextkit.so
-
-%files contextkit-subscriber-qt4
-%defattr(-,root,root,-)
-%{_libdir}/libcontextkit-statefs-qt4.so
-
-%files contextkit-subscriber-qt4-devel
-%defattr(-,root,root,-)
-%{_libdir}/pkgconfig/contextkit-statefs-qt4.pc
-
-%files contextkit-subscriber
-%defattr(-,root,root,-)
-%{_libdir}/libcontextkit-statefs.so
-
-%files contextkit-subscriber-devel
-%defattr(-,root,root,-)
-%{_includedir}/contextproperty.h
-%{_libdir}/pkgconfig/contextkit-statefs.pc
-
 %post
 %{_bindir}/statefs-systemd install
 
 %preun
 %{_bindir}/statefs-systemd uninstall
-
-%post contextkit-provider
-statefs register %{_libdir}/libstatefs-provider-contextkit.so
 
 %post examples
 statefs register %{_libdir}/statefs/libexample_power.so
