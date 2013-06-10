@@ -15,3 +15,6 @@ add_library(statefspp
 )
 
 install(TARGETS statefspp DESTINATION ${DST_LIB})
+
+install(FILES statefs.pc DESTINATION ${DST_LIB}/pkgconfig)
+install(FILES statefs-cpp.pc DESTINATION ${DST_LIB}/pkgconfig)
