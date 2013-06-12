@@ -481,6 +481,11 @@ void save(std::string const &cfg_dir, std::string const &provider_fname)
     cfg_path /= (name + config::file_ext());
     std::ofstream out(cfg_path.generic_string());
     out << ss.str();
+    out.close();
+    // touch configuration directory, be sure dir monitor watch will
+    // observe changes
+    std::time_t n = std::time(0);
+    fs::last_write_time(cfg_dir, n);
 }
 
 } // config
