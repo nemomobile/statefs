@@ -257,6 +257,7 @@ int Monitor::watch_thread()
 
 bool Monitor::process_poll()
 {
+    std::cerr << "Providers config is maybe changed" << std::endl;
     if (fds_[1].revents) {
         uint64_t v;
         ::read(event_.value(), &v, sizeof(v));
@@ -307,15 +308,17 @@ bool Monitor::process_poll()
     std::set_difference(prev.begin(), prev.end(),
                         cur.begin(), cur.end(),
                         std::back_inserter(removed));
+    for (auto &nt : removed) {
+        auto const& v = nt.first;
+        std::cerr << "Removed " << v << std::endl;
+        on_changed_(Removed, files_providers_[v]);
+    }
     for (auto &nt : added) {
         auto const& v = nt.first;
+        std::cerr << "Added " << v << std::endl;
         using namespace std::placeholders;
         from_file(cur_config_paths[v],
                   std::bind(std::mem_fn(&Monitor::plugin_add), this, _1, _2));
-    }
-    for (auto &nt : removed) {
-        auto const& v = nt.first;
-        on_changed_(Removed, files_providers_[v]);
     }
 
     return true;
