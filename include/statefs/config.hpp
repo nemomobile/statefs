@@ -90,6 +90,7 @@ public:
            storage_type &&namespaces);
 
     std::string path;
+    std::time_t mtime_;
     storage_type namespaces_;
 };
 

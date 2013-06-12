@@ -97,7 +97,10 @@ Namespace::Namespace(std::string const &name, storage_type &&props)
 
 Plugin::Plugin(std::string const &name, std::string const &path,
                storage_type &&namespaces)
-    : ObjectExpr(name), path(path), namespaces_(namespaces)
+    : ObjectExpr(name)
+    , path(path)
+    , mtime_(fs::last_write_time(path))
+    , namespaces_(namespaces)
 {}
 
 struct PropertyInt : public boost::static_visitor<>
@@ -275,7 +278,8 @@ bool Monitor::process_poll()
     // changes each time anything changed in the configuration
     // directory
     std::unordered_map<std::string, std::string> cur_config_paths;
-    std::set<std::string> cur, prev;
+    typedef std::pair<std::string, std::time_t> file_info_type;
+    std::set<file_info_type> cur, prev;
     std::for_each
         (fs::directory_iterator(path_), fs::directory_iterator(),
          [&](fs::directory_entry const &d) {
@@ -284,26 +288,35 @@ bool Monitor::process_poll()
                 cur_config_paths[p.filename().string()]
                     = fs::canonical(p).string();
         });
-    for (auto &kv : cur_config_paths)
-        cur.insert(kv.first);
+    for (auto &kv : cur_config_paths) {
+        auto const& fname = kv.first;
+        auto mtime = fs::last_write_time(fs::path(path_) / fname);
+        cur.insert({fname, mtime});
+    }
 
-    for (auto &kv : files_providers_)
-        prev.insert(kv.first);
+    for (auto &kv : files_providers_) {
+        auto const& fname = kv.first;
+        auto mtime = fs::last_write_time(kv.second->path);
+        prev.insert({fname, mtime});
+    }
 
-    std::list<std::string> added, removed;
+    std::list<file_info_type> added, removed;
     std::set_difference(cur.begin(), cur.end(),
                         prev.begin(), prev.end(),
                         std::back_inserter(added));
     std::set_difference(prev.begin(), prev.end(),
                         cur.begin(), cur.end(),
                         std::back_inserter(removed));
-    for (auto &v : added) {
+    for (auto &nt : added) {
+        auto const& v = nt.first;
         using namespace std::placeholders;
         from_file(cur_config_paths[v],
                   std::bind(std::mem_fn(&Monitor::plugin_add), this, _1, _2));
     }
-    for (auto &v : removed)
+    for (auto &nt : removed) {
+        auto const& v = nt.first;
         on_changed_(Removed, files_providers_[v]);
+    }
 
     return true;
 }
