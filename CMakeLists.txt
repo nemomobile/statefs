@@ -53,5 +53,4 @@ add_subdirectory(src)
 add_subdirectory(examples/src)
 add_subdirectory(packaging)
 add_subdirectory(tests)
-
-install(DIRECTORY include/statefs DESTINATION include FILES_MATCHING REGEX "\\.hp?p?$")
+add_subdirectory(include/statefs)
