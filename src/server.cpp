@@ -589,12 +589,15 @@ public:
         auto lock(cor::wlock(*this));
         for (auto ns : p->namespaces_) {
             auto name = ns->value();
-            auto dir = dir_entry_impl<NamespaceDir>(dirs.find(name));
-            dir->rm_props(ns);
-            if (dir->empty()) {
-                int rc = unlink_(name);
-                if (rc < 0)
-                    std::cerr << "can't unlink ns " << name << std::endl;
+            auto pdir = dirs.find(name);
+            if (pdir) {
+                auto dir = dir_entry_impl<NamespaceDir>(pdir);
+                dir->rm_props(ns);
+                if (dir->empty()) {
+                    int rc = unlink_(name);
+                    if (rc < 0)
+                        std::cerr << "can't unlink ns " << name << std::endl;
+                }
             }
         }
     }
@@ -675,15 +678,19 @@ private:
 
     void plugin_add(PluginDir::info_ptr p)
     {
-        plugins->add(p);
-        namespaces->plugin_add(p);
+        if (p) {
+            plugins->add(p);
+            namespaces->plugin_add(p);
+        }
     }
 
     void plugin_rm(PluginDir::info_ptr p)
     {
-        trace() << "removing " << p->value() << std::endl;
-        namespaces->plugin_rm(p);
-        plugins->unlink(p->value());
+        if (p) {
+            trace() << "removing " << p->value() << std::endl;
+            namespaces->plugin_rm(p);
+            plugins->unlink(p->value());
+        }
     }
 
     std::shared_ptr<PluginsDir> plugins;
