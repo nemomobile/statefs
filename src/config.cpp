@@ -19,6 +19,35 @@
 namespace config
 {
 
+namespace fs = boost::filesystem;
+
+template <typename ReceiverT>
+void from_dir(std::string const &cfg_src, ReceiverT receiver)
+{
+    trace() << "Config dir " << cfg_src << std::endl;
+    std::for_each(fs::directory_iterator(cfg_src),
+                  fs::directory_iterator(),
+                  [&receiver](fs::directory_entry const &d) {
+                      if (d.path().extension() == file_ext())
+                          from_file(d.path().string(), receiver);
+                  });
+}
+
+template <typename ReceiverT>
+void load(std::string const &cfg_src, ReceiverT receiver)
+{
+    if (cfg_src.empty())
+        return;
+
+    if (fs::is_regular_file(cfg_src))
+        return from_file(cfg_src, receiver);
+
+    if (fs::is_directory(cfg_src))
+        return from_dir(cfg_src, receiver);
+
+    throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
+}
+
 namespace nl = cor::notlisp;
 
 void to_property(nl::expr_ptr expr, property_type &dst)
@@ -48,6 +77,28 @@ std::string to_string(property_type const &p)
     boost::apply_visitor(AnyToString(res), p);
     return res;
 }
+
+Property::Property(std::string const &name,
+                   property_type const &defval,
+                   unsigned access)
+    : ObjectExpr(name), defval_(defval), access_(access)
+{}
+
+AnyToString::AnyToString(std::string &res) : dst(res) {}
+
+void AnyToString::operator () (std::string const &v) const
+{
+    dst = v;
+}
+
+Namespace::Namespace(std::string const &name, storage_type &&props)
+    : ObjectExpr(name), props_(props)
+{}
+
+Plugin::Plugin(std::string const &name, std::string const &path,
+               storage_type &&namespaces)
+    : ObjectExpr(name), path(path), namespaces_(namespaces)
+{}
 
 struct PropertyInt : public boost::static_visitor<>
 {
