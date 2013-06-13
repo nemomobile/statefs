@@ -2,6 +2,9 @@
 Description=StateFS FUSE filesystem
 
 [Service]
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%I/dbus/user_bus_socket
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/%I
 ExecStartPre=/usr/bin/statefs-prerun
 ExecStart=/usr/bin/statefs ${XDG_RUNTIME_DIR}/state -f
 Restart=always
