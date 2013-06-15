@@ -440,6 +440,10 @@ void Dump::dump_ns(int level, statefs_namespace const *ns)
 
 std::string Dump::dump(std::string const& path)
 {
+    if (!provider_) {
+        std::cerr << "Provider " << path << " is not loaded" << std::endl;
+        return "";
+    }
     auto const &root = provider_->root;
     auto provider_name = root.node.name;
     out << "(" << "provider" << " \"" << provider_name << "\"";
