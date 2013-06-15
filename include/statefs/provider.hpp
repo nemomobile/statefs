@@ -196,10 +196,10 @@ public:
 protected:
 
     statefs_node* find(char const*) const;
-    statefs_node* get(intptr_t) const;
-    intptr_t first() const;
-    void next(intptr_t*) const;
-    bool release(intptr_t) const;
+    statefs_node* get(statefs_handle_t) const;
+    statefs_handle_t first() const;
+    void next(statefs_handle_t*) const;
+    bool release(statefs_handle_t) const;
 
 private:
 
@@ -222,25 +222,25 @@ private:
         return self->BranchStorage::find(name);
     }
 
-    static statefs_node * child_get(statefs_branch const* branch, intptr_t h)
+    static statefs_node * child_get(statefs_branch const* branch, statefs_handle_t h)
     {
         auto self = self_cast(branch);
         return self->BranchStorage::get(h);
     }
 
-    static intptr_t child_first(statefs_branch const* branch)
+    static statefs_handle_t child_first(statefs_branch const* branch)
     {
         auto self = self_cast(branch);
         return self->BranchStorage::first();
     }
 
-    static void child_next(statefs_branch const* branch, intptr_t *h)
+    static void child_next(statefs_branch const* branch, statefs_handle_t *h)
     {
         auto self = self_cast(branch);
         return self->BranchStorage::next(h);
     }
 
-    static bool child_release(statefs_branch const* branch, intptr_t h)
+    static bool child_release(statefs_branch const* branch, statefs_handle_t h)
     {
         auto self = self_cast(branch);
         return self->BranchStorage::release(h);
@@ -283,8 +283,8 @@ class APropertyAccessor
 public:
     virtual ~APropertyAccessor();
 
-    virtual int read(char *dst, size_t len, off_t off) =0;
-    virtual int write(char const*, size_t, off_t) =0;
+    virtual int read(char *dst, statefs_size_t len, statefs_off_t off) =0;
+    virtual int write(char const*, statefs_size_t, statefs_off_t) =0;
 };
 
 class AProperty : public PropertyWrapper
@@ -294,7 +294,7 @@ public:
     virtual ~AProperty();
 
     virtual int getattr() const =0;
-    virtual ssize_t size() const =0;
+    virtual statefs_ssize_t size() const =0;
     virtual APropertyAccessor* open(int flags) =0;
 
     virtual bool connect(::statefs_slot *) =0;
@@ -311,12 +311,12 @@ public:
     BasicPropertyAccessor(std::shared_ptr<T> p, HandleT *h)
         : prop_(p), handle_(h) {}
 
-    virtual int read(char *dst, size_t len, off_t off)
+    virtual int read(char *dst, statefs_size_t len, statefs_off_t off)
     {
         return prop_->read(handle_.get(), dst, len, off);
     }
 
-    virtual int write(char const *src, size_t len, off_t off)
+    virtual int write(char const *src, statefs_size_t len, statefs_off_t off)
     {
         return prop_->write(handle_.get(), src, len, off);
     }
@@ -346,7 +346,7 @@ public:
     virtual ~APropertyOwner() {}
 
     virtual int getattr() const { return impl_->getattr(); }
-    virtual ssize_t size() const { return impl_->size(); }
+    virtual statefs_ssize_t size() const { return impl_->size(); }
     virtual APropertyAccessor* open(int flags) =0;
 
     virtual bool connect(::statefs_slot *s) { return impl_->connect(s); }
@@ -392,11 +392,11 @@ class AProvider : public Branch<statefs_provider>
     static const statefs_node node_template;
 
     static int getattr(::statefs_property const *);
-    static ssize_t size(::statefs_property const *);
-    static intptr_t open(::statefs_property *self, int flags);
-    static int read(intptr_t h, char *dst, size_t len, off_t off);
-    static int write(intptr_t, char const*, size_t, off_t);
-    static void close(intptr_t);
+    static statefs_ssize_t size(::statefs_property const *);
+    static statefs_handle_t open(::statefs_property *self, int flags);
+    static int read(statefs_handle_t h, char *dst, statefs_size_t len, statefs_off_t off);
+    static int write(statefs_handle_t, char const*, statefs_size_t, statefs_off_t);
+    static void close(statefs_handle_t);
     static bool connect(::statefs_property *, ::statefs_slot *);
     static void disconnect(::statefs_property *);
 

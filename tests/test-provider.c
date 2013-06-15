@@ -39,16 +39,16 @@
 struct test_prop
 {
     struct statefs_property prop;
-    int (*read)(struct test_prop*, char *, size_t);
-    int (*write)(struct test_prop*, char const*, size_t);
+    int (*read)(struct test_prop*, char *, statefs_size_t);
+    int (*write)(struct test_prop*, char const*, statefs_size_t);
     int last_handle;
     int access_count;
     char buf[64];
-    size_t size;
+    statefs_size_t size;
 };
 
 static int read_test_value
-(struct test_prop *self, char *dst, size_t s)
+(struct test_prop *self, char *dst, statefs_size_t s)
 {
     s = MIN(s, self->size);
     memcpy(dst, self->buf, s);
@@ -56,7 +56,7 @@ static int read_test_value
 }
 
 static int write_test_value
-(struct test_prop *self, char const *src, size_t s)
+(struct test_prop *self, char const *src, statefs_size_t s)
 {
     if (s > sizeof(self->buf))
         return -EINVAL;
@@ -121,18 +121,18 @@ static struct statefs_node * prop_find
     return &props[i].prop.node;
 }
 
-static void prop_next(struct statefs_branch const* self, intptr_t *idx_ptr)
+static void prop_next(struct statefs_branch const* self, statefs_handle_t *idx_ptr)
 {
     (++*idx_ptr);
 }
 
 static struct statefs_node * prop_get
-(struct statefs_branch const* self, intptr_t idx)
+(struct statefs_branch const* self, statefs_handle_t idx)
 {
     return (idx < ARRAY_SIZE(props) && idx >= 0) ? &props[idx].prop.node : NULL;
 }
 
-static intptr_t prop_first(struct statefs_branch const* self)
+static statefs_handle_t prop_first(struct statefs_branch const* self)
 {
     return 0;
 }
@@ -159,14 +159,14 @@ static struct statefs_node * ns_find
 }
 
 static struct statefs_node * ns_get
-(struct statefs_branch const* self, intptr_t p)
+(struct statefs_branch const* self, statefs_handle_t p)
 {
     return (p ? &((struct statefs_namespace*)p)->node : NULL);
 }
 
-static intptr_t ns_first(struct statefs_branch const* self)
+static statefs_handle_t ns_first(struct statefs_branch const* self)
 {
-    return (intptr_t)&test1_ns;
+    return (statefs_handle_t)&test1_ns;
 }
 
 static void test_prov_release(struct statefs_node *node)
@@ -196,12 +196,12 @@ struct test_prop_handle
     int id;
 };
 
-static ssize_t test_prov_size(struct statefs_property const* p)
+static statefs_ssize_t test_prov_size(struct statefs_property const* p)
 {
     return container_of(p, struct test_prop, prop)->size;
 }
 
-static intptr_t test_prov_open(struct statefs_property *p, int mode)
+static statefs_handle_t test_prov_open(struct statefs_property *p, int mode)
 {
     if (mode & O_WRONLY) {
         errno = EINVAL;
@@ -212,10 +212,10 @@ static intptr_t test_prov_open(struct statefs_property *p, int mode)
     struct test_prop *self = container_of(p, struct test_prop, prop);
     h->id = self->last_handle++;
     h->p = self;
-    return (intptr_t)h;
+    return (statefs_handle_t)h;
 }
 
-static int test_prov_read(intptr_t h, char *dst, size_t len, off_t off)
+static int test_prov_read(statefs_handle_t h, char *dst, statefs_size_t len, statefs_off_t off)
 {
     struct test_prop_handle *ph = (struct test_prop_handle *)h;
     if (off)
@@ -224,7 +224,7 @@ static int test_prov_read(intptr_t h, char *dst, size_t len, off_t off)
     return ph->p->read(ph->p, dst, len);
 }
 
-static int test_prov_write(intptr_t h, char const *src, size_t len, off_t off)
+static int test_prov_write(statefs_handle_t h, char const *src, statefs_size_t len, statefs_off_t off)
 {
     struct test_prop_handle *ph = (struct test_prop_handle *)h;
     if (off)
@@ -233,7 +233,7 @@ static int test_prov_write(intptr_t h, char const *src, size_t len, off_t off)
     return ph->p->write(ph->p, src, len);
 }
 
-static void test_prov_close(intptr_t h)
+static void test_prov_close(statefs_handle_t h)
 {
     free((struct test_prov_handle*)h);
 }

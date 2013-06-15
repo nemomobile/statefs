@@ -90,7 +90,7 @@ out:
     return rc;
 }
 
-static int read_voltage(char *dst, size_t len)
+static int read_voltage(char *dst, statefs_size_t len)
 {
     pthread_mutex_lock(&power_mutex);
     int fmtlen = snprintf(dst, len - 1, "%1.4f", voltage_now);
@@ -102,7 +102,7 @@ static int read_voltage(char *dst, size_t len)
 
 #define iv_max_size (sizeof(max_iv_fmt) - 1)
 
-static int read_current(char *dst, size_t len)
+static int read_current(char *dst, statefs_size_t len)
 {
     double r = (double)rand() * 1.0 / RAND_MAX;
     int fmtlen = snprintf(dst, len - 1, "%1.4f", r);
@@ -122,7 +122,7 @@ static bool update_is_low()
     return (prev_is_low != is_low);
 }
 
-static int read_is_low(char *dst, size_t len)
+static int read_is_low(char *dst, statefs_size_t len)
 {
     pthread_mutex_lock(&power_mutex);
     int fmtlen = snprintf(dst, len - 1, "%s", is_low ? "1" : "0");
@@ -134,8 +134,8 @@ static int read_is_low(char *dst, size_t len)
 struct statefs_power_prop
 {
     struct statefs_property prop;
-    int (*read)(char *, size_t);
-    size_t max_size;
+    int (*read)(char *, statefs_size_t);
+    statefs_size_t max_size;
 };
 
 static struct statefs_power_prop * power_prop(struct statefs_property *p)
@@ -219,18 +219,18 @@ static struct statefs_node * prop_find
     return &props[i].prop.node;
 }
 
-static void prop_next(struct statefs_branch const* self, intptr_t *idx_ptr)
+static void prop_next(struct statefs_branch const* self, statefs_handle_t *idx_ptr)
 {
     (++*idx_ptr);
 }
 
 static struct statefs_node * prop_get
-(struct statefs_branch const* self, intptr_t idx)
+(struct statefs_branch const* self, statefs_handle_t idx)
 {
     return (idx < ARRAY_SIZE(props) && idx >= 0) ? &props[idx].prop.node : NULL;
 }
 
-static intptr_t prop_first(struct statefs_branch const* self)
+static statefs_handle_t prop_first(struct statefs_branch const* self)
 {
     return 0;
 }
@@ -261,14 +261,14 @@ static struct statefs_node * ns_find
 }
 
 static struct statefs_node * ns_get
-(struct statefs_branch const* self, intptr_t p)
+(struct statefs_branch const* self, statefs_handle_t p)
 {
     return (p ? &((struct statefs_namespace*)p)->node : NULL);
 }
 
-static intptr_t ns_first(struct statefs_branch const* self)
+static statefs_handle_t ns_first(struct statefs_branch const* self)
 {
-    return (intptr_t)&battery_ns;
+    return (statefs_handle_t)&battery_ns;
 }
 
 static void power_release(struct statefs_node *node)
@@ -331,7 +331,7 @@ static int power_getattr(struct statefs_property const* p)
 struct power_handle
 {
     struct statefs_power_prop *p;
-    size_t len;
+    statefs_size_t len;
     char buf[255];
 };
 
@@ -339,7 +339,7 @@ struct power_handle
  * just return maximum size of the property
  *
  */
-static ssize_t power_size(struct statefs_property const* p)
+static statefs_ssize_t power_size(struct statefs_property const* p)
 {
     return container_of(p, struct statefs_power_prop, prop)->max_size;
 }
@@ -351,7 +351,7 @@ static ssize_t power_size(struct statefs_property const* p)
  * starting of voltage values generation thread
  *
  */
-static intptr_t power_open(struct statefs_property *p, int mode)
+static statefs_handle_t power_open(struct statefs_property *p, int mode)
 {
     if (mode & O_WRONLY) {
         errno = EINVAL;
@@ -363,14 +363,14 @@ static intptr_t power_open(struct statefs_property *p, int mode)
 
     struct power_handle *h = calloc(1, sizeof(h[0]));
     h->p = power_prop(p);
-    return (intptr_t)h;
+    return (statefs_handle_t)h;
 }
 
 /** if reading starting from non-zero offset it is considered read
  * operation is continued, so previous cached result is used if
  * exists
  */
-static int power_read(intptr_t h, char *dst, size_t len, off_t off)
+static int power_read(statefs_handle_t h, char *dst, statefs_size_t len, statefs_off_t off)
 {
     struct power_handle *ph = (struct power_handle *)h;
     if (!off || (off && ph->len <= 0))
@@ -382,7 +382,7 @@ static int power_read(intptr_t h, char *dst, size_t len, off_t off)
     return memcpy_offset(dst, len, off, ph->buf, ph->len);
 }
 
-static void power_close(intptr_t h)
+static void power_close(statefs_handle_t h)
 {
     free((struct power_handle*)h);
 }

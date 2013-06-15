@@ -32,6 +32,11 @@ EXTERN_C_BEGIN
  *  @{
  */
 
+typedef unsigned long statefs_size_t;
+typedef long statefs_ssize_t;
+typedef unsigned long statefs_off_t;
+typedef intptr_t statefs_handle_t;
+
 typedef enum
 {
     statefs_variant_int,
@@ -106,13 +111,13 @@ struct statefs_branch
     /** find child node by name */
     struct statefs_node * (*find)(struct statefs_branch const*, char const *);
     /** get first child node iterator */
-    intptr_t (*first)(struct statefs_branch const*);
+    statefs_handle_t (*first)(struct statefs_branch const*);
     /** move iterator to next node */
-    void (*next)(struct statefs_branch const*, intptr_t *);
+    void (*next)(struct statefs_branch const*, statefs_handle_t *);
     /** get node pointer from iterator */
-    struct statefs_node * (*get)(struct statefs_branch const*, intptr_t);
+    struct statefs_node * (*get)(struct statefs_branch const*, statefs_handle_t);
     /** release/free iterator and resources used by it */
-    bool (*release)(struct statefs_branch const*, intptr_t);
+    bool (*release)(struct statefs_branch const*, statefs_handle_t);
 };
 
 struct statefs_property;
@@ -172,27 +177,27 @@ struct statefs_io
      * get property size. If property length is variable it is
      * better to return maximum property size
      */
-    ssize_t (*size)(struct statefs_property const *);
+    statefs_ssize_t (*size)(struct statefs_property const *);
 
     /**
      * open property for I/O
      * @param flags [O_RDONLY, O_RDWR, O_WRONLY]
      * @retval opaque handle to be used for I/O operations
      */
-    intptr_t (*open)(struct statefs_property *self, int flags);
+    statefs_handle_t (*open)(struct statefs_property *self, int flags);
 
     /**
      * read property value (len bytes starting from off)
      */
-    int (*read)(intptr_t h, char *dst, size_t len, off_t off);
+    int (*read)(statefs_handle_t h, char *dst, statefs_size_t len, statefs_off_t off);
 
     /**
      * write property value (len bytes starting from off)
      */
-    int (*write)(intptr_t, char const*, size_t, off_t);
+    int (*write)(statefs_handle_t, char const*, statefs_size_t, statefs_off_t);
 
     /** close I/O handle */
-    void (*close)(intptr_t);
+    void (*close)(statefs_handle_t);
 
     /** 
      * connect discrete property to server slot, provider should invoke
@@ -260,7 +265,7 @@ struct statefs_provider * statefs_provider_get(void);
  * if provider logic is changed and it can't be used with previous
  * versions of consumer safely
  */
-#define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(1, 0)
+#define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(2, 0)
 
 /**
  * used by server to check compatibility with provider version

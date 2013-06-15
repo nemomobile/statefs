@@ -69,7 +69,7 @@ statefs_node * BranchStorage::find(char const *name) const
     return p.get()->get_node();
 }
 
-statefs_node * BranchStorage::get(intptr_t h) const
+statefs_node * BranchStorage::get(statefs_handle_t h) const
 {
     auto piter = cor::tagged_handle_pointer<iter_type>(h);
     if (!piter)
@@ -84,19 +84,19 @@ statefs_node * BranchStorage::get(intptr_t h) const
     return p.get()->get_node();
 }
 
-intptr_t BranchStorage::first() const
+statefs_handle_t BranchStorage::first() const
 {
     return cor::new_tagged_handle<iter_type>(props_.begin());
 }
 
-void BranchStorage::next(intptr_t *h) const
+void BranchStorage::next(statefs_handle_t *h) const
 {
     auto p = cor::tagged_handle_pointer<iter_type>(*h);
     if (p)
         ++*p;
 }
 
-bool BranchStorage::release(intptr_t h) const
+bool BranchStorage::release(statefs_handle_t h) const
 {
     cor::delete_tagged_handle<iter_type>(h);
     return true;
@@ -176,31 +176,31 @@ int AProvider::getattr(::statefs_property const *p)
     return impl->getattr();
 }
 
-ssize_t AProvider::size(::statefs_property const *p)
+statefs_ssize_t AProvider::size(::statefs_property const *p)
 {
     auto impl = AProperty::self_cast(p);
     return impl->size();
 }
 
-intptr_t AProvider::open(::statefs_property *p, int flags)
+statefs_handle_t AProvider::open(::statefs_property *p, int flags)
 {
     auto impl = AProperty::self_cast(p);
-    return reinterpret_cast<intptr_t>(impl->open(flags));
+    return reinterpret_cast<statefs_handle_t>(impl->open(flags));
 }
 
-int AProvider::read(intptr_t h, char *dst, size_t len, off_t off)
+int AProvider::read(statefs_handle_t h, char *dst, statefs_size_t len, statefs_off_t off)
 {
     auto impl = reinterpret_cast<APropertyAccessor*>(h);
     return impl->read(dst, len, off);
 }
 
-int AProvider::write(intptr_t h, char const* src, size_t len, off_t off)
+int AProvider::write(statefs_handle_t h, char const* src, statefs_size_t len, statefs_off_t off)
 {
     auto impl = reinterpret_cast<APropertyAccessor*>(h);
     return impl->write(src, len, off);
 }
 
-void AProvider::close(intptr_t h)
+void AProvider::close(statefs_handle_t h)
 {
     auto impl = reinterpret_cast<APropertyAccessor*>(h);
     delete impl;
