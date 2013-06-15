@@ -1,9 +1,9 @@
-prefix=/usr
-libdir=${prefix}/lib
+prefix=@prefix@
+libdir=${prefix}/lib@LIB_SUFFIX@
 includedir=${prefix}/include
 
 Name: statefs
 Description: Statefs C++ provider framework
-Version: 0.2.11
+Version: 0.2.14
 Libs: -lstatefspp
 Cflags: -I${includedir}

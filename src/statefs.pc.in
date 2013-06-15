@@ -1,8 +1,8 @@
-prefix=/usr
-libdir=${prefix}/lib
+prefix=@prefix@
+libdir=${prefix}/lib@LIB_SUFFIX@
 includedir=${prefix}/include
 
 Name: statefs
 Description: Statefs provider
-Version: 0.2.11
+Version: 0.2.14
 Cflags: -I${includedir}

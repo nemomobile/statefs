@@ -7,3 +7,5 @@ Makefile
 cscope*
 *.so
 tools/introspect/introspect
+statefs-cpp.pc
+statefs.pc
