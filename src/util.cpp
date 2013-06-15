@@ -39,12 +39,15 @@ provider_handle_type mk_provider_handle(cor::SharedLib &lib)
         return provider_handle_type(nullptr, deleter);
     }
 
-    auto res = provider_handle_type(fn(), deleter);
-    if (res && !statefs_is_compatible(res.get())) {
-        std::cerr << "Incompatible provider version\n";
+    auto provider = provider_handle_type(fn(), deleter);
+    if (!provider) {
+        std::cerr << "provider is null" << std::endl;
+    } else if (!statefs_is_compatible(provider.get())) {
+        std::cerr << "statefs: Incompatible provider version "
+                  << provider->version << " vs " << STATEFS_CURRENT_VERSION;
         return provider_handle_type(nullptr, deleter);
     }
-    return res;
+    return provider;
 }
 
 ns_handle_type mk_namespace_handle(statefs_namespace *ns)
