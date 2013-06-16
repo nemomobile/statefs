@@ -91,12 +91,12 @@ rm -rf %{buildroot}
 %{_libdir}/statefs/libexample_statefspp.so
 
 %post
-%{_bindir}/statefs-systemd install
+%{_bindir}/statefs-systemd install || :
 
 %preun
-%{_bindir}/statefs-systemd uninstall
+%{_bindir}/statefs-systemd uninstall || :
 
 %post examples
 statefs register %{_libdir}/statefs/libexample_power.so
-statefs register %{_libdir}/statefs/libexample_statefspp.so
+statefs register %{_libdir}/statefs/libexample_statefspp.so || :
 
