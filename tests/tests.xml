@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testdefinition version="1.0">
+   <suite name="statefs-tests" domain="system">
+       <description>Statefs automatic tests</description>
+       <set name="unit-tests" feature="Statefs basic functionality">
+           <description>Basic tests</description>
+           <case manual="false" name="unittests">
+               <step>cd /opt/tests/statefs/ &amp;&amp; ./test-statefs.py statefs</step>
+           </case>
+       </set>
+   </suite>
+</testdefinition>

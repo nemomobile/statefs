@@ -26,8 +26,10 @@ from UT import test, Suite, default_main
 
 import subprocess
 from subprocess import PIPE, Popen
-import os
+import os, sys
 from time import sleep
+
+statefs_bin = '../src/statefs'
 
 def items(*args):
     return args
@@ -44,7 +46,8 @@ def mkdir(name):
 class StateFS(Suite):
 
     def init_paths(self):
-        self.server_path = "../src/statefs"
+        global statefs_bin
+        self.server_path = statefs_bin
         self.provider_path = "./libtest.so"
         self.rootdir = "/tmp/statefs-test"
 
@@ -118,5 +121,7 @@ class StateFS(Suite):
              for name, fname in self.file_paths.items()]
 
 if __name__ == '__main__':
+    if len(sys.argv) == 2:
+        statefs_bin = sys.argv[1]
     default_main(StateFS)
 

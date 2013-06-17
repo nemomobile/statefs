@@ -38,7 +38,17 @@ Statefs provider developer documentation
 %package examples
 Summary: Statefs provider examples
 Group: System Environment/Libraries
+Requires:   %{name} = %{version}-%{release}
 %description examples
+%summary
+
+%package tests
+Summary:    Tests for statefs
+License:    LGPLv2.1
+Group:      System Environment/Libraries
+Requires:   %{name} = %{version}-%{release}
+Requires:   python >= 2.7
+%description tests
 %summary
 
 %prep
@@ -89,6 +99,10 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_libdir}/statefs/libexample_power.so
 %{_libdir}/statefs/libexample_statefspp.so
+
+%files tests
+%defattr(-,root,root,-)
+/opt/tests/statefs/*
 
 %post
 %{_bindir}/statefs-systemd install || :
