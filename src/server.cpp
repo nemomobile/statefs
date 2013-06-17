@@ -450,8 +450,9 @@ void PluginNsDir::load(std::shared_ptr<Provider> prov)
         std::unique_ptr<Property> prop
             (new Property(prov->io(), ns->property(name)));
         if (!prop->exists()) {
-            std::cerr << "PROPERTY " << name << "is absent\n";
-            add_file(name, mk_file_entry(new BasicTextFile<>(cfg->defval())));
+            std::cerr << "PROPERTY " << name << " is absent\n";
+            add_file(name, mk_file_entry
+                     (new BasicTextFile<>(cfg->defval(), cfg->mode())));
         } else {
             if (prop->is_discrete())
                 add_file(name, mk_file_entry
@@ -470,7 +471,8 @@ void PluginNsDir::load_fake()
     files.clear();
     for (auto prop : info_->props_) {
         std::string name = prop->value();
-        add_file(name, mk_file_entry(new BasicTextFile<>(prop->defval())));
+        add_file(name, mk_file_entry
+                 (new BasicTextFile<>(prop->defval(), prop->mode())));
     }
 }
 

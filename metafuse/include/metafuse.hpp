@@ -429,8 +429,8 @@ class BasicTextFile :
     typedef DefaultFile<BasicTextFile<HandleT, LockingPolicy>,
                         HandleT, LockingPolicy > base_type;
 public:
-    BasicTextFile(std::string const &from)
-        : base_type(0440), data_(from) { }
+    BasicTextFile(std::string const &from, int mode)
+        : base_type(mode), data_(from) { }
 
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)

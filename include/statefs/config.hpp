@@ -64,7 +64,7 @@ public:
         return access_;
     }
 
-    int mode(int umask = 0022) const;
+    int mode(int umask = 0027) const;
 
 private:
     property_type defval_;
