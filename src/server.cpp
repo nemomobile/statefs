@@ -90,6 +90,17 @@ public:
         return getattr() & STATEFS_ATTR_DISCRETE;
     }
 
+    int mode() const
+    {
+        int res = 0;
+        auto attr = getattr();
+        if (attr & STATEFS_ATTR_WRITE)
+            res |= 0200;
+        if (attr & STATEFS_ATTR_READ)
+            res |= 0440;
+        return res;
+    }
+
     intptr_t open(int flags)
     {
         return io_->open(handle_.get(), flags);
@@ -444,10 +455,10 @@ void PluginNsDir::load(std::shared_ptr<Provider> prov)
         } else {
             if (prop->is_discrete())
                 add_file(name, mk_file_entry
-                         (new DiscretePropFile(prop, 0644)));
+                         (new DiscretePropFile(prop, prop->mode())));
             else
                 add_file(name, mk_file_entry
-                         (new ContinuousPropFile(prop, 0644)));
+                         (new ContinuousPropFile(prop, prop->mode())));
         }
     }
     ns_ = std::move(ns);
