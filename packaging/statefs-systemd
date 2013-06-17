@@ -6,12 +6,16 @@ for u in "$users"; do
     env="DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/dbus/user_bus_socket"
     case $1 in
         install)
-            su $u -c "$env systemctl --user enable statefs.service"
-            su $u -c "$env systemctl --user restart statefs.service"
+            echo "Enabling for $u"
+            su $u -m -c "$env systemctl --user enable statefs.service"
+            echo "Restarting for $u"
+            su $u -m -c "$env systemctl --user restart statefs.service"
             ;;
         uninstall)
-            su $u -c "$env systemctl --user stop statefs.service"
-            su $u -c "$env systemctl --user disable statefs.service"
+            echo "Stopping for $u"
+            su $u -m -c "$env systemctl --user stop statefs.service"
+            echo "Disabling for $u"
+            su $u -m -c "$env systemctl --user disable statefs.service"
             ;;
         *)
             echo "Unknown option $1"
