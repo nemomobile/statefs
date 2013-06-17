@@ -32,6 +32,9 @@ Headers, libraries etc. needed to develop statefs providers
 %package provider-doc
 Summary: Statefs provider developer documentation
 Group: System Environment/Libraries
+%if 0%{?_with_docs:1}
+BuildRequires: graphviz
+%endif
 %description provider-doc
 Statefs provider developer documentation
 
