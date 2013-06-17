@@ -3,7 +3,31 @@
 #include <chrono>
 #include <future>
 
-struct BeatHandle { std::string v; };
+/** @defgroup statefspp_example Example C++ provider
+ *
+ * @brief Example C++ provider - uses statefspp framework
+ *
+ * Provider is still returned by statefs_provider_get() function.
+ *
+ * Provider class should inherit statefs::AProvider (see
+ * Provider). Namespace inherits statefs::Namespace (like NsChild and
+ * NsTime).
+ *
+ * Properties can be implemented in different ways, basically property
+ * should also inherit statefs::AProperty and implement its virtual
+ * methods. The most simple way is to just specialize BasicPropertyOwner
+ * template with:
+ *
+ * - implementation class, like Stream and Seconds and
+ *
+ * - handle class, providing buffer to be used for each opened file
+     handle. In this example std::string is used
+ *
+ */
+
+/** \addtogroup statefs_example
+ *  @{
+ */
 
 template <typename T>
 int read_from(T &src, char *dst, size_t len, off_t off)
@@ -18,10 +42,11 @@ int read_from(T &src, char *dst, size_t len, off_t off)
     return len;
 }
 
-class Beat
+/// Basic continuous (non-pollable, analog) property implementation
+class Stream
 {
 public:
-    Beat(statefs::AProperty *parent)
+    Stream(statefs::AProperty *parent)
         : parent_(parent), v_("e"), slot_(nullptr) {}
 
     int getattr() const { return STATEFS_ATTR_READ; }
@@ -32,17 +57,17 @@ public:
         return true;
     }
 
-    int read(BeatHandle *h, char *dst, size_t len, off_t off)
+    int read(std::string *h, char *dst, size_t len, off_t off)
     {
         update();
-        auto &v = h->v;
+        auto &v = *h;
         if (!off)
             v = v_;
 
         return read_from(v, dst, len, off);
     }
 
-    int write(BeatHandle *h, char const *src, size_t len, off_t off)
+    int write(std::string *h, char const *src, size_t len, off_t off)
     {
         return -1;
     }
@@ -62,22 +87,22 @@ private:
     ::statefs_slot *slot_;
 };
 
+/// Basic namespace example, it contains single property
 class NsChild : public statefs::Namespace
 {
 public:
     NsChild(char const *name) : Namespace(name)
     {
-        insert(new statefs::BasicPropertyOwner<Beat, BeatHandle>("amount"));
+        insert(new statefs::BasicPropertyOwner
+               <Stream, std::string>("amount"));
     }
-
-    virtual ~NsChild() { std::cerr << "~NsChild " << get_name() << std::endl; }
-    virtual void release() { std::cerr << "release  " << get_name() << std::endl;}
 };
 
-class Time
+/// Discrete (pollable) property implementation example
+class Seconds
 {
 public:
-    Time(statefs::AProperty *parent)
+    Seconds(statefs::AProperty *parent)
         : update_interval_usec_(1000000)
         , parent_(parent)
         , v_(calc())
@@ -97,19 +122,19 @@ public:
         return true;
     }
 
-    int read(BeatHandle *h, char *dst, size_t len, off_t off)
+    int read(std::string *h, char *dst, size_t len, off_t off)
     {
         if (!slot_)
             v_ = calc();
 
-        auto &v = h->v;
+        auto &v = *h;
         if (!off)
             v = v_;
 
         return read_from(v, dst, len, off);
     }
 
-    int write(BeatHandle *h, char const *src, size_t len, off_t off)
+    int write(std::string *h, char const *src, size_t len, off_t off)
     {
         update_interval_usec_ = stoi(std::string(src, len));
         return len;
@@ -147,18 +172,22 @@ private:
     ::statefs_slot *slot_;
 };
 
+/// Another basic namespace example, representing namespace for
+/// "seconds" property, implemented in Seconds class
 class NsTime : public statefs::Namespace
 {
 public:
     NsTime() : Namespace("Time")
     {
-        insert(new statefs::BasicPropertyOwner<Time, BeatHandle>("seconds"));
+        insert(new statefs::BasicPropertyOwner
+               <Seconds, std::string>("seconds"));
     }
-
-    virtual ~NsTime() { std::cerr << "~NsTime " << get_name() << std::endl; }
-    virtual void release() { std::cerr << "release " << get_name() << std::endl;}
 };
 
+/**
+ * Provider should inherit statefs::AProvider and call ctor supplying
+ * it with provider name
+ */
 class Provider : public statefs::AProvider
 {
 public:
@@ -167,7 +196,11 @@ public:
         insert(new NsChild("Beer"));
         insert(new NsTime());
     }
-    virtual ~Provider() { std::cerr << "~Provider " << get_name() << std::endl; }
+
+    /** 
+     * corresponds to statefs_node.release of the
+     * statefs_provider.root
+     */
     virtual void release() {
         std::cerr << "release prov" << std::endl;
         delete this;
@@ -183,3 +216,5 @@ EXTERN_C struct statefs_provider * statefs_provider_get(void)
     provider = new Provider();
     return provider;
 }
+
+/** @} statefspp_example */

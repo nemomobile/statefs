@@ -12,7 +12,7 @@
         - @ref iteration
         - @ref property_access
     - @ref registration
-    - @ref provider_example
+    - @ref provider_examples
 
 
 
@@ -143,7 +143,12 @@
 
     \endverbatim
 
-    @subsection provider_example Example
+    @subsection provider_examples Examples
 
-    Very basic provider example is described @ref power_example "here".
+    - Very basic provider example (written in C) is described
+    @ref power_example "here".
+
+    - Example of provider using statefspp framework for applications
+    written on C++ is described @ref statefspp_example "here".
+
 */
