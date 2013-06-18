@@ -96,6 +96,9 @@ public:
         insert(new statefs::BasicPropertyOwner
                <Stream, std::string>("amount"));
     }
+
+    virtual ~NsChild() {}
+    virtual void release() {}
 };
 
 /// Discrete (pollable) property implementation example
@@ -182,6 +185,9 @@ public:
         insert(new statefs::BasicPropertyOwner
                <Seconds, std::string>("seconds"));
     }
+
+    virtual ~NsTime() {}
+    virtual void release() {}
 };
 
 /**
@@ -196,6 +202,8 @@ public:
         insert(new NsChild("Beer"));
         insert(new NsTime());
     }
+    virtual ~Provider() {
+        std::cerr << "~Provider " << get_name() << std::endl; }
 
     /** 
      * corresponds to statefs_node.release of the
