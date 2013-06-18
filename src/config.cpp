@@ -406,7 +406,6 @@ void Dump::dump_prop(int level, statefs_property const *prop)
         << statefs_variant_2str(&prop->default_value);
     dump_info(level, &prop->node);
     int attr = provider_->io.getattr(prop);
-    std::cerr << prop->node.name << " ATTR " << attr << std::endl;
     if (!(attr & STATEFS_ATTR_DISCRETE))
         out << " :behavior continuous";
     if (attr & STATEFS_ATTR_WRITE)
