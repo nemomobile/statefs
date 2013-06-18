@@ -189,9 +189,9 @@ protected:
 public:
 
     BranchStorage();
-    
-    void insert(child_ptr child);
-    void insert(ANode *child);
+
+    child_ptr insert(child_ptr child);
+    child_ptr insert(ANode *child);
 
 protected:
 
@@ -212,7 +212,7 @@ class Branch : public BranchWrapper<BranchT>, public BranchStorage
 private:
 
     static const statefs_branch branch_template;
-    
+
     typedef BranchWrapper<BranchT> base_type;
 
     static statefs_node * child_find(statefs_branch const* branch
@@ -371,7 +371,8 @@ public:
     {
         return statefs::mk_prop_accessor(this->impl_, new HandleT());
     }
-    
+
+    std::shared_ptr<T> get_impl() { return this->impl_; }
 };
 
 class Namespace : public Branch<statefs_namespace>

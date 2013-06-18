@@ -43,20 +43,19 @@ statefs_provider* node_to<statefs_provider>(::statefs_node *n)
 BranchStorage::BranchStorage()
 {}
 
-void BranchStorage::insert(child_ptr child)
+BranchStorage::child_ptr BranchStorage::insert(child_ptr child)
 {
     if (child)
         props_.insert(
             std::move(std::make_pair(
                           child->get_name(), child)));
+    return child;
 }
 
-void BranchStorage::insert(ANode *child)
+BranchStorage::child_ptr BranchStorage::insert(ANode *child)
 {
-    if (child)
-        props_.insert(
-            std::move(std::make_pair(
-                          child->get_name(), child_ptr(child))));
+    child_ptr p(child);
+    return insert(p);
 }
 
 
