@@ -14,7 +14,7 @@ namespace config
 
 static inline std::string file_ext()
 {
-    return ".scm";
+    return ".conf";
 }
 
 namespace nl = cor::notlisp;
