@@ -11,7 +11,7 @@ BuildRequires: boost-filesystem
 BuildRequires: boost-devel
 BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
-BuildRequires: pkgconfig(cor) >= 0.1.3
+BuildRequires: pkgconfig(cor) >= 0.1.4
 
 %description
 StateFS is the syntetic filesystem to expose current system state
@@ -27,6 +27,7 @@ Statefs framework to be used to write providers in C++
 Summary: Files to develop statefs providers
 Group: System Environment/Libraries
 Requires: statefs-pp = %{version}-%{release}
+Requires: cor-devel >= 0.1.4
 %description provider-devel
 Headers, libraries etc. needed to develop statefs providers
 
