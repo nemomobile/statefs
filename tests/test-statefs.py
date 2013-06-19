@@ -25,7 +25,7 @@
 from UT import test, Suite, default_main
 
 import subprocess
-from subprocess import PIPE, Popen
+from subprocess import PIPE, Popen, check_output
 import os, sys
 from time import sleep
 
@@ -65,7 +65,14 @@ class StateFS(Suite):
         self.server = Popen(self.__cmd("-f", self.mntdir),
                             stdout=PIPE, stderr=PIPE)
         self.suite_teardown.append(self.terminate_server)
-        sleep(1)
+        timeout = 50
+        while timeout:
+            sleep(0.1)
+            output = check_output("mount | grep {} | wc -l".format(self.mntdir), shell=True)
+            if int(output.strip()) > 0:
+                sleep(0.1)
+                break
+            timeout -= 1
 
     def terminate_server(self):
         self.server.terminate()
@@ -85,13 +92,19 @@ class StateFS(Suite):
         rc = subprocess.call(self.__cmd("register", self.provider_path))
         self.ensure_eq(rc, 0, "provider registration")
         self.ensure_eq(set(os.listdir(self.cfgdir)),
-                       set(('test.scm',)),
+                       set(('test.conf',)),
                        "config file should appear in the config dir")
         self.providers_dir = os.path.join(self.mntdir, "providers")
         self.namespaces_dir = os.path.join(self.mntdir, "namespaces")
-        self.ensure_eq(set(os.listdir(self.providers_dir)),
-                       set(('test',)),
-                       "statefs should notify test provider")
+        timeout = 50
+        while timeout:
+            providers = os.listdir(self.providers_dir)
+            if len(providers) != 0:
+                break
+            timeout -= 1
+            sleep(0.1)
+        self.ensure_eq(set(providers), set(('test',)),
+                       "test provider should be loaded")
 
     @test
     def provider_introspection(self):
