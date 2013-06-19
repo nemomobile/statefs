@@ -26,6 +26,7 @@ Statefs framework to be used to write providers in C++
 %package provider-devel
 Summary: Files to develop statefs providers
 Group: System Environment/Libraries
+Requires: statefs-pp = %{version}-%{release}
 %description provider-devel
 Headers, libraries etc. needed to develop statefs providers
 
