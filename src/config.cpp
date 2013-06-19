@@ -19,6 +19,54 @@
 namespace config
 {
 
+template <typename CharT>
+std::basic_ostream<CharT> & operator <<
+(std::basic_ostream<CharT> &out, Property const &src)
+{
+    out << "\n";
+    out << "(" << "prop" << " \"" << src.value() << "\" "
+         << " \""<< src.defval() << "\" ";
+    unsigned access = src.access();
+    if (!(access & Property::Subscribe))
+        out << " :behavior continuous";
+    if (access & Property::Write) {
+        if (access & Property::Read)
+            out << " :access rw";
+        else
+            out << " :access wonly";
+    }
+    out << ")";
+
+    return out;
+}
+
+template <typename CharT>
+std::basic_ostream<CharT> & operator <<
+(std::basic_ostream<CharT> &out, Namespace const &src)
+{
+    out << "\n";
+    out << "(" << "ns" << " \"" << src.value() << "\"";
+    for(auto &prop: src.props_)
+        out << *prop;
+    out << ")";
+
+    return out;
+}
+
+template <typename CharT>
+std::basic_ostream<CharT> & operator <<
+(std::basic_ostream<CharT> &out, Plugin const &src)
+{
+    out << "(" << "provider" << " \"" << src.value() << "\"";
+
+    out << " \"" << src.path << "\"";
+    for(auto &ns: src.namespaces_)
+        out << *ns;
+    out << ")\n";
+
+    return out;
+}
+
 namespace fs = boost::filesystem;
 
 template <typename ReceiverT>
@@ -203,6 +251,7 @@ nl::env_ptr mk_parse_env()
                     mk_const("discrete", Property::Subscribe),
                     mk_const("continuous", 0),
                     mk_const("rw", Property::Write | Property::Read),
+                    mk_const("wonly", Property::Write),
                     }));
     return env;
 }
@@ -272,7 +321,7 @@ bool Monitor::process_poll()
     int rc;
     // read all events
     while ((rc = inotify_.read(buf, sizeof(buf))) > (int)sizeof(buf)) {}
-        
+
     // configuration is changed rarely (only on
     // un/installation of plugins), so it is simplier and more
     // robust just to iterate through 'em and calculate
@@ -481,15 +530,28 @@ static std::string mk_provider_path(std::string const &path)
 
 std::string dump(std::ostream &dst, std::string const &path)
 {
-    auto full_path = mk_provider_path(path);
-    cor::SharedLib lib(full_path, RTLD_LAZY);
+    auto full_path = fs::path(mk_provider_path(path));
+    if (full_path.extension() == file_ext()) {
+        std::string plugin_name("");
+        auto dump_plugin = [&dst, &plugin_name]
+            (std::string const &cfg_path, std::shared_ptr<config::Plugin> p) {
+            if (p) {
+                dst << *p;
+                plugin_name = p->value();
+            }
+        };
+        from_file(full_path.native(), dump_plugin);
+        std::cerr << "Plugin: " << plugin_name << std::endl;
+        return plugin_name;
+    } else {
+        cor::SharedLib lib(full_path.native(), RTLD_LAZY);
+        if (!lib.is_loaded()) {
+            throw cor::Error("Can't load library %s: %s"
+                             , path.c_str(), ::dlerror());
+        }
 
-    if (!lib.is_loaded()) {
-        throw cor::Error("Can't load library %s: %s"
-                         , path.c_str(), ::dlerror());
+        return Dump(dst, mk_provider_handle(lib)).dump(full_path.native());
     }
-
-    return Dump(dst, mk_provider_handle(lib)).dump(full_path);
 }
 
 void save(std::string const &cfg_dir, std::string const &provider_fname)
