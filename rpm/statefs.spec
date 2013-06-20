@@ -1,6 +1,6 @@
 Summary: Syntetic filesystem to expose system state
 Name: statefs
-Version: x.x.x
+Version: 0.0.0
 Release: 1
 License: LGPLv2
 Group: System Environment/Tools
@@ -60,7 +60,7 @@ Requires:   python >= 2.7
 %setup -q
 
 %build
-%cmake
+%cmake -DSTATEFS_VERSION=%{version}
 make %{?jobs:-j%jobs}
 make provider-doc
 

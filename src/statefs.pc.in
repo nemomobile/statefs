@@ -4,5 +4,5 @@ includedir=${prefix}/include
 
 Name: statefs
 Description: Statefs provider
-Version: 0.2.14
+Version: @STATEFS_VERSION@
 Cflags: -I${includedir}
