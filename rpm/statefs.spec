@@ -12,10 +12,13 @@ BuildRequires: boost-devel
 BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
 BuildRequires: pkgconfig(cor) >= 0.1.4
+BuildRequires: systemd
 
 %description
 StateFS is the syntetic filesystem to expose current system state
 provided by StateFS plugins as properties wrapped into namespaces.
+
+%define _userunitdir %{_libdir}/systemd/user/
 
 %package pp
 Summary: Statefs framework for C++ providers
@@ -67,7 +70,7 @@ make provider-doc
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
-install -D -p -m644 packaging/statefs.service %{buildroot}%{_libdir}/systemd/user/statefs.service
+install -D -p -m644 packaging/statefs.service %{buildroot}%{_userunitdir}/statefs.service
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
 install -d -D -p -m755 %{buildroot}%{_datarootdir}/doc/statefs/html
 cp -R doc/html/ %{buildroot}%{_datarootdir}/doc/statefs/
@@ -81,9 +84,8 @@ rm -rf %{buildroot}
 %doc COPYING
 %{_bindir}/statefs
 %{_bindir}/statefs-prerun
-%{_bindir}/statefs-systemd
 %{_sharedstatedir}/statefs
-%{_libdir}/systemd/user/statefs.service
+%{_userunitdir}/statefs.service
 
 %files provider-devel
 %defattr(-,root,root,-)
@@ -108,12 +110,6 @@ rm -rf %{buildroot}
 %files tests
 %defattr(-,root,root,-)
 /opt/tests/statefs/*
-
-%post
-%{_bindir}/statefs-systemd install || :
-
-%preun
-%{_bindir}/statefs-systemd uninstall || :
 
 %post examples
 statefs register %{_libdir}/statefs/libexample_power.so
