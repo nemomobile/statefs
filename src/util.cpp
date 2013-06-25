@@ -27,7 +27,7 @@ provider_handle_type mk_provider_handle(cor::SharedLib &lib)
     static auto deleter = [](statefs_provider *p) {
         statefs_provider_release(p);
     };
-    static const char *sym_name = "statefs_provider_get";
+    static const char *sym_name = statefs_provider_accessor();
 
     if (!lib.is_loaded()) {
         std::cerr << "Lib loading error " << ::dlerror() << std::endl;

@@ -251,6 +251,10 @@ typedef struct statefs_provider * (*statefs_provider_fn)(void);
  */
 struct statefs_provider * statefs_provider_get(void);
 
+static inline char const *statefs_provider_accessor()
+{
+    return "statefs_provider_get";
+}
 
 #define STATEFS_MK_VERSION(major, minor)                                \
     (((unsigned)major << (sizeof(unsigned) * 4)) | ((unsigned)minor))
