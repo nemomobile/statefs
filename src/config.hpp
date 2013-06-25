@@ -21,8 +21,8 @@ class Monitor
 public:
 
     enum Event { Added, Removed };
-
-    typedef std::function<void (Event ev, std::shared_ptr<Plugin>)>
+    typedef std::shared_ptr<config::Plugin> plugin_ptr;
+    typedef std::function<void (Event ev, plugin_ptr)>
     on_changed_type;
 
     Monitor(std::string const &path,
@@ -33,8 +33,7 @@ private:
     int watch_thread();
     bool process_poll();
     int watch();
-    void plugin_add(std::string const &cfg_path,
-                    std::shared_ptr<config::Plugin> p);
+    void plugin_add(std::string const &cfg_path, plugin_ptr p);
 
     cor::inotify::Handle inotify_;
     std::string path_;
@@ -45,7 +44,7 @@ private:
     std::array<pollfd, 2> fds_;
     std::thread mon_thread_;
 
-    std::map<std::string, std::shared_ptr<config::Plugin> > files_providers_;
+    std::map<std::string, plugin_ptr> files_providers_;
 };
 
 std::string dump(std::ostream &, std::string const&);

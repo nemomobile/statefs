@@ -10,11 +10,13 @@
 namespace config
 {
 
+namespace provider {
 
-
-static inline std::string file_ext()
+static inline std::string cfg_extension()
 {
     return ".conf";
+}
+
 }
 
 namespace nl = cor::notlisp;

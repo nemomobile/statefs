@@ -76,8 +76,9 @@ void from_dir(std::string const &cfg_src, ReceiverT receiver)
     std::for_each(fs::directory_iterator(cfg_src),
                   fs::directory_iterator(),
                   [&receiver](fs::directory_entry const &d) {
-                      if (d.path().extension() == file_ext())
-                          from_file(d.path().string(), receiver);
+                      auto path = d.path();
+                      if (path.extension() == provider::cfg_extension())
+                          from_file(path.string(), receiver);
                   });
 }
 
@@ -194,7 +195,10 @@ int Property::mode(int umask) const
 nl::env_ptr mk_parse_env()
 {
     using nl::env_ptr;
-    nl::lambda_type plugin = [](env_ptr, nl::expr_list_type &params) {
+    using nl::expr_list_type;
+    using nl::lambda_type;
+
+    lambda_type plugin = [](env_ptr, expr_list_type &params) {
         nl::ListAccessor src(params);
         std::string name, path;
         src.required(nl::to_string, name).required(nl::to_string, path);
@@ -204,7 +208,7 @@ nl::env_ptr mk_parse_env()
         return nl::expr_ptr(new Plugin(name, path, std::move(namespaces)));
     };
 
-    nl::lambda_type prop = [](env_ptr, nl::expr_list_type &params) {
+    lambda_type prop = [](env_ptr, expr_list_type &params) {
         nl::ListAccessor src(params);
         std::string name;
         property_type defval;
@@ -229,7 +233,7 @@ nl::env_ptr mk_parse_env()
         return res;
     };
 
-    nl::lambda_type ns = [](env_ptr, nl::expr_list_type &params) {
+    lambda_type ns = [](env_ptr, expr_list_type &params) {
         nl::ListAccessor src(params);
         std::string name;
         src.required(nl::to_string, name);
@@ -247,7 +251,7 @@ nl::env_ptr mk_parse_env()
                     mk_record("ns", ns),
                     mk_record("prop", prop),
                     mk_const("false", 0),
-                    mk_const("true", 0),
+                    mk_const("true", 1),
                     mk_const("discrete", Property::Subscribe),
                     mk_const("continuous", 0),
                     mk_const("rw", Property::Write | Property::Read),
@@ -287,7 +291,7 @@ Monitor::~Monitor()
 }
 
 void Monitor::plugin_add(std::string const &cfg_path,
-                         std::shared_ptr<config::Plugin> p)
+                         Monitor::plugin_ptr p)
 {
     auto fname = fs::path(cfg_path).filename().string();
     files_providers_[fname] = p;
@@ -334,7 +338,7 @@ bool Monitor::process_poll()
         (fs::directory_iterator(path_), fs::directory_iterator(),
          [&](fs::directory_entry const &d) {
             auto p = d.path();
-            if (d.path().extension() == file_ext())
+            if (p.extension() == provider::cfg_extension())
                 cur_config_paths[p.filename().string()]
                     = fs::canonical(p).string();
         });
@@ -528,41 +532,71 @@ static std::string mk_provider_path(std::string const &path)
     return provider_path.generic_string();
 }
 
+static inline std::string dump_provider_cfg_file
+(std::ostream &dst, fs::path const &path)
+{
+    std::string plugin_name("");
+    auto dump_plugin = [&dst, &plugin_name]
+        (std::string const &cfg_path, Monitor::plugin_ptr p) {
+        if (p) {
+            dst << *p;
+            plugin_name = p->value();
+        }
+    };
+    from_file(path.native(), dump_plugin);
+    std::cerr << "Plugin: " << plugin_name << std::endl;
+    return plugin_name;
+}
+
+static inline std::string dump_provider
+(std::ostream &dst, fs::path const &path)
+{
+    cor::SharedLib lib(path.native(), RTLD_LAZY);
+    if (!lib.is_loaded()) {
+        throw cor::Error("Can't load library %s: %s"
+                         , path.c_str(), ::dlerror());
+    }
+
+    return Dump(dst, mk_provider_handle(lib)).dump(path.native());
+}
+
+/**
+ * dumps configuration of provider/loader (shared library or conf
+ * file). If configuration file is passed to the function it just
+ * parse and dump it, if binary - extracts configuration information
+ * in configuration file format
+ *
+ * @param dst output stream
+ * @param path path to file to be introspected
+ *
+ * @return provider name
+ */
 std::string dump(std::ostream &dst, std::string const &path)
 {
     auto full_path = fs::path(mk_provider_path(path));
-    if (full_path.extension() == file_ext()) {
-        std::string plugin_name("");
-        auto dump_plugin = [&dst, &plugin_name]
-            (std::string const &cfg_path, std::shared_ptr<config::Plugin> p) {
-            if (p) {
-                dst << *p;
-                plugin_name = p->value();
-            }
-        };
-        from_file(full_path.native(), dump_plugin);
-        std::cerr << "Plugin: " << plugin_name << std::endl;
-        return plugin_name;
+    if (full_path.extension() == provider::cfg_extension()) {
+        return dump_provider_cfg_file(dst, full_path);
     } else {
-        cor::SharedLib lib(full_path.native(), RTLD_LAZY);
-        if (!lib.is_loaded()) {
-            throw cor::Error("Can't load library %s: %s"
-                             , path.c_str(), ::dlerror());
-        }
-
-        return Dump(dst, mk_provider_handle(lib)).dump(full_path.native());
+        return dump_provider(dst, full_path);
     }
 }
 
-void save(std::string const &cfg_dir, std::string const &provider_fname)
+/**
+ * saves provider/loader metadata in parsable/readable configuration
+ * format
+ *
+ * @param cfg_dir destination directory
+ * @param fname subject (so, conf file...) file name
+ */
+void save(std::string const &cfg_dir, std::string const &fname)
 {
     namespace fs = boost::filesystem;
 
     std::stringstream ss;
-    auto name = dump(ss, provider_fname);
+    auto name = dump(ss, fname);
 
     auto cfg_path = fs::path(cfg_dir);
-    cfg_path /= (name + config::file_ext());
+    cfg_path /= (name + provider::cfg_extension());
     std::ofstream out(cfg_path.generic_string());
     out << ss.str();
     out.close();
