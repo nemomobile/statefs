@@ -271,16 +271,21 @@ static inline char const *statefs_provider_accessor()
  */
 #define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(2, 0)
 
+static inline bool statefs_is_version_compatible(unsigned lib_ver)
+{
+    unsigned short maj, min;
+    unsigned short prov_maj, prov_min;
+    STATEFS_GET_VERSION(lib_ver, prov_maj, prov_min);
+    STATEFS_GET_VERSION(STATEFS_CURRENT_VERSION, maj, min);
+    return (prov_maj == maj) && (prov_min <= min);
+}
+
 /**
  * used by server to check compatibility with provider version
  */
 static inline bool statefs_is_compatible(struct statefs_provider *provider)
 {
-    unsigned short maj, min;
-    unsigned short prov_maj, prov_min;
-    STATEFS_GET_VERSION(provider->version, prov_maj, prov_min);
-    STATEFS_GET_VERSION(STATEFS_CURRENT_VERSION, maj, min);
-    return (prov_maj == maj) && (prov_min <= min);
+    return statefs_is_version_compatible(provider->version);
 }
 
 /** @}

@@ -1,6 +1,7 @@
 #include "statefs.hpp"
 
 #include <statefs/provider.h>
+#include <statefs/loader.hpp>
 #include <statefs/util.h>
 #include <cor/util.h>
 
@@ -10,6 +11,7 @@
 #include "config.hpp"
 
 #include <boost/algorithm/string/join.hpp>
+#include <boost/filesystem.hpp>
 
 #include <iostream>
 #include <exception>
@@ -17,12 +19,81 @@
 #include <set>
 #include <fstream>
 
+#define STRINGIFY(x) #x
+#define DQUOTESTR(x) STRINGIFY(x)
+
+static const char *statefs_version = DQUOTESTR(STATEFS_VERSION);
+static const char *providers_dir = DQUOTESTR(STATEFS_LIB_DIR);
+
 using namespace metafuse;
+using statefs::provider_ptr;
+
+class Loader
+{
+    typedef std::unique_ptr<statefs::Loader> impl_ptr;
+public:
+    Loader(std::string const&);
+    provider_ptr load(std::string const&);
+
+private:
+    Loader(Loader const&);
+    Loader& operator =(Loader const&);
+
+    static std::string loader_path(std::string const&);
+    static impl_ptr create(cor::SharedLib &);
+    cor::SharedLib lib_;
+    impl_ptr impl_;
+};
+
+Loader::Loader(std::string const& name)
+    : lib_(loader_path(name), RTLD_LAZY)
+    , impl_(std::move(create(lib_)))
+{
+}
+
+provider_ptr Loader::load(std::string const& path)
+{
+    return impl_ ? impl_->load(path) : nullptr;
+}
+
+std::string Loader::loader_path(std::string const& name)
+{
+    namespace fs = boost::filesystem;
+    fs::path path(providers_dir);
+    path /= (std::string("libloader-") + name + ".so");
+    return path.string();
+}
+
+Loader::impl_ptr Loader::create(cor::SharedLib &lib)
+{
+    if (!lib.is_loaded()) {
+        std::cerr << "Lib loading error " << ::dlerror() << std::endl;
+        return nullptr;
+    }
+    auto fn = lib.sym<create_provider_loader_fn>
+        (statefs::cpp_loader_accessor());
+    if (!fn) {
+        std::cerr << "Can't resolve "
+                  << statefs::cpp_loader_accessor() << std::endl;
+        return nullptr;
+    }
+
+    auto loader = fn();
+    if (!loader) {
+        std::cerr << "provider is null" << std::endl;
+    } else if (!statefs_is_version_compatible(loader->version())) {
+        std::cerr << "statefs: Incompatible loader version "
+                  << loader->version() << " vs " << STATEFS_CURRENT_VERSION;
+        return nullptr;
+    }
+    return impl_ptr(loader);
+}
+
 
 class Provider
 {
 public:
-    Provider(std::string const &path);
+    Provider(std::weak_ptr<Loader> loader, std::string const &path);
 
     ~Provider() { }
 
@@ -46,8 +117,7 @@ private:
             statefs_node_release(&p->node);
     };
 
-    cor::SharedLib lib_;
-    provider_handle_type provider_;
+    provider_ptr provider_;
 };
 
 class Namespace
@@ -171,8 +241,16 @@ void Property::disconnect()
         io_->disconnect(handle_.get());
 }
 
-Provider::Provider(std::string const &path)
-    : lib_(path, RTLD_LAZY), provider_(std::move(mk_provider_handle(lib_)))
+static provider_ptr load_provider(std::weak_ptr<Loader> loader, std::string const &path)
+{
+    auto p = loader.lock();
+    if (!p)
+        return nullptr;
+    return p->load(path);
+}
+
+Provider::Provider(std::weak_ptr<Loader> loader, std::string const &path)
+    : provider_(load_provider(loader, path))
 { }
 
 ns_handle_type Provider::ns(std::string const &name) const
@@ -484,14 +562,16 @@ protected:
     std::shared_ptr<Provider> provider_;
 };
 
-class PluginDir : public PluginStorage,
+class PluginsDir;
+
+class PluginDir : private PluginStorage,
                   public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
     typedef DirEntry<PluginNsDir> ns_type;
     typedef std::shared_ptr<config::Plugin> info_ptr;
 
-    PluginDir(info_ptr info);
+    PluginDir(PluginsDir *parent, info_ptr info);
     void load();
 
 private:
@@ -511,49 +591,44 @@ private:
     info_ptr load_namespaces(info_ptr);
 
     info_ptr info_;
+    PluginsDir *parent_;
 };
 
-PluginDir::info_ptr
-PluginDir::load_namespaces(info_ptr p)
+
+/// extracted into separate class from PluginsDir to initialize later
+/// in the proper order
+class LoadersStorage
 {
-    auto plugin_load = std::bind(&PluginDir::load, this);
-    for (auto ns : p->namespaces_)
-        add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns, plugin_load)));
-    return p;
-}
+protected:
+    std::map<std::string, std::shared_ptr<Loader>> loaders_;
+};
 
-PluginDir::PluginDir(info_ptr info)
-    : info_(load_namespaces(info))
-{ }
-
-void PluginDir::load()
-{
-    auto lock(cor::wlock(*this));
-    if (provider_)
-        return;
-
-    trace() << "Loading plugin " << info_->path << std::endl;
-    provider_.reset(new Provider(info_->path));
-
-    if (!provider_->loaded()) {
-        std::cerr << "Can't load " << info_->path
-                  << ", using fake values" << std::endl;
-        namespaces_init(&PluginNsDir::load_fake);
-        return;
-    }
-    namespaces_init(&PluginNsDir::load, provider_);
-}
-
-class PluginsDir : public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
+class PluginsDir : private LoadersStorage,
+                   public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
     PluginsDir() { }
 
     void add(PluginDir::info_ptr p)
     {
+        auto lock(cor::wlock(*this));
         trace() << "Plugin " << p->value() << std::endl;
-        auto d = std::make_shared<PluginDir>(p);
+        auto d = std::make_shared<PluginDir>(this, p);
         add_dir(p->value(), mk_dir_entry(d));
+    }
+
+    std::weak_ptr<Loader> get_loader(std::string const& name)
+    {
+        auto lock(cor::wlock(*this));
+        if (name != "default")
+            return std::weak_ptr<Loader>();
+        auto it = loaders_.find(name);
+        if (it == loaders_.end()) {
+            std::shared_ptr<Loader> loader(new Loader(name));
+            auto res = loaders_.insert(std::make_pair(name, loader));
+            return (res.first)->second;
+        };
+        return it->second;
     }
 };
 
@@ -565,6 +640,40 @@ public:
 
     void rm_props(PluginNsDir::info_ptr ns);
 };
+
+PluginDir::info_ptr
+PluginDir::load_namespaces(info_ptr p)
+{
+    auto plugin_load = std::bind(&PluginDir::load, this);
+    for (auto ns : p->namespaces_)
+        add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns, plugin_load)));
+    return p;
+}
+
+PluginDir::PluginDir(PluginsDir *parent, info_ptr info)
+    : info_(load_namespaces(info))
+    , parent_(parent)
+{
+}
+
+void PluginDir::load()
+{
+    auto lock(cor::wlock(*this));
+    if (provider_)
+        return;
+
+    trace() << "Loading plugin " << info_->path << std::endl;
+    provider_.reset(new Provider(parent_->get_loader("default")
+                                 , info_->path));
+
+    if (!provider_->loaded()) {
+        std::cerr << "Can't load " << info_->path
+                  << ", using fake values" << std::endl;
+        namespaces_init(&PluginNsDir::load_fake);
+        return;
+    }
+    namespaces_init(&PluginNsDir::load, provider_);
+}
 
 NamespaceDir::NamespaceDir
 (PluginDir::info_ptr p, PluginNsDir::info_ptr ns)

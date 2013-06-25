@@ -18,7 +18,16 @@ target_link_libraries(statefspp
   ${COR_LIBRARIES}
 )
 
+add_library(loader-default
+  SHARED loader.cpp
+)
+
+target_link_libraries(loader-default
+  ${COR_LIBRARIES}
+)
+
 install(TARGETS statefspp DESTINATION ${DST_LIB})
+install(TARGETS loader-default DESTINATION ${DST_LIB}/statefs)
 
 configure_file(statefs.pc.in statefs.pc @ONLY)
 configure_file(statefs-cpp.pc.in statefs-cpp.pc @ONLY)
