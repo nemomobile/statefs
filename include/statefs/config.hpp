@@ -29,27 +29,12 @@ static inline std::string cfg_extension()
 
 namespace nl = cor::notlisp;
 
-typedef boost::variant<long, double, std::string> property_type;
+typedef boost::variant<long, unsigned long, double, std::string> property_type;
+typedef std::unordered_map<std::string, property_type> property_map_type;
 
 void to_property(nl::expr_ptr expr, property_type &dst);
 std::string to_string(property_type const &p);
-
-struct AnyToString : public boost::static_visitor<>
-{
-    std::string &dst;
-
-    AnyToString(std::string &res);
-
-    void operator () (std::string const &v) const;
-
-    template <typename T>
-    void operator () (T &v) const
-    {
-        std::stringstream ss;
-        ss << v;
-        dst = ss.str();
-    }
-};
+std::string to_nl_string(property_type const &p);
 
 long to_integer(property_type const &src);
 
@@ -96,11 +81,14 @@ class Plugin : public nl::ObjectExpr
 public:
     typedef std::shared_ptr<Namespace> ns_type;
     typedef std::list<ns_type> storage_type;
-    Plugin(std::string const &name, std::string const &path,
-           storage_type &&namespaces);
+    Plugin(std::string const &name
+           , std::string const &path
+           , property_map_type &&info
+           , storage_type &&namespaces);
 
     std::string path;
     std::time_t mtime_;
+    property_map_type info_;
     storage_type namespaces_;
 };
 

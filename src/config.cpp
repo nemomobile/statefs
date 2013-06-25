@@ -60,11 +60,51 @@ std::basic_ostream<CharT> & operator <<
     out << "(" << "provider" << " \"" << src.value() << "\"";
 
     out << " \"" << src.path << "\"";
+    for (auto &prop: src.info_)
+        out << " :" << prop.first << " " << to_nl_string(prop.second);
     for(auto &ns: src.namespaces_)
         out << *ns;
     out << ")\n";
 
     return out;
+}
+
+template <typename CharT>
+std::basic_ostream<CharT> & operator <<
+(std::basic_ostream<CharT> &out, Loader const &src)
+{
+    out << "(" << "loader" << " \"" << src.value() << "\"";
+
+    out << " \"" << src.path << "\"";
+    out << ")\n";
+
+    return out;
+}
+
+static property_type statefs_variant_2prop(struct statefs_variant const *src)
+{
+    property_type res;
+    switch (src->tag)
+    {
+    case statefs_variant_int:
+        res = src->i;
+        break;
+    case statefs_variant_uint:
+        res = src->u;
+        break;
+    case statefs_variant_bool:
+        res = (long)src->b;
+        break;
+    case statefs_variant_real:
+        res = src->r;
+        break;
+    case statefs_variant_cstr:
+        res = src->s;
+        break;
+    default:
+        res = "";
+    }
+    return res;
 }
 
 namespace fs = boost::filesystem;
@@ -120,10 +160,67 @@ void to_property(nl::expr_ptr expr, property_type &dst)
     }
 }
 
+struct AnyToString : public boost::static_visitor<>
+{
+    std::string &dst;
+
+    AnyToString(std::string &res);
+
+    void operator () (std::string const &v) const;
+
+    template <typename T>
+    void operator () (T &v) const
+    {
+        std::stringstream ss;
+        ss << v;
+        dst = ss.str();
+    }
+};
+
+AnyToString::AnyToString(std::string &res) : dst(res) {}
+
+void AnyToString::operator () (std::string const &v) const
+{
+    dst = v;
+}
+
 std::string to_string(property_type const &p)
 {
     std::string res;
     boost::apply_visitor(AnyToString(res), p);
+    return res;
+}
+
+/// convert property_type to notlisp printable value
+struct AnyToOutString : public boost::static_visitor<>
+{
+    std::string &dst;
+
+    AnyToOutString(std::string &res);
+
+    void operator () (std::string const &v) const;
+
+    template <typename T>
+    void operator () (T &v) const
+    {
+        std::stringstream ss;
+        ss << v;
+        dst = ss.str();
+    }
+};
+
+AnyToOutString::AnyToOutString(std::string &res) : dst(res) {}
+
+void AnyToOutString::operator () (std::string const &v) const
+{
+    dst = "\"";
+    dst += (v + "\"");
+}
+
+std::string to_nl_string(property_type const &p)
+{
+    std::string res;
+    boost::apply_visitor(AnyToOutString(res), p);
     return res;
 }
 
@@ -133,22 +230,18 @@ Property::Property(std::string const &name,
     : ObjectExpr(name), defval_(defval), access_(access)
 {}
 
-AnyToString::AnyToString(std::string &res) : dst(res) {}
-
-void AnyToString::operator () (std::string const &v) const
-{
-    dst = v;
-}
-
 Namespace::Namespace(std::string const &name, storage_type &&props)
     : ObjectExpr(name), props_(props)
 {}
 
-Plugin::Plugin(std::string const &name, std::string const &path,
-               storage_type &&namespaces)
+Plugin::Plugin(std::string const &name
+               , std::string const &path
+               , property_map_type &&info
+               , storage_type &&namespaces)
     : ObjectExpr(name)
     , path(path)
     , mtime_(fs::last_write_time(path))
+    , info_(info)
     , namespaces_(namespaces)
 {}
 
@@ -202,6 +295,7 @@ nl::env_ptr mk_parse_env()
     using nl::env_ptr;
     using nl::expr_list_type;
     using nl::lambda_type;
+    using nl::expr_ptr;
 
     lambda_type plugin = [](env_ptr, expr_list_type &params) {
         nl::ListAccessor src(params);
@@ -209,8 +303,24 @@ nl::env_ptr mk_parse_env()
         src.required(nl::to_string, name).required(nl::to_string, path);
 
         Plugin::storage_type namespaces;
-        push_rest_casted(src, namespaces);
-        return nl::expr_ptr(new Plugin(name, path, std::move(namespaces)));
+        property_map_type options = {
+            // default option values
+            {"type", "default"}
+        };
+        nl::rest(src
+                 , [&namespaces](expr_ptr &v) {
+                     auto ns = std::dynamic_pointer_cast<Namespace>(v);
+                     if (!ns)
+                         throw cor::Error("Can't be casted to Namespace");
+                     namespaces.push_back(ns);
+                 }
+                 , [&options](expr_ptr &k, expr_ptr &v) {
+                     auto &p = options[k->value()];
+                     to_property(v, p);
+                 });
+        return nl::expr_ptr(new Plugin(name, path
+                                       , std::move(options)
+                                       , std::move(namespaces)));
     };
 
     lambda_type prop = [](env_ptr, expr_list_type &params) {
@@ -219,13 +329,13 @@ nl::env_ptr mk_parse_env()
         property_type defval;
         src.required(nl::to_string, name).required(to_property, defval);
 
-        std::unordered_map<std::string, property_type> options = {
+        property_map_type options = {
             // default option values
             {"behavior", "discrete"},
             {"access", (long)Property::Read}
         };
-        nl::rest(src, [](nl::expr_ptr &) {},
-                 [&options](nl::expr_ptr &k, nl::expr_ptr &v) {
+        nl::rest(src, [](expr_ptr &) {},
+                 [&options](expr_ptr &k, expr_ptr &v) {
                      auto &p = options[k->value()];
                      to_property(v, p);
              });
@@ -439,6 +549,7 @@ static std::string statefs_variant_2str(struct statefs_variant const *src)
     return ss.str();
 }
 
+
 class Dump
 {
 public:
@@ -525,6 +636,14 @@ std::string Dump::dump(std::string const& path)
     out << "(" << "provider" << " \"" << provider_name << "\"";
     dump_info(0, &root.node);
     out << " \"" << path << "\"";
+    property_map_type props = {{"type", "default"}};
+    auto info = root.node.info;
+    if (info) {
+        while (info->name) {
+            props[info->name] = statefs_variant_2prop(&info->value);
+            ++info;
+        }
+    }
     branch_handle_type iter
         (statefs_first(&root.branch),
          [&root](intptr_t v) {
