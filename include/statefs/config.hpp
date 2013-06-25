@@ -19,6 +19,14 @@ static inline std::string cfg_extension()
 
 }
 
+namespace loader {
+
+static inline std::string cfg_extension()
+{
+    return ".lconf";
+}
+}
+
 namespace nl = cor::notlisp;
 
 typedef boost::variant<long, double, std::string> property_type;
@@ -96,7 +104,16 @@ public:
     storage_type namespaces_;
 };
 
+class Loader : public nl::ObjectExpr
+{
+public:
+    Loader(std::string const &name, std::string const &path);
+
+    std::string path;
+};
+
 nl::env_ptr mk_parse_env();
+nl::env_ptr mk_loader_parse_env();
 
 template <typename CharT, typename ReceiverT>
 void parse(std::basic_istream<CharT> &input, ReceiverT receiver)

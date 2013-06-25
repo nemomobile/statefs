@@ -152,6 +152,11 @@ Plugin::Plugin(std::string const &name, std::string const &path,
     , namespaces_(namespaces)
 {}
 
+Loader::Loader(std::string const &name, std::string const &path)
+    : ObjectExpr(name)
+    , path(path)
+{}
+
 struct PropertyInt : public boost::static_visitor<>
 {
     long &dst;
@@ -256,6 +261,22 @@ nl::env_ptr mk_parse_env()
                     mk_const("continuous", 0),
                     mk_const("rw", Property::Write | Property::Read),
                     mk_const("wonly", Property::Write),
+                    }));
+    return env;
+}
+
+nl::env_ptr mk_loader_parse_env()
+{
+    nl::lambda_type loader = [](nl::env_ptr, nl::expr_list_type &params) {
+        nl::ListAccessor src(params);
+        std::string name, path;
+        src.required(nl::to_string, name).required(nl::to_string, path);
+
+        return nl::expr_ptr(new Loader(name, path));
+    };
+
+    nl::env_ptr env(new nl::Env({
+                nl::mk_record("loader", loader)
                     }));
     return env;
 }
