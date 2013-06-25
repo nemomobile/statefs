@@ -20,7 +20,6 @@ target_link_libraries(statefspp
 
 install(TARGETS statefspp DESTINATION ${DST_LIB})
 
-set(prefix ${CMAKE_INSTALL_PREFIX})
 configure_file(statefs.pc.in statefs.pc @ONLY)
 configure_file(statefs-cpp.pc.in statefs-cpp.pc @ONLY)
 install(FILES statefs.pc DESTINATION ${DST_LIB}/pkgconfig)
