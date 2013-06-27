@@ -29,7 +29,9 @@ from subprocess import PIPE, Popen, check_output
 import os, sys
 from time import sleep
 
-statefs_bin = '../src/statefs'
+statefs_bin = None
+tests_path = None
+default_loader = None
 
 def items(*args):
     return args
@@ -46,10 +48,11 @@ def mkdir(name):
 class StateFS(Suite):
 
     def init_paths(self):
-        global statefs_bin
+        global statefs_bin, tests_path, default_loader
         self.server_path = statefs_bin
-        self.provider_path = "./libtest.so"
+        self.provider_path = os.path.join(tests_path, "libtest.so")
         self.rootdir = "/tmp/statefs-test"
+        self.default_loader = default_loader
 
     def create_tree(self):
         mkdir(self.rootdir)
@@ -88,11 +91,19 @@ class StateFS(Suite):
                        "basic structure")
 
     @test
-    def registration(self):
+    def default_loader_registration(self):
+        rc = subprocess.call(self.__cmd("register", self.default_loader))
+        self.ensure_eq(rc, 0, "loader registration")
+        self.ensure_eq(set(os.listdir(self.cfgdir)),
+                       set(('loader-default.conf',)),
+                       "config file should appear in the config dir")
+
+    @test
+    def provider_registration(self):
         rc = subprocess.call(self.__cmd("register", self.provider_path))
         self.ensure_eq(rc, 0, "provider registration")
         self.ensure_eq(set(os.listdir(self.cfgdir)),
-                       set(('test.conf',)),
+                       set(('provider-test.conf','loader-default.conf')),
                        "config file should appear in the config dir")
         self.providers_dir = os.path.join(self.mntdir, "providers")
         self.namespaces_dir = os.path.join(self.mntdir, "namespaces")
@@ -134,7 +145,15 @@ class StateFS(Suite):
              for name, fname in self.file_paths.items()]
 
 if __name__ == '__main__':
-    if len(sys.argv) == 2:
+    tests_path = os.path.dirname(sys.argv[0])
+    if len(sys.argv) == 3:
         statefs_bin = sys.argv[1]
+        default_loader = sys.argv[2]
+    elif len(sys.argv) > 1:
+        raise Exception("Unknown arguments: {}".format(args))
+    else:
+        statefs_bin = os.path.join(tests_path, '../src/statefs')
+        default_loader = os.path.join(tests_path, '../src/libloader-default.so')
+
     default_main(StateFS)
 

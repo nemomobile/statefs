@@ -1,4 +1,5 @@
 set(TESTS_DIR /opt/tests/statefs)
+configure_file(tests.xml.in tests.xml @ONLY)
 add_library(test MODULE test-provider.c)
 install(TARGETS test DESTINATION ${TESTS_DIR})
 install(
