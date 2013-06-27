@@ -19,6 +19,110 @@
 namespace config
 {
 
+template <typename ProviderFn, typename LoaderFn>
+void process_lib_info(std::shared_ptr<Library> p
+                      , ProviderFn on_provider
+                      , LoaderFn on_loader)
+{
+    if (!p) {
+        std::cerr << "process_lib_info: nullptr" << std::endl;
+        return;
+    }
+
+    auto loader = std::dynamic_pointer_cast<Loader>(p);
+    if (loader) {
+        on_loader(loader);
+        return;
+    }
+    auto provider = std::dynamic_pointer_cast<Plugin>(p);
+    if (!provider)
+        throw cor::Error("Unknown lib: %s", p->value().c_str());
+    on_provider(provider);
+}
+
+namespace fs = boost::filesystem;
+
+static const std::set<std::string> cfg_prefices
+= {cfg_provider_prefix(), cfg_loader_prefix()};
+
+static bool is_prefix_permitted(std::string const& fname)
+{
+    fs::path path(fname);
+    auto base = path.filename().string();
+    auto n = base.find("-");
+    if (n == std::string::npos)
+        return false;
+
+    base = base.substr(0, n);
+    return (cfg_prefices.count(base) > 0);
+}
+
+void from_file(std::string const &cfg_src, config_receiver_fn receiver)
+{
+    if (!is_prefix_permitted(cfg_src)) {
+        std::cerr << "File " << cfg_src << " has unknown prefix, skipping" << std::endl;
+        return;
+    }
+
+    trace() << "Loading config from " << cfg_src << std::endl;
+    std::ifstream input(cfg_src);
+    try {
+        using namespace std::placeholders;
+        parse(input, std::bind(receiver, cfg_src, _1));
+    } catch (...) {
+        std::cerr << "Error parsing " << cfg_src << ":" << input.tellg()
+                  << ", skiping..." << std::endl;
+    }
+}
+
+template <typename ReceiverT>
+void from_dir(std::string const &cfg_src, ReceiverT receiver)
+{
+    trace() << "Config dir " << cfg_src << std::endl;
+    auto check_load = [&receiver](fs::directory_entry const &d) {
+        auto path = d.path();
+        if (path.extension() == cfg_extension())
+            from_file(path.string(), receiver);
+    };
+    std::for_each(fs::directory_iterator(cfg_src),
+                  fs::directory_iterator(),
+                  check_load);
+}
+
+template <typename ReceiverT>
+void load(std::string const &cfg_src, ReceiverT receiver)
+{
+    if (cfg_src.empty())
+        return;
+
+    if (fs::is_regular_file(cfg_src))
+        return from_file(cfg_src, receiver);
+
+    if (fs::is_directory(cfg_src))
+        return from_dir(cfg_src, receiver);
+
+    throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
+}
+
+class Loaders : public LoadersStorage
+{
+public:
+    Loaders(std::string const &src);
+};
+
+Loaders::Loaders(std::string const &src)
+{
+    using namespace std::placeholders;
+    auto lib_add = [this](std::string const &cfg_path
+                          , std::shared_ptr<Library> p) {
+        auto dummy = [](std::shared_ptr<Plugin>) { return; };
+        process_lib_info
+        (p, dummy, std::bind(&LoadersStorage::loader_register, this, _1));
+    };
+    load(src, lib_add);
+}
+
+
 template <typename CharT>
 std::basic_ostream<CharT> & operator <<
 (std::basic_ostream<CharT> &out, Property const &src)
@@ -81,6 +185,16 @@ std::basic_ostream<CharT> & operator <<
     return out;
 }
 
+template <typename CharT>
+std::basic_ostream<CharT> & operator <<
+(std::basic_ostream<CharT> &out, std::shared_ptr<Library> const &src)
+{
+    auto prov = [&out](std::shared_ptr<Plugin> p) { out << *p; };
+    auto loader = [&out](std::shared_ptr<Loader> p) { out << *p; };
+    process_lib_info(src, prov, loader);
+    return out;
+}
+
 static property_type statefs_variant_2prop(struct statefs_variant const *src)
 {
     property_type res;
@@ -107,35 +221,6 @@ static property_type statefs_variant_2prop(struct statefs_variant const *src)
     return res;
 }
 
-namespace fs = boost::filesystem;
-
-template <typename ReceiverT>
-void from_dir(std::string const &cfg_src, ReceiverT receiver)
-{
-    trace() << "Config dir " << cfg_src << std::endl;
-    std::for_each(fs::directory_iterator(cfg_src),
-                  fs::directory_iterator(),
-                  [&receiver](fs::directory_entry const &d) {
-                      auto path = d.path();
-                      if (path.extension() == provider::cfg_extension())
-                          from_file(path.string(), receiver);
-                  });
-}
-
-template <typename ReceiverT>
-void load(std::string const &cfg_src, ReceiverT receiver)
-{
-    if (cfg_src.empty())
-        return;
-
-    if (fs::is_regular_file(cfg_src))
-        return from_file(cfg_src, receiver);
-
-    if (fs::is_directory(cfg_src))
-        return from_dir(cfg_src, receiver);
-
-    throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
-}
 
 namespace nl = cor::notlisp;
 
@@ -234,20 +319,23 @@ Namespace::Namespace(std::string const &name, storage_type &&props)
     : ObjectExpr(name), props_(props)
 {}
 
+Library::Library(std::string const &name, std::string const &so_path)
+    : ObjectExpr(name), path(so_path)
+{
+}
+
 Plugin::Plugin(std::string const &name
                , std::string const &path
                , property_map_type &&info
                , storage_type &&namespaces)
-    : ObjectExpr(name)
-    , path(path)
-    , mtime_(fs::last_write_time(path))
+    : Library(name, path)
+    , mtime_(fs::exists(path) ? fs::last_write_time(path) : 0)
     , info_(info)
     , namespaces_(namespaces)
 {}
 
 Loader::Loader(std::string const &name, std::string const &path)
-    : ObjectExpr(name)
-    , path(path)
+    : Library(name, path)
 {}
 
 struct PropertyInt : public boost::static_visitor<>
@@ -296,11 +384,13 @@ nl::env_ptr mk_parse_env()
     using nl::expr_list_type;
     using nl::lambda_type;
     using nl::expr_ptr;
+    using nl::ListAccessor;
+    using nl::to_string;
 
     lambda_type plugin = [](env_ptr, expr_list_type &params) {
-        nl::ListAccessor src(params);
+        ListAccessor src(params);
         std::string name, path;
-        src.required(nl::to_string, name).required(nl::to_string, path);
+        src.required(to_string, name).required(to_string, path);
 
         Plugin::storage_type namespaces;
         property_map_type options = {
@@ -324,10 +414,10 @@ nl::env_ptr mk_parse_env()
     };
 
     lambda_type prop = [](env_ptr, expr_list_type &params) {
-        nl::ListAccessor src(params);
+        ListAccessor src(params);
         std::string name;
         property_type defval;
-        src.required(nl::to_string, name).required(to_property, defval);
+        src.required(to_string, name).required(to_property, defval);
 
         property_map_type options = {
             // default option values
@@ -340,7 +430,7 @@ nl::env_ptr mk_parse_env()
                      to_property(v, p);
              });
         unsigned access = to_integer(options["access"]);
-        if (to_string(options["behavior"]) == "discrete")
+        if (config::to_string(options["behavior"]) == "discrete")
                 access |= Property::Subscribe;
 
         nl::expr_ptr res(new Property(name, defval, access));
@@ -349,9 +439,9 @@ nl::env_ptr mk_parse_env()
     };
 
     lambda_type ns = [](env_ptr, expr_list_type &params) {
-        nl::ListAccessor src(params);
+        ListAccessor src(params);
         std::string name;
-        src.required(nl::to_string, name);
+        src.required(to_string, name);
 
         Namespace::storage_type props;
         nl::push_rest_casted(src, props);
@@ -359,10 +449,20 @@ nl::env_ptr mk_parse_env()
         return res;
     };
 
+    lambda_type loader = [](env_ptr, expr_list_type &params) {
+        ListAccessor src(params);
+        std::string name, path;
+        src.required(to_string, name).required(to_string, path);
+
+        return expr_ptr(new Loader(name, path));
+    };
+
+
     using nl::mk_record;
     using nl::mk_const;
     env_ptr env(new nl::Env({
                 mk_record("provider", plugin),
+                    mk_record("loader", loader),
                     mk_record("ns", ns),
                     mk_record("prop", prop),
                     mk_const("false", 0),
@@ -375,26 +475,10 @@ nl::env_ptr mk_parse_env()
     return env;
 }
 
-nl::env_ptr mk_loader_parse_env()
-{
-    nl::lambda_type loader = [](nl::env_ptr, nl::expr_list_type &params) {
-        nl::ListAccessor src(params);
-        std::string name, path;
-        src.required(nl::to_string, name).required(nl::to_string, path);
-
-        return nl::expr_ptr(new Loader(name, path));
-    };
-
-    nl::env_ptr env(new nl::Env({
-                nl::mk_record("loader", loader)
-                    }));
-    return env;
-}
-
 namespace inotify = cor::inotify;
 
 Monitor::Monitor
-(std::string const &path, on_changed_type on_changed)
+(std::string const &path, ConfigReceiver &target)
     : path_([](std::string const &path) {
             trace() << "Config monitor for " << path << std::endl;
             if (!ensure_dir_exists(path))
@@ -402,14 +486,14 @@ Monitor::Monitor
             return path;
         }(path))
     , event_(eventfd(0, 0), cor::only_valid_handle)
-    , on_changed_(on_changed)
+    , target_(target)
     , watch_(new inotify::Watch
              (inotify_, path, IN_CREATE | IN_DELETE | IN_MODIFY))
       // run thread before loading config to avoid missing configuration
     , mon_thread_(std::bind(std::mem_fn(&Monitor::watch_thread), this))
 {
     using namespace std::placeholders;
-    config::load(path_, std::bind(std::mem_fn(&Monitor::plugin_add),
+    config::load(path_, std::bind(std::mem_fn(&Monitor::lib_add),
                                   this, _1, _2));
 }
 
@@ -421,12 +505,33 @@ Monitor::~Monitor()
     mon_thread_.join();
 }
 
-void Monitor::plugin_add(std::string const &cfg_path,
-                         Monitor::plugin_ptr p)
+void Monitor::lib_add(std::string const &cfg_path
+                      , Monitor::lib_ptr p)
 {
     auto fname = fs::path(cfg_path).filename().string();
-    files_providers_[fname] = p;
-    on_changed_(Added, p);
+    files_libs_[fname] = p;
+    using namespace std::placeholders;
+    process_lib_info
+        (p , std::bind(&ConfigReceiver::provider_add, &target_, _1)
+         , std::bind(&ConfigReceiver::loader_add, &target_, _1));
+}
+
+void Monitor::lib_rm(std::string const &name)
+{
+    auto p = files_libs_[name];
+    if (!p) {
+        std::cerr << "lib_rm: Unknown lib: " << name << std::endl;
+        return;
+    }
+    auto loader = std::dynamic_pointer_cast<Loader>(p);
+    if (loader) {
+        target_.loader_rm(loader);
+    } else {
+        auto provider = std::dynamic_pointer_cast<Plugin>(p);
+        if (!provider)
+            throw cor::Error("lib_rm: Logic err: %s", name.c_str());
+        target_.provider_rm(provider);
+    }
 }
 
 int Monitor::watch_thread()
@@ -441,7 +546,7 @@ int Monitor::watch_thread()
 
 bool Monitor::process_poll()
 {
-    std::cerr << "Providers config is maybe changed" << std::endl;
+    std::cerr << "Maybe config is changed" << std::endl;
     if (fds_[1].revents) {
         uint64_t v;
         ::read(event_.value(), &v, sizeof(v));
@@ -469,7 +574,7 @@ bool Monitor::process_poll()
         (fs::directory_iterator(path_), fs::directory_iterator(),
          [&](fs::directory_entry const &d) {
             auto p = d.path();
-            if (p.extension() == provider::cfg_extension())
+            if (p.extension() == cfg_extension())
                 cur_config_paths[p.filename().string()]
                     = fs::canonical(p).string();
         });
@@ -479,7 +584,7 @@ bool Monitor::process_poll()
         cur.insert({fname, mtime});
     }
 
-    for (auto &kv : files_providers_) {
+    for (auto &kv : files_libs_) {
         auto const& fname = kv.first;
         auto mtime = fs::last_write_time(kv.second->path);
         prev.insert({fname, mtime});
@@ -495,14 +600,15 @@ bool Monitor::process_poll()
     for (auto &nt : removed) {
         auto const& v = nt.first;
         std::cerr << "Removed " << v << std::endl;
-        on_changed_(Removed, files_providers_[v]);
+        lib_rm(v);
     }
     for (auto &nt : added) {
         auto const& v = nt.first;
         std::cerr << "Added " << v << std::endl;
         using namespace std::placeholders;
-        from_file(cur_config_paths[v],
-                  std::bind(std::mem_fn(&Monitor::plugin_add), this, _1, _2));
+        auto add = std::bind(std::mem_fn(&Monitor::lib_add)
+                             , this, _1, _2);
+        from_file(cur_config_paths[v], add);
     }
 
     return true;
@@ -523,90 +629,55 @@ int Monitor::watch()
     return rc;
 }
 
-static std::string statefs_variant_2str(struct statefs_variant const *src)
+// static std::string statefs_variant_2str(struct statefs_variant const *src)
+// {
+//     std::stringstream ss;
+//     switch (src->tag)
+//     {
+//     case statefs_variant_int:
+//         ss << src->i;
+//         break;
+//     case statefs_variant_uint:
+//         ss << src->u;
+//         break;
+//     case statefs_variant_bool:
+//         ss << (src->b ? "1" : "0");
+//         break;
+//     case statefs_variant_real:
+//         ss << src->r;
+//         break;
+//     case statefs_variant_cstr:
+//         ss << "\"" << src->s << "\"";
+//         break;
+//     default:
+//         return "\"\"";
+//     }
+//     return ss.str();
+// }
+
+static Namespace::prop_type from_api
+(statefs_property const *prop, statefs_io &io)
 {
-    std::stringstream ss;
-    switch (src->tag)
-    {
-    case statefs_variant_int:
-        ss << src->i;
-        break;
-    case statefs_variant_uint:
-        ss << src->u;
-        break;
-    case statefs_variant_bool:
-        ss << (src->b ? "1" : "0");
-        break;
-    case statefs_variant_real:
-        ss << src->r;
-        break;
-    case statefs_variant_cstr:
-        ss << "\"" << src->s << "\"";
-        break;
-    default:
-        return "\"\"";
-    }
-    return ss.str();
-}
-
-
-class Dump
-{
-public:
-    Dump(std::ostream &out, provider_handle_type &&provider)
-        : out(out), provider_(std::move(provider)) {}
-
-    std::string dump(std::string const&);
-
-private:
-
-    Dump(Dump const&);
-    Dump & operator = (Dump const&);
-
-    void dump_info(int level, statefs_node const *node);
-    void dump_prop(int level, statefs_property const *prop);
-    void dump_ns(int level, statefs_namespace const *ns);
-
-    std::ostream &out;
-    provider_handle_type provider_;
-};
-
-void Dump::dump_info(int level, statefs_node const *node)
-{
-    if (!node->info)
-        return;
-
-    auto info = node->info;
-    while (info->name) {
-        out << " :" << info->name << " "
-            << statefs_variant_2str(&info->value);
-        ++info;
-    }
-}
-
-void Dump::dump_prop(int level, statefs_property const *prop)
-{
-    out << "\n";
-    out << "(" << "prop" << " \"" << prop->node.name << "\" "
-        << statefs_variant_2str(&prop->default_value);
-    dump_info(level, &prop->node);
-    int attr = provider_->io.getattr(prop);
-    if (!(attr & STATEFS_ATTR_DISCRETE))
-        out << " :behavior continuous";
+    int attr = io.getattr(prop);
+    auto defval = statefs_variant_2prop(&prop->default_value);
+    unsigned access = 0;
+    if (attr & STATEFS_ATTR_DISCRETE)
+        access |= Property::Subscribe;
     if (attr & STATEFS_ATTR_WRITE)
-        out << " :access rw";
-    out << ")";
+        access |= Property::Write;
+    if (attr & STATEFS_ATTR_READ)
+        access |= Property::Read;
+    return std::make_shared<Property>(prop->node.name, defval, access);
 }
 
 typedef cor::Handle<
     cor::GenericHandleTraits<
         intptr_t, 0> > branch_handle_type;
 
-void Dump::dump_ns(int level, statefs_namespace const *ns)
+static Plugin::ns_type from_api
+(statefs_namespace const *ns, statefs_io &io)
 {
-    out << "\n";
-    out << "(" << "ns" << " \"" << ns->node.name << "\"";
-    dump_info(level, &ns->node);
+    auto ns_name = ns->node.name;
 
     branch_handle_type iter
         (statefs_first(&ns->branch),
@@ -614,29 +685,30 @@ void Dump::dump_ns(int level, statefs_namespace const *ns)
             statefs_branch_release(&ns->branch, v);
         });
     auto next = [&ns, &iter]() {
-        return mk_property_handle(statefs_prop_get(&ns->branch, iter.value()));
+        return mk_property_handle
+        (statefs_prop_get(&ns->branch, iter.value()));
     };
     auto prop = next();
+    Namespace::storage_type props;
     while (prop) {
-        dump_prop(level + 1, prop.get());
+        props.push_back(from_api(prop.get(), io));
         statefs_next(&ns->branch, &iter.ref());
         prop = next();
     }
-    out << ")";
+    return std::make_shared<Namespace>(ns_name, std::move(props));
 }
 
-std::string Dump::dump(std::string const& path)
+static std::shared_ptr<Plugin> from_api
+(statefs::provider_ptr provider_, std::string const& path
+ , std::string const& provider_type)
 {
     if (!provider_) {
         std::cerr << "Provider " << path << " is not loaded" << std::endl;
-        return "";
+        return nullptr;
     }
     auto const &root = provider_->root;
     auto provider_name = root.node.name;
-    out << "(" << "provider" << " \"" << provider_name << "\"";
-    dump_info(0, &root.node);
-    out << " \"" << path << "\"";
-    property_map_type props = {{"type", "default"}};
+    property_map_type props = {{"type", provider_type}};
     auto info = root.node.info;
     if (info) {
         while (info->name) {
@@ -644,6 +716,7 @@ std::string Dump::dump(std::string const& path)
             ++info;
         }
     }
+
     branch_handle_type iter
         (statefs_first(&root.branch),
          [&root](intptr_t v) {
@@ -654,14 +727,21 @@ std::string Dump::dump(std::string const& path)
         return mk_namespace_handle
         (statefs_ns_get(&root.branch, iter.value()));
     };
-    auto ns = next();
-    while (ns) {
-        dump_ns(1, ns.get());
+    auto pns = next();
+    Plugin::storage_type namespaces;
+    while (pns) {
+        namespaces.push_back(from_api(pns.get(), provider_->io));
         statefs_next(&root.branch, &iter.ref());
-        ns = next();
+        pns = next();
     }
-    out << ")\n";
-    return provider_name;
+    return std::make_shared<Plugin>
+        (provider_name, path, std::move(props), std::move(namespaces));
+}
+
+static std::shared_ptr<Loader> from_api
+(std::shared_ptr< ::Loader> loader_, std::string const& path)
+{
+    return std::make_shared<Loader>(loader_->name(), path);
 }
 
 static std::string mk_provider_path(std::string const &path)
@@ -677,27 +757,65 @@ static inline std::string dump_provider_cfg_file
 {
     std::string plugin_name("");
     auto dump_plugin = [&dst, &plugin_name]
-        (std::string const &cfg_path, Monitor::plugin_ptr p) {
+        (std::string const &cfg_path, Monitor::lib_ptr p) {
         if (p) {
-            dst << *p;
+            dst << p;
             plugin_name = p->value();
         }
     };
     from_file(path.native(), dump_plugin);
-    std::cerr << "Plugin: " << plugin_name << std::endl;
     return plugin_name;
 }
 
-static inline std::string dump_provider
-(std::ostream &dst, fs::path const &path)
+static inline std::string dump_loader
+(std::string const& cfg_dir, std::ostream &dst, fs::path const &path)
 {
-    cor::SharedLib lib(path.native(), RTLD_LAZY);
-    if (!lib.is_loaded()) {
-        throw cor::Error("Can't load library %s: %s"
-                         , path.c_str(), ::dlerror());
+    auto loader = std::make_shared< ::Loader>(path.native());
+    if (!loader->is_valid()) {
+        std::cerr << "Loader is not valid: " << path.string() << std::endl;
+        return "";
     }
 
-    return Dump(dst, mk_provider_handle(lib)).dump(path.native());
+    auto loader_info = from_api(loader, path.native());
+    dst << *loader_info;
+    return cfg_loader_prefix() + "-" + loader_info->value();
+}
+
+static inline std::string dump_provider
+(std::string const& cfg_dir, std::ostream &dst
+ , fs::path const &path, std::string const& provider_type)
+{
+    Loaders loaders(cfg_dir);
+    auto p = loaders.loader_get(provider_type);
+    auto loader = p.lock();
+    if (!loader) {
+        if (provider_type == "default")
+            return dump_loader(cfg_dir, dst, path);
+        else {
+            std::cerr << "Can't find " << provider_type << " loader" << std::endl;
+            return "";
+        }
+    }
+
+    auto prov_info = from_api
+        (loader->load(path.native()), path.native(), provider_type);
+    if (!prov_info) {
+        std::cerr << "Not provider, trying loader\n";
+        return dump_loader(cfg_dir, dst, path);
+    }
+
+    dst << *prov_info;
+    return cfg_provider_prefix() + "-" + prov_info->value();
+}
+
+static inline std::string dump_so
+(std::string const& cfg_dir, std::ostream &dst
+ , fs::path const &path, std::string const& provider_type)
+{
+    if (provider_type == "loader")
+        return dump_loader(cfg_dir, dst, path);
+
+    return dump_provider(cfg_dir, dst, path, provider_type);
 }
 
 /**
@@ -711,14 +829,19 @@ static inline std::string dump_provider
  *
  * @return provider name
  */
-std::string dump(std::ostream &dst, std::string const &path)
+std::string dump(std::string const &cfg_dir
+                 , std::ostream &dst
+                 , std::string const &path
+                 , std::string const& provider_type)
 {
     auto full_path = fs::path(mk_provider_path(path));
-    if (full_path.extension() == provider::cfg_extension()) {
+    if (full_path.extension() == cfg_extension()) {
         return dump_provider_cfg_file(dst, full_path);
-    } else {
-        return dump_provider(dst, full_path);
+    } else if (full_path.extension() == ".so") {
+        return dump_so(cfg_dir, dst, full_path, provider_type);
     }
+    std::cerr << "Don't know how to dump " << path << std::endl;
+    return "";
 }
 
 /**
@@ -728,15 +851,21 @@ std::string dump(std::ostream &dst, std::string const &path)
  * @param cfg_dir destination directory
  * @param fname subject (so, conf file...) file name
  */
-void save(std::string const &cfg_dir, std::string const &fname)
+void save(std::string const &cfg_dir
+          , std::string const &fname
+          , std::string const& provider_type)
 {
     namespace fs = boost::filesystem;
 
     std::stringstream ss;
-    auto name = dump(ss, fname);
+    auto name = dump(cfg_dir, ss, fname, provider_type);
+    if (name == "") {
+        std::cerr << "Can't retrieve information from " << fname << std::endl;
+        return;
+    }
 
     auto cfg_path = fs::path(cfg_dir);
-    cfg_path /= (name + provider::cfg_extension());
+    cfg_path /= (name + cfg_extension());
     std::ofstream out(cfg_path.generic_string());
     out << ss.str();
     out.close();

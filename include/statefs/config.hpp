@@ -10,21 +10,19 @@
 namespace config
 {
 
-namespace provider {
-
 static inline std::string cfg_extension()
 {
     return ".conf";
 }
 
-}
-
-namespace loader {
-
-static inline std::string cfg_extension()
+static inline std::string cfg_provider_prefix()
 {
-    return ".lconf";
+    return "provider";
 }
+
+static inline std::string cfg_loader_prefix()
+{
+    return "loader";
 }
 
 namespace nl = cor::notlisp;
@@ -76,7 +74,15 @@ public:
     storage_type props_;
 };
 
-class Plugin : public nl::ObjectExpr
+class Library : public nl::ObjectExpr
+{
+public:
+    Library(std::string const &name, std::string const &path);
+
+    std::string path;
+};
+
+class Plugin : public Library
 {
 public:
     typedef std::shared_ptr<Namespace> ns_type;
@@ -86,22 +92,18 @@ public:
            , property_map_type &&info
            , storage_type &&namespaces);
 
-    std::string path;
     std::time_t mtime_;
     property_map_type info_;
     storage_type namespaces_;
 };
 
-class Loader : public nl::ObjectExpr
+class Loader : public Library
 {
 public:
     Loader(std::string const &name, std::string const &path);
-
-    std::string path;
 };
 
 nl::env_ptr mk_parse_env();
-nl::env_ptr mk_loader_parse_env();
 
 template <typename CharT, typename ReceiverT>
 void parse(std::basic_istream<CharT> &input, ReceiverT receiver)
@@ -115,22 +117,23 @@ void parse(std::basic_istream<CharT> &input, ReceiverT receiver)
                       { cor::sexp::parse(input, config); });
 
     ListAccessor res(config.results());
-    rest_casted<Plugin>(res, receiver);
+    rest_casted<Library>(res, receiver);
 }
 
-template <typename ReceiverT>
-void from_file(std::string const &cfg_src, ReceiverT receiver)
+typedef std::function<void (std::string const &
+                            , std::shared_ptr<Library>) > config_receiver_fn;
+
+void from_file(std::string const &, config_receiver_fn);
+
+class ConfigReceiver
 {
-    trace() << "Loading config from " << cfg_src << std::endl;
-    std::ifstream input(cfg_src);
-    try {
-        using namespace std::placeholders;
-        parse(input, std::bind(receiver, cfg_src, _1));
-    } catch (...) {
-        std::cerr << "Error parsing " << cfg_src << ":" << input.tellg()
-                  << ", skiping..." << std::endl;
-    }
-}
+public:
+    virtual void provider_add(std::shared_ptr<Plugin>) =0;
+    virtual void provider_rm(std::shared_ptr<Plugin>) =0;
+    virtual void loader_add(std::shared_ptr<Loader>) =0;
+    virtual void loader_rm(std::shared_ptr<Loader>) =0;
+};
+
 
 }
 

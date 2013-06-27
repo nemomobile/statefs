@@ -86,6 +86,7 @@ rm -rf %{buildroot}
 %{_bindir}/statefs-prerun
 %{_sharedstatedir}/statefs
 %{_userunitdir}/statefs.service
+%{_libdir}/statefs/libloader-default.so
 
 %files provider-devel
 %defattr(-,root,root,-)

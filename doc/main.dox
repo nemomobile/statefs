@@ -11,6 +11,7 @@
     - @ref api
         - @ref iteration
         - @ref property_access
+    - @ref loader
     - @ref registration
     - @ref provider_examples
 
@@ -21,7 +22,9 @@
     StateFS is the syntetic filesystem to expose current system state
     provided by StateFS plugins as properties wrapped into namespaces.
 
-    Plugins are shared libraries providing StateFS @ref api API.
+    Plugins are files (shared libraries etc.) be loaded by loaders -
+    shared libraries, used to expose StateFS @ref api API from
+    providers. Native provider can expose this C @ref api API itself.
 
 
     @section providers Writing StateFS Providers
@@ -114,6 +117,21 @@
     }
 
     @enddot
+
+    @subsection loader Loaders
+
+    Loaders are used (obvioulsy :)) to load providers. Loader can
+    e.g. prepare required environment for some native code provider
+    (shared library), e.g. Qt code frequently needs Qt event loop to
+    be executed in the "main" application thread - thread where soem
+    Qt code was executed for the first time, so "qt" loader creates
+    required environment and load Qt-based provider properly. Also
+    loader can just get some file to be interpreted and to expose
+    StateFS @ref api by itself etc. Loader API is deascribed @ref
+    loader_api here. Currently loader API is a C++ API but C API can
+    be added easily. There is also default loader used in the case
+    provider type is not specified. Default loader expects shared
+    library exposing Provider @ref api API and just loads it.
 
     @subsection registration Provider Registration
 

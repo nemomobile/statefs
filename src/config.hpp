@@ -20,36 +20,34 @@ class Monitor
 {
 public:
 
-    enum Event { Added, Removed };
-    typedef std::shared_ptr<config::Plugin> plugin_ptr;
-    typedef std::function<void (Event ev, plugin_ptr)>
-    on_changed_type;
+    typedef std::shared_ptr<config::Library> lib_ptr;
 
-    Monitor(std::string const &path,
-                  on_changed_type on_changed);
+    Monitor(std::string const &, ConfigReceiver &);
     ~Monitor();
 
 private:
     int watch_thread();
     bool process_poll();
     int watch();
-    void plugin_add(std::string const &cfg_path, plugin_ptr p);
+    void lib_add(std::string const &cfg_path, lib_ptr p);
+    void lib_rm(std::string const &name);
 
     cor::inotify::Handle inotify_;
     std::string path_;
     cor::FdHandle event_;
-    on_changed_type on_changed_;
+    ConfigReceiver &target_;
 
     std::unique_ptr<cor::inotify::Watch> watch_;
     std::array<pollfd, 2> fds_;
     std::thread mon_thread_;
 
-    std::map<std::string, plugin_ptr> files_providers_;
+    std::map<std::string, lib_ptr> files_libs_;
 };
 
-std::string dump(std::ostream &, std::string const&);
+std::string dump(std::string const&, std::ostream &
+                 , std::string const&, std::string const&);
 
-void save(std::string const&, std::string const&);
+void save(std::string const&, std::string const&, std::string const&);
 
 } // config
 
