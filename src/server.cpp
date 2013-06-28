@@ -916,7 +916,6 @@ private:
                           "\t[command]:\n"
                           "\t\tdump plugin_path\n"
                           "\t\tregister plugin_path\n"
-                          "\t\tunregister plugin_path\n"
                           "\t[options]:\n");
         params.push_back("-ho");
         int fuse_rc = fuse_run();
