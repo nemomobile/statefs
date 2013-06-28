@@ -49,11 +49,11 @@ private:
 class LoadersStorage
 {
 public:
-    std::weak_ptr<Loader> loader_get(std::string const&);
+    std::shared_ptr<Loader> loader_get(std::string const&);
     typedef std::shared_ptr<config::Loader> loader_info_ptr;
 
-    void loader_register(loader_info_ptr p);
-    void loader_rm(std::string const&);
+    bool loader_register(loader_info_ptr p);
+    bool loader_rm(std::string const&);
 
 private:
 

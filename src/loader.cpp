@@ -18,11 +18,11 @@ public:
         if (!fn)
             return nullptr;
 
-        statefs::provider_ptr res(fn(), [lib](statefs_provider* p) {
+        statefs::provider_ptr res
+            (fn(), [lib](statefs_provider* p) mutable {
                 if (p)
                     statefs_provider_release(p);
-                if (lib)
-                    lib->close();
+                lib.reset();
             });
 
         if (!res)

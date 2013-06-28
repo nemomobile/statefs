@@ -97,18 +97,31 @@ property_handle_type mk_property_handle(statefs_property *p)
     return property_handle_type(p, release);
 }
 
-void LoadersStorage::loader_register(loader_info_ptr p)
+bool LoadersStorage::loader_register(loader_info_ptr info)
 {
-    info_.insert(std::make_pair(p->value(), p));
+    auto name = info->value();
+    auto p = loaders_.find(name);
+    if (p != loaders_.end()) {
+        if (!p->second->is_reloadable()) {
+            std::cerr << "Loader " << name
+                      << " can't be replaced now, skipping" << std::endl;
+            return false;
+        }
+        std::cerr << "Replacing existing loader " << name << std::endl;
+        loaders_.erase(p);
+    }
+
+    info_.insert(std::make_pair(name, info));
+    return true;
 }
 
-std::weak_ptr<Loader> LoadersStorage::loader_get(std::string const& name)
+std::shared_ptr<Loader> LoadersStorage::loader_get(std::string const& name)
 {
     auto it = loaders_.find(name);
     if (it == loaders_.end()) {
         auto pinfo = info_.find(name);
         if (pinfo == info_.end())
-            return std::weak_ptr<Loader>();
+            return nullptr;
 
         auto path = pinfo->second->path;
         std::shared_ptr<Loader> loader(new Loader(path));
@@ -118,9 +131,25 @@ std::weak_ptr<Loader> LoadersStorage::loader_get(std::string const& name)
     return it->second;
 }
 
-void LoadersStorage::loader_rm(std::string const& name)
+bool LoadersStorage::loader_rm(std::string const& name)
 {
-    loaders_.erase(name);
-    info_.erase(name);
-}
+    auto p = loaders_.find(name);
+    // if some provider is holding reference to the loader 
+    if (p != loaders_.end()) {
+        auto loader = p->second;
+        if (!loader->is_reloadable()) {
+            std::cerr << "Loader " << name
+                      << " can't be removed now, skipping" << std::endl;
+            return false;
+        }
 
+        if (!loader.unique())
+            std::cerr << "Loader " << name
+                      << " is still used" << std::endl;
+
+        loaders_.erase(p);
+        info_.erase(name);
+        return true;
+    }
+    return false;
+}

@@ -29,9 +29,9 @@ using statefs::provider_ptr;
 class Provider
 {
 public:
-    Provider(std::weak_ptr<Loader> loader, std::string const &path);
+    Provider(std::shared_ptr<Loader> loader, std::string const &path);
 
-    ~Provider() { }
+    ~Provider() {}
 
     bool loaded() const
     {
@@ -53,6 +53,8 @@ private:
             statefs_node_release(&p->node);
     };
 
+    // storing to be sure loader is unloaded only after provider
+    std::shared_ptr<Loader> loader_;
     provider_ptr provider_;
 };
 
@@ -177,17 +179,9 @@ void Property::disconnect()
         io_->disconnect(handle_.get());
 }
 
-static provider_ptr load_provider
-(std::weak_ptr<Loader> loader, std::string const &path)
-{
-    auto p = loader.lock();
-    if (!p)
-        return nullptr;
-    return p->load(path);
-}
-
-Provider::Provider(std::weak_ptr<Loader> loader, std::string const &path)
-    : provider_(load_provider(loader, path))
+Provider::Provider(std::shared_ptr<Loader> loader, std::string const &path)
+    : loader_(loader)
+    , provider_(loader_ ? loader_->load(path) : nullptr)
 { }
 
 ns_handle_type Provider::ns(std::string const &name) const
@@ -570,7 +564,7 @@ public:
             LoadersStorage::loader_rm(p->value());
     }
 
-    std::weak_ptr<Loader> loader_get(std::string const& name)
+    std::shared_ptr<Loader> loader_get(std::string const& name)
     {
         auto lock(cor::wlock(*this));
         return LoadersStorage::loader_get(name);

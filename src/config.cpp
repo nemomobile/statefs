@@ -45,22 +45,49 @@ namespace fs = boost::filesystem;
 static const std::set<std::string> cfg_prefices
 = {cfg_provider_prefix(), cfg_loader_prefix()};
 
-static bool is_prefix_permitted(std::string const& fname)
+static std::string filename_prefix(std::string const& path)
 {
-    fs::path path(fname);
-    auto base = path.filename().string();
-    auto n = base.find("-");
-    if (n == std::string::npos)
+    auto n = path.find("-");
+    return (n != std::string::npos) ? path.substr(0, n) : "";
+}
+
+static bool is_config_file(fs::path const& path)
+{
+    if (path.extension() != cfg_extension())
         return false;
 
-    base = base.substr(0, n);
-    return (cfg_prefices.count(base) > 0);
+    auto prefix = filename_prefix(path.filename().string());
+    return (cfg_prefices.count(prefix) > 0);
+}
+
+static bool is_config_file(std::string const& fname)
+{
+    fs::path path(fname);
+    return is_config_file(path);
+}
+
+static bool is_prefixed_config_file
+(fs::path const& path, std::string const& prefix)
+{
+    return (path.extension() == cfg_extension()
+            && filename_prefix(path.filename().string()) == prefix);
+}
+
+static bool is_provider_config_file(fs::path const& path)
+{
+    return is_prefixed_config_file(path, cfg_provider_prefix());
+}
+
+static bool is_loader_config_file(fs::path const& path)
+{
+    return is_prefixed_config_file(path, cfg_loader_prefix());
 }
 
 void from_file(std::string const &cfg_src, config_receiver_fn receiver)
 {
-    if (!is_prefix_permitted(cfg_src)) {
-        std::cerr << "File " << cfg_src << " has unknown prefix, skipping" << std::endl;
+    if (!is_config_file(cfg_src)) {
+        std::cerr << "File " << cfg_src
+                  << " is not config?, skipping" << std::endl;
         return;
     }
 
@@ -544,6 +571,75 @@ int Monitor::watch_thread()
     return -1;
 }
 
+template <typename AdderT, typename RemoverT>
+static void eval_cfg_changes
+(std::string const& config_dir_path
+ , Monitor::config_map_type const& cur_config
+ , AdderT add, RemoverT rm)
+{
+    // configuration is changed rarely (only on un/installation of
+    // providers/loader), so it is simplier and more robust just to
+    // iterate through 'em and calculate changes each time anything
+    // changed in the configuration directory.
+
+    fs::path path(config_dir_path);
+    std::unordered_map<std::string, std::string> existing_files;
+
+    auto register_existing_config_file = [&existing_files]
+        (fs::directory_entry const &d) {
+        auto p = d.path();
+        if (is_config_file(p))
+            existing_files[p.filename().string()]
+                = fs::canonical(p).string();
+    };
+    std::for_each(fs::directory_iterator(path)
+                  , fs::directory_iterator()
+                  , register_existing_config_file);
+
+    typedef std::pair<std::string, std::time_t> file_info_type;
+    std::set<file_info_type> cur, prev;
+
+    for (auto &kv : existing_files) {
+        auto const& fname = kv.first;
+        cur.insert({fname, fs::last_write_time(path / fname)});
+    }
+
+    for (auto &kv : cur_config) {
+        auto const& fname = kv.first;
+        auto const& info = kv.second;
+        prev.insert({fname, fs::last_write_time(info->path)});
+    }
+
+    std::list<file_info_type> added, removed;
+    std::set_difference(cur.begin(), cur.end(),
+                        prev.begin(), prev.end(),
+                        std::back_inserter(added));
+    std::set_difference(prev.begin(), prev.end(),
+                        cur.begin(), cur.end(),
+                        std::back_inserter(removed));
+
+    for (auto &nt : removed) {
+        auto const& v = nt.first;
+        if (is_provider_config_file(v)) {
+            std::cerr << "Removed " << v << std::endl;
+            rm(v);
+        }
+    }
+
+    for (auto &nt : added) {
+        auto const& v = nt.first;
+        if (is_provider_config_file(v)
+            || (is_loader_config_file(v) && !prev.count(nt))) {
+            std::cerr << "Added " << v << std::endl;
+            using namespace std::placeholders;
+            from_file(existing_files[v], add);
+        } else {
+            std::cerr << "Skipping " << v << std::endl;
+        }
+    }
+
+}
+
 bool Monitor::process_poll()
 {
     std::cerr << "Maybe config is changed" << std::endl;
@@ -562,54 +658,10 @@ bool Monitor::process_poll()
     // read all events
     while ((rc = inotify_.read(buf, sizeof(buf))) > (int)sizeof(buf)) {}
 
-    // configuration is changed rarely (only on
-    // un/installation of plugins), so it is simplier and more
-    // robust just to iterate through 'em and calculate
-    // changes each time anything changed in the configuration
-    // directory
-    std::unordered_map<std::string, std::string> cur_config_paths;
-    typedef std::pair<std::string, std::time_t> file_info_type;
-    std::set<file_info_type> cur, prev;
-    std::for_each
-        (fs::directory_iterator(path_), fs::directory_iterator(),
-         [&](fs::directory_entry const &d) {
-            auto p = d.path();
-            if (p.extension() == cfg_extension())
-                cur_config_paths[p.filename().string()]
-                    = fs::canonical(p).string();
-        });
-    for (auto &kv : cur_config_paths) {
-        auto const& fname = kv.first;
-        auto mtime = fs::last_write_time(fs::path(path_) / fname);
-        cur.insert({fname, mtime});
-    }
-
-    for (auto &kv : files_libs_) {
-        auto const& fname = kv.first;
-        auto mtime = fs::last_write_time(kv.second->path);
-        prev.insert({fname, mtime});
-    }
-
-    std::list<file_info_type> added, removed;
-    std::set_difference(cur.begin(), cur.end(),
-                        prev.begin(), prev.end(),
-                        std::back_inserter(added));
-    std::set_difference(prev.begin(), prev.end(),
-                        cur.begin(), cur.end(),
-                        std::back_inserter(removed));
-    for (auto &nt : removed) {
-        auto const& v = nt.first;
-        std::cerr << "Removed " << v << std::endl;
-        lib_rm(v);
-    }
-    for (auto &nt : added) {
-        auto const& v = nt.first;
-        std::cerr << "Added " << v << std::endl;
-        using namespace std::placeholders;
-        auto add = std::bind(std::mem_fn(&Monitor::lib_add)
-                             , this, _1, _2);
-        from_file(cur_config_paths[v], add);
-    }
+    using namespace std::placeholders;
+    eval_cfg_changes(path_, files_libs_
+                     , std::bind(&Monitor::lib_add, this, _1, _2)
+                     , std::bind(&Monitor::lib_rm, this, _1));
 
     return true;
 }
@@ -786,13 +838,13 @@ static inline std::string dump_provider
  , fs::path const &path, std::string const& provider_type)
 {
     Loaders loaders(cfg_dir);
-    auto p = loaders.loader_get(provider_type);
-    auto loader = p.lock();
+    auto loader = loaders.loader_get(provider_type);
     if (!loader) {
         if (provider_type == "default")
             return dump_loader(cfg_dir, dst, path);
         else {
-            std::cerr << "Can't find " << provider_type << " loader" << std::endl;
+            std::cerr << "Can't find " << provider_type
+                      << " loader" << std::endl;
             return "";
         }
     }

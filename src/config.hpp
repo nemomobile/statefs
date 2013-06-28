@@ -21,6 +21,7 @@ class Monitor
 public:
 
     typedef std::shared_ptr<config::Library> lib_ptr;
+    typedef std::map<std::string, lib_ptr> config_map_type;
 
     Monitor(std::string const &, ConfigReceiver &);
     ~Monitor();
@@ -41,7 +42,7 @@ private:
     std::array<pollfd, 2> fds_;
     std::thread mon_thread_;
 
-    std::map<std::string, lib_ptr> files_libs_;
+    config_map_type files_libs_;
 };
 
 std::string dump(std::string const&, std::ostream &
