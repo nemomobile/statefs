@@ -34,6 +34,7 @@ public:
     Loader(std::string const&);
     bool is_valid() const;
     statefs::provider_ptr load(std::string const&);
+    bool is_reloadable() const;
     std::string name() const;
 private:
     Loader(Loader const&);

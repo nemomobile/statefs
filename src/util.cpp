@@ -40,6 +40,11 @@ std::string Loader::name() const
     return impl_ ? impl_->name() : "";
 }
 
+bool Loader::is_reloadable() const
+{
+    return impl_ ? impl_->is_reloadable() : true;
+}
+
 bool Loader::is_valid() const
 {
     return !!impl_;
@@ -62,9 +67,11 @@ Loader::impl_ptr Loader::create(cor::SharedLib &lib)
     auto loader = fn();
     if (!loader) {
         std::cerr << "provider is null" << std::endl;
-    } else if (!statefs_is_version_compatible(loader->version())) {
+    } else if (!statefs_is_version_compatible
+               (STATEFS_CPP_LOADER_VERSION, loader->version())) {
         std::cerr << "statefs: Incompatible loader version "
-                  << loader->version() << " vs " << STATEFS_CURRENT_VERSION;
+                  << loader->version() << " vs "
+                  << STATEFS_CPP_LOADER_VERSION;
         return nullptr;
     }
     return impl_ptr(loader);
