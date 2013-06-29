@@ -240,16 +240,32 @@ struct statefs_provider
     struct statefs_io io;
 };
 
+
+typedef enum {
+    statefs_event_reload,
+
+    // add new events above
+    statefs_events_end
+}  statefs_event;
+
+struct statefs_server
+{
+    void (*event)(struct statefs_server*
+                  , struct statefs_provider*
+                  , statefs_event);
+};
+
 /** 
  * Signature of statefs_provider_get function must be defined by
  * provider
  */
-typedef struct statefs_provider * (*statefs_provider_fn)(void);
+typedef struct statefs_provider * (*statefs_provider_fn)
+    (struct statefs_server*);
 
 /** 
  * Function defined in provider library to access the root node
  */
-struct statefs_provider * statefs_provider_get(void);
+struct statefs_provider * statefs_provider_get(struct statefs_server*);
 
 static inline char const *statefs_provider_accessor()
 {
@@ -269,7 +285,7 @@ static inline char const *statefs_provider_accessor()
  * if provider logic is changed and it can't be used with previous
  * versions of consumer safely
  */
-#define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(2, 0)
+#define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(3, 0)
 
 static inline bool statefs_is_version_compatible
 (unsigned own_version, unsigned lib_ver)

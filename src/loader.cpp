@@ -7,7 +7,8 @@ class DefaultLoader : public statefs::Loader
 public:
     virtual ~DefaultLoader() {}
 
-    std::shared_ptr<statefs_provider> load(std::string const& path)
+    std::shared_ptr<statefs_provider> load(std::string const& path
+                                           , statefs_server *server)
     {
         std::shared_ptr<cor::SharedLib> lib
             (new cor::SharedLib(path, RTLD_LAZY));
@@ -19,7 +20,7 @@ public:
             return nullptr;
 
         statefs::provider_ptr res
-            (fn(), [lib](statefs_provider* p) mutable {
+            (fn(server), [lib](statefs_provider* p) mutable {
                 if (p)
                     statefs_provider_release(p);
                 lib.reset();

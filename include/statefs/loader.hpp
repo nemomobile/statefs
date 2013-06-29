@@ -24,11 +24,11 @@ namespace statefs
 
 typedef std::shared_ptr<statefs_provider> provider_ptr;
 
-/* increase minor version for backward compatible providers, major -
- * if provider logic is changed and it can't be used with previous
- * versions of consumer safely
+/* increase minor version for backward compatible loaders, major - if
+ * provider logic or interface is changed in way not handled by new
+ * version of the server
  */
-#define STATEFS_CPP_LOADER_VERSION STATEFS_MK_VERSION(3, 0)
+#define STATEFS_CPP_LOADER_VERSION STATEFS_MK_VERSION(4, 0)
 
 /**
  * Interface to be implemented by loader
@@ -42,10 +42,12 @@ public:
      * called to load provider
      *
      * @param path provider path
+     * @param server server notification interface for provider
      *
      * @return pointer to provider handle
      */
-    virtual provider_ptr load(std::string const& path) =0;
+    virtual provider_ptr load(std::string const& path
+                              , statefs_server *server) =0;
 
     /**
      * provider type name, e.g. "default" loader used to load

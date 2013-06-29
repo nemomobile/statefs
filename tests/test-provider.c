@@ -264,7 +264,8 @@ static struct statefs_provider provider = {
     }
 };
 
-EXTERN_C struct statefs_provider * statefs_provider_get(void)
+EXTERN_C struct statefs_provider * statefs_provider_get
+(struct statefs_server *e)
 {
     return &provider;
 }

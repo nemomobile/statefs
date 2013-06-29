@@ -30,9 +30,9 @@ Loader::Loader(std::string const& path)
 {
 }
 
-provider_ptr Loader::load(std::string const& path)
+provider_ptr Loader::load(std::string const& path, statefs_server *server)
 {
-    return impl_ ? impl_->load(path) : nullptr;
+    return impl_ ? impl_->load(path, server) : nullptr;
 }
 
 std::string Loader::name() const

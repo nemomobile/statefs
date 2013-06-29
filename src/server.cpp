@@ -23,10 +23,31 @@
 
 //static const char *statefs_version = DQUOTESTR(STATEFS_VERSION);
 
+template <typename T>
+class AServer : public statefs_server
+{
+public:
+    AServer()
+    {
+        event = on_event_;
+    }
+
+    virtual ~AServer() {}
+
+private:
+    static void on_event_
+    (statefs_server *s, statefs_provider *p, statefs_event e)
+    {
+        auto self = static_cast<T*>(s);
+        self->on_provider_event(p, e);
+    }
+};
+
+
 using namespace metafuse;
 using statefs::provider_ptr;
 
-class Provider
+class Provider : public AServer<Provider>
 {
 public:
     Provider(std::shared_ptr<Loader> loader, std::string const &path);
@@ -43,6 +64,14 @@ public:
     statefs_io *io()
     {
         return loaded() ? &(provider_->io) : nullptr;
+    }
+
+    void on_provider_event(statefs_provider *p, statefs_event e)
+    {
+        if (e == statefs_event_reload) {
+            std::cerr << "Reloading required, exiting" << std::endl;
+            ::exit(0);
+        }
     }
 
 private:
@@ -181,7 +210,7 @@ void Property::disconnect()
 
 Provider::Provider(std::shared_ptr<Loader> loader, std::string const &path)
     : loader_(loader)
-    , provider_(loader_ ? loader_->load(path) : nullptr)
+    , provider_(loader_ ? loader_->load(path, this) : nullptr)
 { }
 
 ns_handle_type Provider::ns(std::string const &name) const

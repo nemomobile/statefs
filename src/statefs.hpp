@@ -33,7 +33,7 @@ class Loader
 public:
     Loader(std::string const&);
     bool is_valid() const;
-    statefs::provider_ptr load(std::string const&);
+    statefs::provider_ptr load(std::string const&, statefs_server*);
     bool is_reloadable() const;
     std::string name() const;
 private:

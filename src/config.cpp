@@ -850,7 +850,8 @@ static inline std::string dump_provider
     }
 
     auto prov_info = from_api
-        (loader->load(path.native()), path.native(), provider_type);
+        (loader->load(path.native(), nullptr)
+         , path.native(), provider_type);
     if (!prov_info) {
         std::cerr << "Not provider, trying loader\n";
         return dump_loader(cfg_dir, dst, path);

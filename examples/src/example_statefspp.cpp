@@ -197,7 +197,9 @@ public:
 class Provider : public statefs::AProvider
 {
 public:
-    Provider() : AProvider("Drink") {
+    Provider(statefs_server *server)
+        : AProvider("Drink", server)
+    {
         insert(new NsChild("Water"));
         insert(new NsChild("Beer"));
         insert(new NsTime());
@@ -217,11 +219,11 @@ public:
 
 static Provider *provider = nullptr;
 
-EXTERN_C struct statefs_provider * statefs_provider_get(void)
+EXTERN_C statefs_provider *statefs_provider_get(statefs_server *server)
 {
     if (provider)
         throw std::logic_error("!!!");
-    provider = new Provider();
+    provider = new Provider(server);
     return provider;
 }
 
