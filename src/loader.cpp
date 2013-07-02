@@ -1,6 +1,7 @@
 #include <statefs/loader.hpp>
 #include <statefs/util.h>
 #include <cor/so.hpp>
+#include <iostream>
 
 class DefaultLoader : public statefs::Loader
 {
