@@ -116,7 +116,10 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 /opt/tests/statefs/*
 
+%post
+%{_bindir}/statefs register %{_libdir}/statefs/libloader-default.so || :
+
 %post examples
-statefs register %{_libdir}/statefs/libexample_power.so
-statefs register %{_libdir}/statefs/libexample_statefspp.so || :
+%{_bindir}/statefs register %{_libdir}/statefs/libexample_power.so
+%{_bindir}/statefs register %{_libdir}/statefs/libexample_statefspp.so || :
 
