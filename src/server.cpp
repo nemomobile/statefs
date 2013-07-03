@@ -23,31 +23,10 @@
 
 //static const char *statefs_version = DQUOTESTR(STATEFS_VERSION);
 
-template <typename T>
-class AServer : public statefs_server
-{
-public:
-    AServer()
-    {
-        event = on_event_;
-    }
-
-    virtual ~AServer() {}
-
-private:
-    static void on_event_
-    (statefs_server *s, statefs_provider *p, statefs_event e)
-    {
-        auto self = static_cast<T*>(s);
-        self->on_provider_event(p, e);
-    }
-};
-
-
 using namespace metafuse;
 using statefs::provider_ptr;
 
-class Provider : public AServer<Provider>
+class Provider : public statefs_server
 {
 public:
     Provider(std::shared_ptr<Loader> loader, std::string const &path);
@@ -75,6 +54,19 @@ public:
     }
 
 private:
+
+    static statefs_server* init_server(statefs_server *s)
+    {
+        s->event = &Provider::on_event_;
+        return s;
+    }
+
+    static void on_event_
+    (statefs_server *s, statefs_provider *p, statefs_event e)
+    {
+        auto *self = static_cast<Provider*>(s);
+        self->on_provider_event(p, e);
+    }
 
     static void ns_release(statefs_namespace *p)
     {
@@ -210,7 +202,9 @@ void Property::disconnect()
 
 Provider::Provider(std::shared_ptr<Loader> loader, std::string const &path)
     : loader_(loader)
-    , provider_(loader_ ? loader_->load(path, this) : nullptr)
+    , provider_(loader_
+                ? loader_->load(path, Provider::init_server(this))
+                : nullptr)
 { }
 
 ns_handle_type Provider::ns(std::string const &name) const
