@@ -793,7 +793,9 @@ static std::shared_ptr<Plugin> from_api
 static std::shared_ptr<Loader> from_api
 (std::shared_ptr< ::Loader> loader_, std::string const& path)
 {
-    return std::make_shared<Loader>(loader_->name(), path);
+    return loader_
+        ? std::make_shared<Loader>(loader_->name(), path)
+        : nullptr;
 }
 
 static std::string mk_provider_path(std::string const &path)
