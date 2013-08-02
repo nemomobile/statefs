@@ -83,12 +83,12 @@ static bool is_loader_config_file(fs::path const& path)
     return is_prefixed_config_file(path, cfg_loader_prefix());
 }
 
-void from_file(std::string const &cfg_src, config_receiver_fn receiver)
+bool from_file(std::string const &cfg_src, config_receiver_fn receiver)
 {
     if (!is_config_file(cfg_src)) {
         std::cerr << "File " << cfg_src
                   << " is not config?, skipping" << std::endl;
-        return;
+        return false;
     }
 
     trace() << "Loading config from " << cfg_src << std::endl;
@@ -99,7 +99,9 @@ void from_file(std::string const &cfg_src, config_receiver_fn receiver)
     } catch (...) {
         std::cerr << "Error parsing " << cfg_src << ":" << input.tellg()
                   << ", skiping..." << std::endl;
+        return false;
     }
+    return true;
 }
 
 template <typename ReceiverT>
@@ -123,12 +125,11 @@ void load(std::string const &cfg_src, ReceiverT receiver)
         return;
 
     if (fs::is_regular_file(cfg_src))
-        return from_file(cfg_src, receiver);
-
-    if (fs::is_directory(cfg_src))
+        from_file(cfg_src, receiver);
+    else if (fs::is_directory(cfg_src))
         return from_dir(cfg_src, receiver);
-
-    throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
+    else
+        throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
 }
 
 class Loaders : public LoadersStorage
@@ -813,12 +814,17 @@ static inline std::string dump_provider_cfg_file
     auto dump_plugin = [&dst, &plugin_name]
         (std::string const &cfg_path, Monitor::lib_ptr p) {
         if (p) {
+             // special case: config file itself is a provider file
+            if (!p->path.size())
+                p->path = cfg_path;
             dst << p;
             plugin_name = p->value();
         }
     };
-    from_file(path.native(), dump_plugin);
-    return plugin_name;
+    if (from_file(path.native(), dump_plugin))
+        return cfg_provider_prefix() + '-' + plugin_name;
+    else
+        return "";
 }
 
 static inline std::string dump_loader
@@ -826,8 +832,8 @@ static inline std::string dump_loader
 {
     auto loader = std::make_shared< ::Loader>(path.native());
     if (!loader->is_valid()) {
-        std::cerr << "Loader is not valid: " << path.string() << std::endl;
-        return "";
+        std::cerr << "Not a loader: " << path.string() << std::endl;
+        return dump_provider_cfg_file(dst, path);
     }
 
     auto loader_info = from_api(loader, path.native());
@@ -863,7 +869,7 @@ static inline std::string dump_provider
     return cfg_provider_prefix() + "-" + prov_info->value();
 }
 
-static inline std::string dump_so
+static inline std::string dump_
 (std::string const& cfg_dir, std::ostream &dst
  , fs::path const &path, std::string const& provider_type)
 {
@@ -890,11 +896,7 @@ std::string dump(std::string const &cfg_dir
                  , std::string const& provider_type)
 {
     auto full_path = fs::path(mk_provider_path(path));
-    if (full_path.extension() == cfg_extension()) {
-        return dump_provider_cfg_file(dst, full_path);
-    } else if (full_path.extension() == ".so") {
-        return dump_so(cfg_dir, dst, full_path, provider_type);
-    }
+    return dump_(cfg_dir, dst, full_path, provider_type);
     std::cerr << "Don't know how to dump " << path << std::endl;
     return "";
 }
@@ -904,7 +906,7 @@ std::string dump(std::string const &cfg_dir
  * format
  *
  * @param cfg_dir destination directory
- * @param fname subject (so, conf file...) file name
+ * @param fname provider/info file name
  */
 void save(std::string const &cfg_dir
           , std::string const &fname
