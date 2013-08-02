@@ -91,7 +91,9 @@ rm -rf %{buildroot}
 %{_sharedstatedir}/statefs
 %{_userunitdir}/statefs.service
 %{_userunitdir}/pre-user-session.target.wants/statefs.service
+%{_libdir}/libstatefs-config.so
 %{_libdir}/statefs/libloader-default.so
+%{_libdir}/statefs/libloader-inout.so
 
 %files provider-devel
 %defattr(-,root,root,-)
@@ -118,7 +120,8 @@ rm -rf %{buildroot}
 /opt/tests/statefs/*
 
 %post
-%{_bindir}/statefs register %{_libdir}/statefs/libloader-default.so || :
+%{_bindir}/statefs register --statefs-type=loader %{_libdir}/statefs/libloader-default.so
+%{_bindir}/statefs register --statefs-type=loader %{_libdir}/statefs/libloader-inout.so || :
 
 %post examples
 %{_bindir}/statefs register %{_libdir}/statefs/libexample_power.so
