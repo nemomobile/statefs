@@ -1,0 +1,166 @@
+/**
+   @defgroup writing_providers Writing StateFS Providers
+
+    @ref intro
+
+    @ref providers
+    - @ref api
+        - @ref iteration
+        - @ref property_access
+    - @ref loader
+    - @ref registration
+    - @ref provider_examples
+
+    @section intro Introduction
+
+    StateFS is the syntetic filesystem to expose current system state
+    provided by StateFS plugins as properties wrapped into namespaces.
+
+    Plugins are files (shared libraries etc.) be loaded by loaders -
+    shared libraries, used to expose StateFS @ref api API from
+    providers. Native provider can expose this C @ref api API itself.
+
+
+    @section providers Writing StateFS Providers
+
+    StateFS provider is a shared library exposing statefs_provider_get
+    function. To appear in statefs directory tree it should be
+    @ref registration registered.
+
+
+    @subsection api Provider API 
+
+    Statefs provider API is used by statefs server to access provider
+    information tree and properties data.
+    
+    %Provider should define statefs_provider_get() function, it is
+    used to get provider's root statefs_provider structure for the
+    first time.
+   
+    StateFS information tree consists of @ref statefs_node "nodes",
+    node type is determined by statefs_node.type. Each node has
+    optional @ref statefs_node.info "metadata" (array). There is a
+    single root node (statefs_provider), namespace nodes
+    (statefs_namespace) and property nodes (statefs_property).
+
+    Many provider structures has pointer to optional release function
+    called by server to release resources associated with this
+    structure.
+
+    Root node and namespace nodes can have children nodes and are
+    called branch nodes (statefs_branch). Property nodes are tree
+    leafs.
+
+    @subsubsection iteration Iterating Child Nodes
+
+    Server accesses child node by name using
+    statefs_branch.find(). Iteration through all child nodes is
+    performed by means of opaque iterator (implementation is provider
+    specific) retrieved by means of statefs_branch.first() and
+    traversed by means of statefs_branch.next(). Node itself is
+    accessed by means of statefs_branch.get(). End of iteration is
+    determined by statefs_branch.get() returning NULL. At the end
+    server calls optional statefs_branch.release() to release
+    resources allocated by iterator (if any).
+
+    Provider should expect parent node will be released by server
+    only after all child nodes are released.
+
+    @dot
+
+    digraph {
+        graph [rankdir=LR];
+        begin[label="ENTER", URL="@ref statefs_branch"];
+        end[label="EXIT"];
+        iterator[label="iterator : intptr_t"];
+        n[label="node : statefs_node",URL="@ref statefs_node"];
+        begin -> iterator[label=".first()", URL="@ref statefs_branch.first"];
+        iterator -> iterator[label=".next() [.get() != null]",
+        URL="@ref statefs_branch.next"];
+        iterator -> end[label=".release()", URL="@ref statefs_branch.release"];
+        iterator -> n[label=".get()", URL="@ref statefs_branch.get"];
+        begin -> n[label=".find(name)", URL="@ref statefs_branch.find"];
+    }
+
+    @enddot
+
+    @subsubsection property_access Accessing Properties
+
+    To access property data and attributes server uses api defined in
+    statefs_provider.io. @ref statefs_io "This API" is done in a way
+    resembling file access API but differs from it in details. The
+    main idea is to give provider a way to organize property access in
+    the way most suitable for it. So, provider can use some framework
+    or implement API in its own specific way.
+
+    @dot
+
+    digraph {
+        graph [rankdir=LR];
+        property[label="property", URL="@ref statefs_property"];
+        end[label="EXIT"];
+        handle[label="handle : intptr_t"];
+        output[label="output : char*"];
+        input[label="input : char const*"];
+        property -> end[label=".getattr()", URL="@ref statefs_io.getattr"];
+        property -> end[label=".size()", URL="@ref statefs_io.size"];
+        property -> handle[label=".open()", URL="@ref statefs_io.open"];
+        handle -> end[label=".close()", URL="@ref statefs_io.close"];
+        handle -> output[label=".read()", URL="@ref statefs_io.read"];
+        handle -> input[label=".write()", URL="@ref statefs_io.write"];
+    }
+
+    @enddot
+
+    @subsection loader Loaders
+
+    Loaders are used (obvioulsy :)) to load providers. Loader can
+    e.g. prepare required environment for some native code provider
+    (shared library), e.g. Qt code frequently needs Qt event loop to
+    be executed in the "main" application thread - thread where soem
+    Qt code was executed for the first time, so "qt" loader creates
+    required environment and load Qt-based provider properly. Also
+    loader can just get some file to be interpreted and to expose
+    StateFS @ref api by itself etc. Loader API is deascribed @ref
+    loader_api here. Currently loader API is a C++ API but C API can
+    be added easily. There is also default loader used in the case
+    provider type is not specified. Default loader expects shared
+    library exposing Provider @ref api API and just loads it.
+
+    @subsection registration Provider Registration
+
+    Invoke \verbatim
+    
+    $ statefs register <path_to_provider_library>
+
+    \endverbatim
+
+    This should be done once. Statefs performs introspection of the
+    provider and saves this information in the configuration files
+    used to create nodes associated with the provider on next statefs
+    start w/o accessing provider library itself. This is done to avoid
+    to load plugins before actual usage because it can take a time and
+    statefs startup time should be minimal.
+
+    To unregister provider invoke \verbatim
+    
+    $ statefs unregister <path_to_provider_library>
+
+    \endverbatim
+
+    %Provider description is stored in human readable but easy to parse
+    form of s-expression. It can be dumped using: \verbatim
+    
+    $ statefs dump <path_to_provider_library>
+
+    \endverbatim
+
+    @subsection provider_examples Examples
+
+    - Very basic provider example (written in C) is described
+    @ref power_example "here".
+
+    - Example of provider using statefspp framework for applications
+    written on C++ is described @ref statefspp_example "here".
+
+*/

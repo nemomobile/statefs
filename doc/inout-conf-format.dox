@@ -1,0 +1,36 @@
+/**
+
+ * @defgroup inout_loader In/Out Loader
+
+   @section inout_description InOut Loader and Providers
+
+   InOut loader purpose is to provide a way to expose statefs
+   properties just registering simple configuration file and supplying
+   data by means of writing to the file.
+
+   So, to supply any statefs property one who wants to provide a
+   property (a) composes configuration file (format is decribed in
+   this @ref inout_conf section, (b) register it with statefs-type
+   "inout" and (c) writes to the file
+   \@<ProvidedNamespace>/<ProvidedProperty> to set a
+   <ProvidedNamespace>/<ProvidedProperty> value.
+
+   @subsection inout_conf Configuration/provider file format
+
+   Configuration file is written in a simple LISP-like language (<a
+   href="https://en.wikipedia.org/wiki/S-expression">S-expressions</a>). Grammar
+   (<a
+   href="https://en.wikipedia.org/wiki/Parsing_expression_grammar">PEG</a>
+   with perl-like regexps) is:
+
+   \include ./config/conf-file.peg
+
+   So, it looks like:
+
+  \include ./config/conf-file-format.txt
+
+   And full example:
+
+   \include ./config/inout-example.conf
+
+*/

@@ -35,14 +35,14 @@ Requires: cor-devel >= 0.1.4
 %description provider-devel
 Headers, libraries etc. needed to develop statefs providers
 
-%package provider-doc
-Summary: Statefs provider developer documentation
+%package doc
+Summary: Statefs developer documentation
 Group: System Environment/Libraries
 %if 0%{?_with_docs:1}
 BuildRequires: graphviz
 %endif
-%description provider-doc
-Statefs provider developer documentation
+%description doc
+Statefs developer documentation
 
 %package examples
 Summary: Statefs provider examples
@@ -66,7 +66,7 @@ Requires:   python >= 2.7
 %build
 %cmake -DSTATEFS_VERSION=%{version}
 make %{?jobs:-j%jobs}
-make provider-doc
+make statefs-doc
 
 %install
 rm -rf %{buildroot}
@@ -103,7 +103,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_libdir}/libstatefspp.so
 
-%files provider-doc
+%files doc
 %defattr(-,root,root,-)
 %{_datarootdir}/doc/statefs/html/*
 
