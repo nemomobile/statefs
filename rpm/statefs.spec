@@ -37,7 +37,8 @@ Headers, libraries etc. needed to develop statefs providers
 
 %package doc
 Summary: Statefs developer documentation
-Group: System Environment/Libraries
+Group: Documenation
+BuildRequires: doxygen
 %if 0%{?_with_docs:1}
 BuildRequires: graphviz
 %endif
