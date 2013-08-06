@@ -85,12 +85,6 @@ static bool is_loader_config_file(fs::path const& path)
 
 bool from_file(std::string const &cfg_src, config_receiver_fn receiver)
 {
-    if (!is_config_file(cfg_src)) {
-        std::cerr << "File " << cfg_src
-                  << " is not config?, skipping" << std::endl;
-        return false;
-    }
-
     trace() << "Loading config from " << cfg_src << std::endl;
     std::ifstream input(cfg_src);
     try {
@@ -104,14 +98,22 @@ bool from_file(std::string const &cfg_src, config_receiver_fn receiver)
     return true;
 }
 
+bool check_name_load(std::string const &cfg_src, config_receiver_fn receiver)
+{
+    if (!is_config_file(cfg_src)) {
+        std::cerr << "File " << cfg_src
+                  << " is not config?, skipping" << std::endl;
+        return false;
+    }
+    return from_file(cfg_src, receiver);
+}
+
 template <typename ReceiverT>
 void from_dir(std::string const &cfg_src, ReceiverT receiver)
 {
     trace() << "Config dir " << cfg_src << std::endl;
     auto check_load = [&receiver](fs::directory_entry const &d) {
-        auto path = d.path();
-        if (path.extension() == cfg_extension())
-            from_file(path.string(), receiver);
+        check_name_load(d.path().string(), receiver);
     };
     std::for_each(fs::directory_iterator(cfg_src),
                   fs::directory_iterator(),
@@ -125,7 +127,7 @@ void load(std::string const &cfg_src, ReceiverT receiver)
         return;
 
     if (fs::is_regular_file(cfg_src))
-        from_file(cfg_src, receiver);
+        check_name_load(cfg_src, receiver);
     else if (fs::is_directory(cfg_src))
         return from_dir(cfg_src, receiver);
     else
@@ -633,7 +635,7 @@ static void eval_cfg_changes
             || (is_loader_config_file(v) && !prev.count(nt))) {
             std::cerr << "Added " << v << std::endl;
             using namespace std::placeholders;
-            from_file(existing_files[v], add);
+            check_name_load(existing_files[v], add);
         } else {
             std::cerr << "Skipping " << v << std::endl;
         }
@@ -821,7 +823,7 @@ static inline std::string dump_provider_cfg_file
             plugin_name = p->value();
         }
     };
-    if (from_file(path.native(), dump_plugin))
+    if (check_name_load(path.native(), dump_plugin))
         return cfg_provider_prefix() + '-' + plugin_name;
     else
         return "";

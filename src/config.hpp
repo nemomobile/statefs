@@ -45,6 +45,8 @@ private:
     config_map_type files_libs_;
 };
 
+bool check_name_load(std::string const &, config_receiver_fn);
+
 std::string dump(std::string const&, std::ostream &
                  , std::string const&, std::string const&);
 
