@@ -15,7 +15,7 @@ install(TARGETS statefs DESTINATION bin)
 install(TARGETS statefs-config DESTINATION ${DST_LIB})
 
 add_library(statefspp
-  SHARED provider.cpp
+  SHARED provider.cpp property.cpp
 )
 
 target_link_libraries(statefspp
