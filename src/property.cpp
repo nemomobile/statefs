@@ -53,4 +53,26 @@ int DiscreteProperty::update(std::string const &v)
     return rc;
 }
 
+BasicWriter::BasicWriter(statefs::AProperty *parent, setter_type update)
+    : parent_(parent), update_(update), size_(128)
+{}
+
+int BasicWriter::write(std::string *h, char const *src
+                       , statefs_size_t len, statefs_off_t off)
+{
+    auto &v = *h;
+    if (len) {
+        auto max_sz = len + off;
+        if (max_sz > v.size()) {
+            v.resize(max_sz);
+            size_ = max_sz;
+        }
+        std::copy(src, src + len, &v[off]);
+    } else {
+        v = "";
+    }
+
+    return update_(v);
+}
+
 }

@@ -32,28 +32,6 @@
 
 namespace statefs { namespace inout {
 
-Writer::Writer(statefs::AProperty *parent, setter_type update)
-    : parent_(parent), update_(update), size_(128)
-{}
-
-int Writer::write(std::string *h, char const *src
-                  , statefs_size_t len, statefs_off_t off)
-{
-    auto &v = *h;
-    if (len) {
-        auto max_sz = len + off;
-        if (max_sz > v.size()) {
-            v.resize(max_sz);
-            size_ = max_sz;
-        }
-        std::copy(src, src + len, &v[off]);
-    } else {
-        v = "";
-    }
-            
-    return update_(v);
-}
-
 Dst::Dst(std::string const &name) : Namespace(name.c_str()) {}
 
 Dst::~Dst() {}
@@ -64,11 +42,9 @@ Src::Src(std::string const &name, std::shared_ptr<Dst> p)
 
 Src::~Src() {}
 
-
 void Src::insert_input(std::string const &name, setter_type const &setter)
 {
-    auto input = std::make_shared<in_type>(name.c_str(), setter);
-    *this << input;
+    *this << std::make_shared<in_type>(name, setter);
 }
 
 // -----------------------------------------------------------------------------

@@ -37,31 +37,6 @@ namespace statefs { namespace inout {
 
 class Src;
 
-class Writer
-{
-public:
-    Writer(statefs::AProperty *parent, setter_type update);
-
-    int getattr() const;
-    statefs_ssize_t size() const;
-
-    bool connect(::statefs_slot *slot);
-
-    int read(std::string *h, char *dst, statefs_size_t len
-             , statefs_off_t off);
-
-    int write(std::string *h, char const *src
-              , statefs_size_t len, statefs_off_t off);
-
-    void disconnect() { }
-    void release() {}
-
-protected:
-    statefs::AProperty *parent_;
-    setter_type update_;
-    size_t size_;
-};
-
 class Dst : public statefs::Namespace
 {
 public:
@@ -72,7 +47,7 @@ public:
 
 class Src : public statefs::Namespace
 {
-    typedef statefs::BasicPropertyOwner<Writer, std::string> in_type;
+    typedef statefs::BasicPropertyOwner<BasicWriter, std::string> in_type;
 public:
     Src(std::string const &, std::shared_ptr<Dst>);
     virtual ~Src();
@@ -99,29 +74,6 @@ Src& operator << (Src &ns, PropTraits<T> const &p)
 {
     ns.insert_inout(p);
     return ns;
-}
-
-// -----------------------------------------------------------------------------
-
-inline int Writer::getattr() const
-{
-    return STATEFS_ATTR_WRITE;
-}
-
-inline statefs_ssize_t Writer::size() const
-{
-    return size_ ;
-}
-
-inline bool Writer::connect(::statefs_slot *slot)
-{
-    return false;
-}
-
-inline int Writer::read(std::string *h, char *dst, statefs_size_t len
-                        , statefs_off_t off)
-{
-    return -1;
 }
 
 }}

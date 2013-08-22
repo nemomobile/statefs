@@ -115,6 +115,36 @@ private:
     ::statefs_slot *slot_;
 };
 
+typedef PropTraits<DiscreteProperty> Discrete;
+typedef PropTraits<AnalogProperty> Analog;
+
+class BasicWriter
+{
+public:
+    BasicWriter(statefs::AProperty *parent, setter_type update);
+
+    int getattr() const;
+    statefs_ssize_t size() const;
+
+    bool connect(::statefs_slot *slot);
+
+    int read(std::string *h, char *dst, statefs_size_t len
+             , statefs_off_t off);
+
+    int write(std::string *h, char const *src
+              , statefs_size_t len, statefs_off_t off);
+
+    void disconnect() { }
+    void release() {}
+
+protected:
+    statefs::AProperty *parent_;
+    setter_type update_;
+    size_t size_;
+};
+
+
+// -----------------------------------------------------------------------------
 
 inline int DiscreteProperty::getattr() const
 {
@@ -132,8 +162,26 @@ inline void DiscreteProperty::disconnect()
     slot_ = nullptr;
 }
 
-typedef PropTraits<DiscreteProperty> Discrete;
-typedef PropTraits<AnalogProperty> Analog;
+inline int BasicWriter::getattr() const
+{
+    return STATEFS_ATTR_WRITE;
+}
+
+inline statefs_ssize_t BasicWriter::size() const
+{
+    return size_ ;
+}
+
+inline bool BasicWriter::connect(::statefs_slot *slot)
+{
+    return false;
+}
+
+inline int BasicWriter::read
+(std::string *h, char *dst, statefs_size_t len, statefs_off_t off)
+{
+    return -1;
+}
 
 }
 
