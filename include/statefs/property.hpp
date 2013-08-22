@@ -29,7 +29,7 @@ Namespace& operator << (Namespace &ns, PropTraits<T> const &t)
 }
 
 
-typedef std::function<int (std::string const&)> updater_type;
+typedef std::function<int (std::string const&)> setter_type;
 
 template <typename T>
 int read_from(T &src, char *dst, statefs_size_t len, statefs_off_t off)
@@ -43,6 +43,9 @@ int read_from(T &src, char *dst, statefs_size_t len, statefs_off_t off)
     memcpy(dst, &src[off], len);
     return len;
 }
+
+class AnalogProperty;
+setter_type property_setter(std::shared_ptr<AnalogProperty> const &);
 
 class AnalogProperty
 {
@@ -65,11 +68,13 @@ public:
     void disconnect() { }
     void release() {}
 
-    virtual updater_type get_updater();
-
 protected:
 
-    int update(std::string const& v);
+    AnalogProperty(AnalogProperty const&);
+    void operator =(AnalogProperty const&);
+
+    friend setter_type property_setter(std::shared_ptr<AnalogProperty> const &);
+    virtual int update(std::string const&);
 
     statefs::AProperty *parent_;
     std::mutex m_;
@@ -84,11 +89,9 @@ public:
     bool connect(::statefs_slot *slot);
     void disconnect();
 
-    virtual updater_type get_updater();
-
 private:
 
-    int update(std::string const& v);
+    virtual int update(std::string const&);
 
     ::statefs_slot *slot_;
 };

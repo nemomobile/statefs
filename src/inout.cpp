@@ -32,7 +32,7 @@
 
 namespace statefs { namespace inout {
 
-Writer::Writer(statefs::AProperty *parent, updater_type update)
+Writer::Writer(statefs::AProperty *parent, setter_type update)
     : parent_(parent), update_(update), size_(128)
 {}
 

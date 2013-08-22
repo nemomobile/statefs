@@ -40,7 +40,7 @@ class Src;
 class Writer
 {
 public:
-    Writer(statefs::AProperty *parent, updater_type update);
+    Writer(statefs::AProperty *parent, setter_type update);
 
     int getattr() const;
     statefs_ssize_t size() const;
@@ -58,7 +58,7 @@ public:
 
 protected:
     statefs::AProperty *parent_;
-    updater_type update_;
+    setter_type update_;
     size_t size_;
 };
 
@@ -87,7 +87,7 @@ public:
         dst_->insert(std::static_pointer_cast<statefs::ANode>(prop));
         statefs::Namespace::insert
             (new statefs::BasicPropertyOwner<Writer, std::string>
-             (t.name_.c_str(), prop->get_impl()->get_updater()));
+             (t.name_.c_str(), property_setter(prop->get_impl())));
     }
 
 private:

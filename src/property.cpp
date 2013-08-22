@@ -2,6 +2,13 @@
 
 namespace statefs {
 
+setter_type property_setter(std::shared_ptr<AnalogProperty> const &p)
+{
+    return [p](std::string const &v) {
+        return p->update(v);
+    };
+}
+
 AnalogProperty::AnalogProperty
 (statefs::AProperty *parent, std::string const &defval)
     : parent_(parent), v_(defval)
@@ -24,12 +31,6 @@ int AnalogProperty::read
     return read_from(v, dst, len, off);
 }
 
-updater_type AnalogProperty::get_updater()
-{
-    using namespace std::placeholders;
-    return std::bind(std::mem_fn(&AnalogProperty::update), this, _1);
-}
-
 int AnalogProperty::update(std::string const& v)
 {
     std::lock_guard<std::mutex> lock(m_);
@@ -42,12 +43,6 @@ DiscreteProperty::DiscreteProperty
     : AnalogProperty(parent, defval)
     , slot_(nullptr)
 {}
-
-updater_type DiscreteProperty::get_updater()
-{
-    using namespace std::placeholders;
-    return std::bind(std::mem_fn(&DiscreteProperty::update), this, _1);
-}
 
 int DiscreteProperty::update(std::string const &v)
 {
