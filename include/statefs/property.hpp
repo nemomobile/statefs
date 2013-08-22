@@ -11,23 +11,36 @@ namespace statefs {
 template <typename T>
 struct PropTraits
 {
-    PropTraits(std::string const& name, std::string const& defval)
-        : name_(name), defval_(defval) {}
+    typedef BasicPropertyOwner<T, std::string> handle_type;
+    typedef std::shared_ptr<handle_type> handle_ptr;
 
-    std::string name_;
-    std::string defval_;
+    PropTraits(std::string const& prop_name
+               , std::string const& prop_defval)
+        : name(prop_name), defval(prop_defval) {}
+
+    handle_ptr create() const
+    {
+        return std::make_shared<handle_type>(name, defval);
+    }
+
+    std::string name;
+    std::string defval;
 };
 
 template <typename T>
 Namespace& operator << (Namespace &ns, PropTraits<T> const &t)
 {
-    typedef statefs::BasicPropertyOwner<T, std::string> prop_type;
-    auto prop = std::make_shared<prop_type>
-        (t.name_.c_str(), t.defval_.c_str());
-    ns.insert(std::static_pointer_cast<ANode>(prop));
+    ns << t.create();
     return ns;
 }
 
+template <typename T, typename HandleT>
+Namespace& operator <<
+(Namespace &ns, std::shared_ptr<BasicPropertyOwner<T, HandleT> > const &p)
+{
+    ns.insert(std::static_pointer_cast<ANode>(p));
+    return ns;
+}
 
 typedef std::function<int (std::string const&)> setter_type;
 
@@ -46,6 +59,12 @@ int read_from(T &src, char *dst, statefs_size_t len, statefs_off_t off)
 
 class AnalogProperty;
 setter_type property_setter(std::shared_ptr<AnalogProperty> const &);
+
+template <typename T>
+setter_type setter(std::shared_ptr<BasicPropertyOwner<T, std::string> > const& h)
+{
+    return property_setter(h->get_impl());
+}
 
 class AnalogProperty
 {

@@ -23,7 +23,7 @@
  * License along with this library; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301 USA
- * 
+ *
  * http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
  */
 
@@ -72,6 +72,7 @@ public:
 
 class Src : public statefs::Namespace
 {
+    typedef statefs::BasicPropertyOwner<Writer, std::string> in_type;
 public:
     Src(std::string const &, std::shared_ptr<Dst>);
     virtual ~Src();
@@ -79,25 +80,24 @@ public:
     virtual void release() {}
 
     template <typename T>
-    void insert(PropTraits<T> const &t) 
+    void insert_inout(PropTraits<T> const &t)
     {
-        typedef statefs::BasicPropertyOwner<T, std::string> prop_type;
-        std::shared_ptr<prop_type> prop
-            (new prop_type(t.name_.c_str(), t.defval_.c_str()));
-        dst_->insert(std::static_pointer_cast<statefs::ANode>(prop));
-        statefs::Namespace::insert
-            (new statefs::BasicPropertyOwner<Writer, std::string>
-             (t.name_.c_str(), property_setter(prop->get_impl())));
+        auto out = t.create();
+        *dst_ << out;
+        insert_input(t.name, setter(out));
     }
 
 private:
+
+    void insert_input(std::string const&, setter_type const&);
+
     std::shared_ptr<Dst> dst_;
 };
 
 template <typename T>
 Src& operator << (Src &ns, PropTraits<T> const &p)
 {
-    ns.insert(p);
+    ns.insert_inout(p);
     return ns;
 }
 

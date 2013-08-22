@@ -64,6 +64,13 @@ Src::Src(std::string const &name, std::shared_ptr<Dst> p)
 
 Src::~Src() {}
 
+
+void Src::insert_input(std::string const &name, setter_type const &setter)
+{
+    auto input = std::make_shared<in_type>(name.c_str(), setter);
+    *this << input;
+}
+
 // -----------------------------------------------------------------------------
 
 // template <template<class> class T>

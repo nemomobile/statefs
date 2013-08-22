@@ -367,6 +367,11 @@ public:
         : APropertyOwner<T>(name, args...)
     {}
 
+    template <typename ... Args>
+    BasicPropertyOwner(std::string const &name, Args&& ...args)
+        : APropertyOwner<T>(name.c_str(), args...)
+    {}
+
     virtual statefs::APropertyAccessor* open(int flags)
     {
         return statefs::mk_prop_accessor(this->impl_, new HandleT());
