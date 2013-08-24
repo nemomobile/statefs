@@ -847,12 +847,15 @@ static inline std::string dump_provider
 (std::string const& cfg_dir, std::ostream &dst
  , fs::path const &path, std::string const& provider_type)
 {
+    std::cerr << "Trying to dump " << provider_type
+              << " provider " << path << std::endl;
     Loaders loaders(cfg_dir);
     auto loader = loaders.loader_get(provider_type);
     if (!loader) {
-        if (provider_type == "default")
+        if (provider_type == "default") {
+            std::cerr << "Trying to dump as a loader" << std::endl;
             return dump_loader(cfg_dir, dst, path);
-        else {
+        } else {
             std::cerr << "Can't find " << provider_type
                       << " loader" << std::endl;
             return "";
@@ -875,8 +878,10 @@ static inline std::string dump_
 (std::string const& cfg_dir, std::ostream &dst
  , fs::path const &path, std::string const& provider_type)
 {
-    if (provider_type == "loader")
+    if (provider_type == "loader") {
+        std::cerr << "Dumping loader " << path << std::endl;
         return dump_loader(cfg_dir, dst, path);
+    }
 
     return dump_provider(cfg_dir, dst, path, provider_type);
 }
