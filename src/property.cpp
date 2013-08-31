@@ -31,11 +31,14 @@ int AnalogProperty::read
     return read_from(v, dst, len, off);
 }
 
-int AnalogProperty::update(std::string const& v)
+PropertyStatus AnalogProperty::update(std::string const& v)
 {
     std::lock_guard<std::mutex> lock(m_);
+    if (v_ == v)
+        return PropertyUnchanged;
+
     v_ = v;
-    return v.size();
+    return PropertyUpdated;
 }
 
 DiscreteProperty::DiscreteProperty
@@ -44,13 +47,15 @@ DiscreteProperty::DiscreteProperty
     , slot_(nullptr)
 {}
 
-int DiscreteProperty::update(std::string const &v)
+PropertyStatus DiscreteProperty::update(std::string const &v)
 {
-    int rc = AnalogProperty::update(v);
-    auto slot = slot_;
-    if (slot)
-        slot_->on_changed(slot_, parent_);
-    return rc;
+    auto status = AnalogProperty::update(v);
+    if (status == PropertyUpdated) {
+        auto slot = slot_;
+        if (slot)
+            slot_->on_changed(slot_, parent_);
+    }
+    return status;
 }
 
 BasicWriter::BasicWriter(statefs::AProperty *parent, setter_type update)

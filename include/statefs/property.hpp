@@ -42,7 +42,12 @@ Namespace& operator <<
     return ns;
 }
 
-typedef std::function<int (std::string const&)> setter_type;
+enum PropertyStatus {
+    PropertyUpdated,
+    PropertyUnchanged
+};
+
+typedef std::function<PropertyStatus (std::string const&)> setter_type;
 
 template <typename T>
 int read_from(T &src, char *dst, statefs_size_t len, statefs_off_t off)
@@ -93,7 +98,7 @@ protected:
     void operator =(AnalogProperty const&);
 
     friend setter_type property_setter(std::shared_ptr<AnalogProperty> const &);
-    virtual int update(std::string const&);
+    virtual PropertyStatus update(std::string const&);
 
     statefs::AProperty *parent_;
     std::mutex m_;
@@ -110,7 +115,7 @@ public:
 
 private:
 
-    virtual int update(std::string const&);
+    virtual PropertyStatus update(std::string const&);
 
     ::statefs_slot *slot_;
 };
