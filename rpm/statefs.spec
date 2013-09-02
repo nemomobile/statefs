@@ -61,6 +61,14 @@ Requires:   python >= 2.7
 %description tests
 %summary
 
+%package provider-power-emu
+Summary: Statefs inout provider to emulate Power properties
+Group: System Environment/Libraries
+Requires:   %{name} = %{version}-%{release}
+BuildArch: noarch
+%description provider-power-emu
+%{summary}
+
 %prep
 %setup -q
 
@@ -107,6 +115,10 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_libdir}/libstatefspp.so
 
+%files provider-power-emu
+%defattr(-,root,root,-)
+%{_datadir}/statefs/power-emu.conf
+
 %files doc
 %defattr(-,root,root,-)
 %{_datarootdir}/doc/statefs/html/*
@@ -127,4 +139,7 @@ rm -rf %{buildroot}
 %post examples
 %{_bindir}/statefs register %{_libdir}/statefs/libexample_power.so
 %{_bindir}/statefs register %{_libdir}/statefs/libexample_statefspp.so || :
+
+%post provider-power-emu
+%{_bindir}/statefs register %{_datadir}/statefs/power-emu.conf --statefs-type=inout || :
 
