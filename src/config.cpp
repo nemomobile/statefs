@@ -92,7 +92,7 @@ bool from_file(std::string const &cfg_src, config_receiver_fn receiver)
         parse(input, std::bind(receiver, cfg_src, _1));
     } catch (...) {
         std::cerr << "Error parsing " << cfg_src << ":" << input.tellg()
-                  << ", skiping..." << std::endl;
+                 << ", skiping..." << std::endl;
         return false;
     }
     return true;
