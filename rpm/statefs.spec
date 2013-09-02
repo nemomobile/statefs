@@ -92,6 +92,7 @@ rm -rf %{buildroot}
 %{_userunitdir}/statefs.service
 %{_userunitdir}/pre-user-session.target.wants/statefs.service
 %{_libdir}/libstatefs-config.so
+%{_libdir}/libstatefs-util.so
 %{_libdir}/statefs/libloader-default.so
 %{_libdir}/statefs/libloader-inout.so
 

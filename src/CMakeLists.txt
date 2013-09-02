@@ -22,6 +22,10 @@ target_link_libraries(statefspp
   ${COR_LIBRARIES}
 )
 
+add_library(statefs-util
+  SHARED common_util.cpp
+)
+
 add_library(loader-default
   SHARED loader.cpp
 )
@@ -41,6 +45,7 @@ target_link_libraries(loader-inout
 )
 
 install(TARGETS statefspp DESTINATION ${DST_LIB})
+install(TARGETS statefs-util DESTINATION ${DST_LIB})
 install(TARGETS loader-default DESTINATION ${DST_LIB}/statefs)
 install(TARGETS loader-inout DESTINATION ${DST_LIB}/statefs)
 
