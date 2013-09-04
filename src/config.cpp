@@ -538,6 +538,15 @@ Monitor::~Monitor()
 void Monitor::lib_add(std::string const &cfg_path
                       , Monitor::lib_ptr p)
 {
+    if (!p)
+        return;
+
+    auto lib_fname = p->path;
+    if (!fs::exists(lib_fname)) {
+        std::cerr << "Library " << lib_fname
+                  << " doesn't exist, skipping" << std::endl;
+        return;
+    }
     auto fname = fs::path(cfg_path).filename().string();
     files_libs_[fname] = p;
     using namespace std::placeholders;
