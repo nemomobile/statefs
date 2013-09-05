@@ -87,6 +87,8 @@ install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
 install -d -D -p -m755 %{buildroot}%{_datarootdir}/doc/statefs/html
 cp -R doc/html/ %{buildroot}%{_datarootdir}/doc/statefs/
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/doc/statefs/html
+install -d -D -p -m755 %{buildroot}%{_sysconfdir}/rpm/
+install -D -p -m644 packaging/macros.statefs %{buildroot}%{_sysconfdir}/rpm/
 
 %clean
 rm -rf %{buildroot}
@@ -110,6 +112,7 @@ rm -rf %{buildroot}
 %{_includedir}/statefs/*.hpp
 %{_libdir}/pkgconfig/statefs.pc
 %{_libdir}/pkgconfig/statefs-cpp.pc
+%{_sysconfdir}/rpm/macros.statefs
 
 %files pp
 %defattr(-,root,root,-)
@@ -132,14 +135,20 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 /opt/tests/statefs/*
 
-%post
-%{_bindir}/statefs register --statefs-type=loader %{_libdir}/statefs/libloader-default.so
-%{_bindir}/statefs register --statefs-type=loader %{_libdir}/statefs/libloader-inout.so || :
+%posttrans
+statefs register %{_libdir}/statefs/libloader-default.so --statefs-type=loader
+statefs register %{_libdir}/statefs/libloader-inout.so --statefs-type=loader || :
 
-%post examples
-%{_bindir}/statefs register %{_libdir}/statefs/libexample_power.so
-%{_bindir}/statefs register %{_libdir}/statefs/libexample_statefspp.so || :
+%posttrans examples
+statefs register %{_statefs_libdir}/libexample_power.so --statefs-type=default
+statefs register %{_statefs_libdir}/libexample_statefspp.so --statefs-type=default || :
 
-%post provider-power-emu
-%{_bindir}/statefs register %{_datadir}/statefs/power-emu.conf --statefs-type=inout || :
+%postun examples
+statefs cleanup || :
+
+%posttrans provider-power-emu
+statefs register  %{_datadir}/statefs/power-emu.conf --statefs-type=inout || :
+
+%postun provider-power-emu
+statefs cleanup || :
 

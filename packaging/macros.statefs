@@ -1,0 +1,15 @@
+#
+# StateFS rpm macros
+#
+
+%_statefs_libdir %{_libdir}/statefs
+%_statefs_datadir %{_datadir}/statefs
+%_statefs_sharedstatedir %{_sharedstatedir}/statefs
+%_statefs_sharedhooksdir %{_statefs_sharedstatedir}/hooks
+
+%statefs_register() \
+   statefs register %{2} --statefs-type=%{1}
+
+%statefs_cleanup() \
+   statefs cleanup
+
