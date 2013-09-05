@@ -134,6 +134,11 @@ void load(std::string const &cfg_src, ReceiverT receiver)
         throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
 }
 
+void visit(std::string const &path, config_receiver_fn fn)
+{
+    load(path, fn);
+}
+
 class Loaders : public LoadersStorage
 {
 public:

@@ -805,7 +805,8 @@ public:
 enum statefs_cmd {
     statefs_cmd_run,
     statefs_cmd_dump,
-    statefs_cmd_register
+    statefs_cmd_register,
+    statefs_cmd_cleanup
 };
 
 namespace metafuse {
@@ -841,8 +842,11 @@ public:
                       , {"help", "help"}},
                   {"config", "type"},
                   {"help"})
-        , commands({{"dump", statefs_cmd_dump},
-                    {"register", statefs_cmd_register}})
+        , commands({
+                {"dump", statefs_cmd_dump}
+                , {"register", statefs_cmd_register}
+                , {"cleanup", statefs_cmd_cleanup}
+            })
         , opts({{"type", "default"}})
     {
         options.parse(argc, argv, opts, params);
@@ -881,6 +885,9 @@ public:
         case statefs_cmd_register:
             rc = save_provider_config();
             break;
+        case statefs_cmd_cleanup:
+            rc = cleanup_config();
+            break;
         }
 
         return rc;
@@ -914,6 +921,28 @@ private:
         return 0;
     }
 
+    int cleanup_config()
+    {
+        namespace fs = boost::filesystem;
+        if (!ensure_dir_exists(cfg_dir))
+            return -1;
+
+        auto rm_absent = [](std::string const &cfg_path
+                            , std::shared_ptr<config::Library> p) {
+            auto lib_fname = p->path;
+            if (fs::exists(lib_fname))
+                return;
+            
+            std::cerr << "Library " << lib_fname
+            << " doesn't exist, unregistering, removing config: "
+            << cfg_path << std::endl;
+            fs::remove(cfg_path);
+            return;
+        };
+        config::visit(cfg_dir, rm_absent);
+        return 0;
+    }
+
     int fuse_run()
     {
         return fuse().main(params.size(), &params[0], true);
@@ -933,6 +962,7 @@ private:
                           "\t[command]:\n"
                           "\t\tdump plugin_path\n"
                           "\t\tregister plugin_path\n"
+                          "\t\tcleanup\n"
                           "\t[options]:\n");
         params.push_back("-ho");
         int fuse_rc = fuse_run();
