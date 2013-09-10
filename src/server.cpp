@@ -586,6 +586,7 @@ public:
 
     void loader_rm(loader_info_ptr p)
     {
+        auto lock(cor::wlock(*this));
         if (p)
             LoadersStorage::loader_rm(p->value());
     }
