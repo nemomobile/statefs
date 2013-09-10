@@ -101,7 +101,7 @@ protected:
     virtual PropertyStatus update(std::string const&);
 
     statefs::AProperty *parent_;
-    std::mutex m_;
+    mutable std::mutex m_;
     std::string v_;
 };
 
@@ -154,17 +154,6 @@ protected:
 inline int DiscreteProperty::getattr() const
 {
     return STATEFS_ATTR_READ | STATEFS_ATTR_DISCRETE;
-}
-
-inline bool DiscreteProperty::connect(::statefs_slot *slot)
-{
-    slot_ = slot;
-    return true;
-}
-
-inline void DiscreteProperty::disconnect()
-{
-    slot_ = nullptr;
 }
 
 inline int BasicWriter::getattr() const
