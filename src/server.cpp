@@ -274,7 +274,8 @@ public:
 	int poll(struct fuse_file_info &fi,
              poll_handle_type &ph, unsigned *reventsp)
     {
-        return -ENOTSUP;
+        std::cerr << "Loader file can't be polled\n";
+        return 0;
     }
 
 private:
@@ -337,7 +338,9 @@ public:
 	int poll(struct fuse_file_info &fi,
              poll_handle_type &ph, unsigned *reventsp)
     {
-        return -ENOTSUP;
+        std::cerr << "User wants to poll unpollable file "
+                  << prop_->name() << std::endl;
+        return 0;
     }
 
     int getattr(struct stat *buf)

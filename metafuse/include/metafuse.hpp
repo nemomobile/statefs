@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <sys/types.h>
 #include <unordered_map>
+#include <poll.h>
 
 namespace metafuse
 {
@@ -430,7 +431,10 @@ class BasicTextFile :
                         HandleT, LockingPolicy > base_type;
 public:
     BasicTextFile(std::string const &from, int mode)
-        : base_type(mode), data_(from) { }
+        : base_type(mode)
+        , data_(from)
+        , is_accessed_(false)
+    { }
 
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
@@ -457,12 +461,17 @@ public:
 	int poll(struct fuse_file_info &fi,
              poll_handle_type &ph, unsigned *reventsp)
     {
-        return -ENOTSUP;
+        if (!is_accessed_) {
+            *reventsp |= POLLIN;
+            is_accessed_ = true;
+        }
+        return 0;
     }
 
 private:
 
     std::string data_;
+    bool is_accessed_;
 };
 
 class NotFile
