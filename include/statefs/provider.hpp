@@ -281,17 +281,10 @@ public:
 class APropertyAccessor
 {
 public:
-    APropertyAccessor() : tag_(ref_tag_) {}
     virtual ~APropertyAccessor();
 
     virtual int read(char *dst, statefs_size_t len, statefs_off_t off) =0;
     virtual int write(char const*, statefs_size_t, statefs_off_t) =0;
-
-    static APropertyAccessor* self_cast(statefs_handle_t);
-
-private:
-    unsigned tag_;
-    static unsigned ref_tag_;
 };
 
 class AProperty : public PropertyWrapper

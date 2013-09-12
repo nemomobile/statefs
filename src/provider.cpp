@@ -169,16 +169,6 @@ const statefs_io AProvider::io_template = {
     &AProvider::disconnect
 };
 
-unsigned APropertyAccessor::ref_tag_ = 0xadea106a;
-
-APropertyAccessor* APropertyAccessor::self_cast(statefs_handle_t h)
-{
-    auto impl = reinterpret_cast<APropertyAccessor*>(h);
-    if (impl && impl->tag_ != ref_tag_)
-        throw std::logic_error("Casting wrong value to APropertyAccessor");
-    return impl;
-}
-
 int AProvider::getattr(::statefs_property const *p)
 {
     auto impl = AProperty::self_cast(p);
@@ -199,19 +189,19 @@ statefs_handle_t AProvider::open(::statefs_property *p, int flags)
 
 int AProvider::read(statefs_handle_t h, char *dst, statefs_size_t len, statefs_off_t off)
 {
-    auto impl = APropertyAccessor::self_cast(h);
+    auto impl = reinterpret_cast<APropertyAccessor*>(h);
     return impl->read(dst, len, off);
 }
 
 int AProvider::write(statefs_handle_t h, char const* src, statefs_size_t len, statefs_off_t off)
 {
-    auto impl = APropertyAccessor::self_cast(h);
+    auto impl = reinterpret_cast<APropertyAccessor*>(h);
     return impl->write(src, len, off);
 }
 
 void AProvider::close(statefs_handle_t h)
 {
-    auto impl = APropertyAccessor::self_cast(h);
+    auto impl = reinterpret_cast<APropertyAccessor*>(h);
     delete impl;
 }
 
@@ -251,8 +241,7 @@ AProperty const* AProperty::self_cast(::statefs_property const* p)
 void AProvider::init_data()
 {
     version = STATEFS_CURRENT_VERSION;
-    this->io = io_template;
-    //memcpy(&(this->io), &io_template, sizeof(::statefs_io));
+    memcpy(&(this->io), &io_template, sizeof(::statefs_io));
 }
 
 void AProvider::event(statefs_event event)
@@ -269,7 +258,7 @@ AProvider::AProvider(char const *name, statefs_server *server)
     init_data();
 }
 
-// instantiations of wrappers for all statefs types
+
 template class NodeWrapper<statefs_property>;
 template class NodeWrapper<statefs_namespace>;
 template class NodeWrapper<statefs_provider>;
