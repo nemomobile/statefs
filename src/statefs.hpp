@@ -7,6 +7,9 @@
 #include <statefs/loader.hpp>
 #include <cor/so.hpp>
 
+// TMP for make_unique
+#include <statefs/util.hpp>
+
 #include <ostream>
 #include <tuple>
 #include <memory>

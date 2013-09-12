@@ -3,6 +3,8 @@
 
 #include <metafuse/common.hpp>
 #include <cor/trace.hpp>
+// TMP for make_unique
+#include <statefs/util.hpp>
 
 #include <fuse.h>
 #include <list>
@@ -15,6 +17,7 @@
 #include <algorithm>
 #include <sys/types.h>
 #include <unordered_map>
+#include <utility>
 
 namespace metafuse
 {
@@ -127,7 +130,7 @@ public:
     typedef ImplT impl_type;
     typedef std::shared_ptr<ImplT> impl_ptr;
 
-    FileEntry(impl_type *impl) : impl_(impl) {}
+    FileEntry(std::unique_ptr<impl_type> impl) : impl_(std::move(impl)) {}
     FileEntry(impl_ptr impl) : impl_(impl) {}
 
     virtual int open(path_ptr path, struct fuse_file_info &fi)
@@ -191,11 +194,12 @@ public:
 protected:
 
     template <typename LockT, typename OpT, typename ... Args>
-    int node_op(LockT lock, OpT op, Args&... args)
+    int node_op(LockT lock, OpT op, Args&&... args)
     {
         trace() << "file op" << std::endl;
         auto l(lock(*impl_));
-        return std::mem_fn(op)(impl_.get(), args...);
+        return std::mem_fn(op)
+            (impl_.get(), std::forward<Args>(args)...);
     }
 
     impl_ptr impl_;
@@ -203,15 +207,15 @@ protected:
 };
 
 template <typename T>
-FileEntry<T> * mk_file_entry(std::shared_ptr<T> p)
+std::unique_ptr<FileEntry<T> > mk_file_entry(std::shared_ptr<T> p)
 {
-    return new FileEntry<T>(p);
+    return make_unique<FileEntry<T> >(p);
 }
 
 template <typename T>
-FileEntry<T> * mk_file_entry(T *p)
+std::unique_ptr<FileEntry<T> > mk_file_entry(std::unique_ptr<T> p)
 {
-    return new FileEntry<T>(p);
+    return make_unique<FileEntry<T> >(std::move(p));
 }
 
 template <typename ImplT>
@@ -223,7 +227,7 @@ public:
     typedef ImplT impl_type;
     typedef std::shared_ptr<ImplT> impl_ptr;
 
-    SymlinkEntry(ImplT *impl) : impl_(impl) {}
+    SymlinkEntry(std::unique_ptr<ImplT> impl) : impl_(std::move(impl)) {}
 
     virtual int getattr(path_ptr path, struct stat *buf)
     {
@@ -243,26 +247,26 @@ public:
 protected:
 
     template <typename LockT, typename OpT, typename ... Args>
-    int node_op(LockT lock, OpT op, Args&... args)
+    int node_op(LockT lock, OpT op, Args&&... args)
     {
         trace() << "link op" << std::endl;
         auto l(lock(*impl_));
-        return std::mem_fn(op)(impl_.get(), args...);
+        return std::mem_fn(op)(impl_.get(), std::forward<Args>(args)...);
     }
 
     impl_ptr impl_;
 };
 
 template <typename T>
-SymlinkEntry<T> * mk_symlink_entry(std::shared_ptr<T> p)
+std::unique_ptr<SymlinkEntry<T> > mk_symlink_entry(std::shared_ptr<T> p)
 {
-    return new SymlinkEntry<T>(p);
+    return make_unique<SymlinkEntry<T> >(p);
 }
 
 template <typename T>
-SymlinkEntry<T> * mk_symlink_entry(T *p)
+std::unique_ptr<SymlinkEntry<T> > mk_symlink_entry(std::unique_ptr<T> p)
 {
-    return new SymlinkEntry<T>(p);
+    return make_unique<SymlinkEntry<T> >(std::move(p));
 }
 
 template <typename T> class DirEntry;
@@ -284,7 +288,7 @@ public:
     typedef ImplT impl_type;
     typedef std::shared_ptr<ImplT> impl_ptr;
 
-    DirEntry(impl_type *impl) : impl_(impl) {}
+    DirEntry(std::unique_ptr<impl_type> impl) : impl_(std::move(impl)) {}
     DirEntry(impl_ptr impl) : impl_(impl) {}
 
     virtual int unlink(path_ptr path)
@@ -415,7 +419,7 @@ protected:
     typename ChildOpT,
     typename ... Args>
     int dir_op(LockT lock, ImplOpT impl_op, ChildOpT child_op,
-               path_ptr path, Args&... args)
+               path_ptr path, Args&&... args)
     {
         trace() << "dir op:" << *path << std::endl;
         if (path->empty())
@@ -425,7 +429,8 @@ protected:
             auto l(lock(*impl_));
             return std::mem_fn(impl_op)(impl_.get(), path->front(), args...);
         }
-        return call_child<LockT>(lock, std::move(path), child_op, args...);
+        return call_child<LockT>(lock, std::move(path), child_op
+                                 , std::forward<Args>(args)...);
     }
 
     template <typename LockT,
@@ -433,12 +438,13 @@ protected:
         typename ChildOpT,
         typename ... Args>
     int node_op(LockT lock, ImplOpT impl_op, ChildOpT child_op,
-                path_ptr path, Args&... args)
+                path_ptr path, Args&&... args)
     {
         trace() << "node op:" << *path << std::endl;
         if (path->empty()) {
             auto l(lock(*impl_));
-            return std::mem_fn(impl_op)(impl_.get(), args...);
+            return std::mem_fn(impl_op)
+                (impl_.get(), std::forward<Args>(args)...);
         }
 
         return call_child<LockT>(lock, std::move(path), child_op, args...);
@@ -454,7 +460,7 @@ protected:
     template <typename LockT,
         typename OpT,
         typename ... Args>
-    int call_child(LockT lock, path_ptr path, OpT op, Args&... args)
+    int call_child(LockT lock, path_ptr path, OpT op, Args&&... args)
     {
         trace() << "for child: " << path->front() << std::endl;
         auto entry = find(lock, path->front());
@@ -464,7 +470,8 @@ protected:
         }
         path->pop_front();
         
-        return std::mem_fn(op)(entry.get(), std::move(path), args...);
+        return std::mem_fn(op)
+            (entry.get(), std::move(path), std::forward<Args>(args)...);
     }
 
     impl_ptr impl_;
@@ -473,15 +480,15 @@ protected:
 
 
 template <typename T>
-DirEntry<T> * mk_dir_entry(T *p)
+std::unique_ptr<DirEntry<T> > mk_dir_entry(std::unique_ptr<T> p)
 {
-    return new DirEntry<T>(p);
+    return make_unique<DirEntry<T> >(std::move(p));
 }
 
 template <typename T>
-DirEntry<T> * mk_dir_entry(std::shared_ptr<T> p)
+std::unique_ptr<DirEntry<T> > mk_dir_entry(std::shared_ptr<T> p)
 {
-    return new DirEntry<T>(p);
+    return make_unique<DirEntry<T> >(p);
 }
 
 } // metafuse

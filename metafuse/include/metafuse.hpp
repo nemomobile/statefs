@@ -132,10 +132,10 @@ public:
     virtual ~Storage() {}
 
     template <typename Child>
-    int add(std::string const &name, Child *child)
+    int add(std::string const &name, std::unique_ptr<Child> child)
     {
         auto &entry = entries_[name];
-        entry.reset(child);
+        entry = std::move(child);
         return 0;
     }
 
@@ -645,21 +645,21 @@ public:
     }
 
     template <typename Child>
-    int add_dir(std::string const &name, Child* child)
+    int add_dir(std::string const &name, std::unique_ptr<Child> child)
     {
-        return dirs.add(name, child);
+        return dirs.add(name, std::move(child));
     }
 
     template <typename Child>
-    int add_file(std::string const &name, Child* child)
+    int add_file(std::string const &name, std::unique_ptr<Child> child)
     {
-        return files.add(name, child);
+        return files.add(name, std::move(child));
     }
 
     int add_symlink(std::string const &name, std::string const &target)
     {
-        std::unique_ptr<Symlink<> > link(new Symlink<>(target));
-        return this->links.add(name, mk_symlink_entry(link.release()));
+        auto link = make_unique<Symlink<> >(target);
+        return this->links.add(name, mk_symlink_entry(std::move(link)));
     }
 
     bool empty() const
@@ -888,13 +888,14 @@ public:
 private:
 
     template <typename OpT, typename ... Args>
-    static int invoke(const char* path, OpT op, Args&... args)
+    static int invoke(const char* path, OpT op, Args&&... args)
     {
         int res;
         try {
             trace() << "-" << caller_name() << "\n";
             trace() << "Op for: '" << path << "'\n";
-            res = std::mem_fn(op)(&impl(), mk_path(path), args...);
+            res = std::mem_fn(op)(&impl(), mk_path(path)
+                                  , std::forward<Args>(args)...);
             trace() << "Op res:" << res << std::endl;
         } catch(std::exception const &e) {
             std::cerr << "Caught exception: "

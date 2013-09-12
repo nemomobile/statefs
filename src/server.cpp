@@ -425,17 +425,23 @@ public:
     {
         // call is originated from provider, so acquire lock
         auto l(cor::wlock(*this));
-
         update_time(modification_time_bit | change_time_bit | access_time_bit);
+        if (!handles_.size())
+            return;
+        std::list<handle_ptr> snapshot;
         for (auto h : handles_)
-            h.second->notify();
+            snapshot.push_back(h.second);
+        l.unlock();
+        for (auto h : snapshot)
+            h->notify();
     }
 };
 
 template <typename LoadT, typename ... Args>
-PluginLoadFile<LoadT>* mk_loader(LoadT loader, Args ... args)
+std::unique_ptr<PluginLoadFile<LoadT> > mk_loader(LoadT loader, Args&& ... args)
 {
-    return new PluginLoadFile<LoadT>(loader, args...);
+    return make_unique<PluginLoadFile<LoadT> >
+        (loader, std::forward<Args>(args)...);
 }
 
 class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
@@ -452,7 +458,7 @@ public:
 
 private:
 
-    void add_prop_file(std::shared_ptr<config::Property> prop
+    void add_prop_file(std::shared_ptr<config::Property> const &prop
                        , std::function<void()> const& plugin_load);
 
     info_ptr info_;
@@ -468,7 +474,7 @@ PluginNsDir::PluginNsDir
 }
 
 void PluginNsDir::add_prop_file
-(std::shared_ptr<config::Property> prop
+(std::shared_ptr<config::Property> const &prop
  , std::function<void()> const& plugin_load)
 {
     std::string name = prop->value();
@@ -481,31 +487,30 @@ void PluginNsDir::add_prop_file
     // initially adding loader file - it accesses provider
     // implementation only on first read/write access to the
     // file itself. Default size is 1Kb
-    add_file(name, mk_file_entry
-             (mk_loader(load_get, prop->mode(), 1024)));
+    add_file(name, mk_file_entry(mk_loader(load_get, prop->mode(), 1024)));
 }
 
 void PluginNsDir::load(std::shared_ptr<Provider> prov)
 {
     auto lock(cor::wlock(*this));
     files.clear();
-    std::unique_ptr<Namespace> ns
-        (new Namespace(prov->ns(info_->value())));
+    auto ns = make_unique<Namespace>(prov->ns(info_->value()));
+
     for (auto cfg : info_->props_) {
         std::string name = cfg->value();
-        std::unique_ptr<Property> prop
-            (new Property(prov->io(), ns->property(name)));
+        auto prop = make_unique<Property>(prov->io(), ns->property(name));
         if (!prop->exists()) {
             std::cerr << "PROPERTY " << name << " is absent\n";
             add_file(name, mk_file_entry
-                     (new BasicTextFile<>(cfg->defval(), cfg->mode())));
+                     (make_unique<BasicTextFile<> >
+                      (cfg->defval(), cfg->mode())));
         } else {
             if (prop->is_discrete())
                 add_file(name, mk_file_entry
-                         (new DiscretePropFile(prop, prop->mode())));
+                         (make_unique<DiscretePropFile>(prop, prop->mode())));
             else
                 add_file(name, mk_file_entry
-                         (new ContinuousPropFile(prop, prop->mode())));
+                         (make_unique<ContinuousPropFile>(prop, prop->mode())));
         }
     }
     ns_ = std::move(ns);
@@ -518,7 +523,7 @@ void PluginNsDir::load_fake()
     for (auto prop : info_->props_) {
         std::string name = prop->value();
         add_file(name, mk_file_entry
-                 (new BasicTextFile<>(prop->defval(), prop->mode())));
+                 (make_unique<BasicTextFile<> >(prop->defval(), prop->mode())));
     }
 }
 
@@ -572,7 +577,12 @@ public:
     void plugin_add(PluginDir::info_ptr p)
     {
         auto lock(cor::wlock(*this));
-        trace() << "Plugin " << p->value() << std::endl;
+        auto name = p->value();
+        trace() << "Plugin " << name << std::endl;
+        if (dirs.find(name)) {
+            std::cerr << "There is already a plugin " << name << "...skipping\n";
+            return;
+        }
         auto d = std::make_shared<PluginDir>(this, p);
         add_dir(p->value(), mk_dir_entry(d));
     }
@@ -612,7 +622,8 @@ PluginDir::info_ptr PluginDir::load_namespaces(info_ptr p)
 {
     auto plugin_load = std::bind(&PluginDir::load, this);
     for (auto ns : p->namespaces_)
-        add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns, plugin_load)));
+        add_dir(ns->value(), mk_dir_entry
+                (make_unique<PluginNsDir>(ns, plugin_load)));
     return p;
 }
 
@@ -630,9 +641,8 @@ void PluginDir::load()
 
     trace() << "Loading plugin " << info_->path << std::endl;
     auto provider_type = config::to_string(info_->info_["type"]);
-    provider_.reset
-        (new Provider(parent_->loader_get(provider_type)
-                      , info_->path));
+    provider_ = make_unique<Provider>
+        (parent_->loader_get(provider_type), info_->path);
 
     if (!provider_->loaded()) {
         std::cerr << "Can't load " << info_->path
@@ -671,7 +681,7 @@ public:
     {
         auto lock(cor::wlock(*this));
         for (auto ns : p->namespaces_)
-            add_dir(ns->value(), mk_dir_entry(new NamespaceDir(p, ns)));
+            add_dir(ns->value(), mk_dir_entry(make_unique<NamespaceDir>(p, ns)));
     }
 
     void plugin_rm(PluginDir::info_ptr p)
@@ -748,7 +758,7 @@ private:
     void load_monitor()
     {
         auto receiver = static_cast<ConfigReceiver*>(this);
-        cfg_mon_.reset(new config::Monitor(cfg_dir_, *receiver));
+        cfg_mon_ = make_unique<config::Monitor>(cfg_dir_, *receiver);
     }
 
     virtual void provider_add(std::shared_ptr<config::Plugin> p)
@@ -797,7 +807,7 @@ class RootDirEntry : public DirEntry<RootDir>
     typedef DirEntry<RootDir> base_type;
 public:
 
-    RootDirEntry() : base_type(new RootDir()) {}
+    RootDirEntry() : base_type(make_unique<RootDir>()) {}
     virtual ~RootDirEntry() {}
 
     void init(std::string const &cfg_dir)
@@ -828,7 +838,7 @@ fuse_root_type::instance()
 static fuse_root_type & fuse()
 {
     if (!fuse_root)
-        fuse_root.reset(new fuse_root_type());
+        fuse_root = make_unique<fuse_root_type>();
     static auto &fuse = fuse_root_type::instance();
     return fuse;
 }
