@@ -64,8 +64,6 @@ link_directories(
 add_custom_target(statefs-doc
   COMMAND doxygen ${CMAKE_CURRENT_SOURCE_DIR}/doc/statefs.Doxyfile)
 
-install(FILES inout/power-emu.conf DESTINATION share/statefs)
-
 add_subdirectory(src)
 add_subdirectory(examples/src)
 add_subdirectory(packaging)
