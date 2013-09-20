@@ -865,12 +865,12 @@ public:
         , opts({{"type", "default"}})
     {
         options.parse(argc, argv, opts, params);
+        if (opts.count("system"))
+            cfg_dir = "/var/lib/statefs/system";
     }
 
     ~Server() {
         fuse_root.reset(nullptr);
-        if (opts.count("system"))
-            cfg_dir = "/var/lib/statefs/system";
     }
 
     int operator()()
