@@ -853,6 +853,7 @@ public:
         , options({{'h', "help"}},
                   {{"statefs-config-dir", "config"}
                       , {"statefs-type", "type"}
+                      , {"system", "system"}
                       , {"help", "help"}},
                   {"config", "type"},
                   {"help"})
@@ -868,6 +869,8 @@ public:
 
     ~Server() {
         fuse_root.reset(nullptr);
+        if (opts.count("system"))
+            cfg_dir = "/var/lib/statefs/system";
     }
 
     int operator()()
