@@ -113,7 +113,8 @@ void from_dir(std::string const &cfg_src, ReceiverT receiver)
 {
     trace() << "Config dir " << cfg_src << std::endl;
     auto check_load = [&receiver](fs::directory_entry const &d) {
-        check_name_load(d.path().string(), receiver);
+        if (!fs::is_directory(d.path()))
+            check_name_load(d.path().string(), receiver);
     };
     std::for_each(fs::directory_iterator(cfg_src),
                   fs::directory_iterator(),
