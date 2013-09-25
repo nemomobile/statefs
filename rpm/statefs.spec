@@ -88,6 +88,10 @@ install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/doc/statefs/html
 install -d -D -p -m755 %{buildroot}%{_sysconfdir}/rpm/
 install -D -p -m644 packaging/macros.statefs %{buildroot}%{_sysconfdir}/rpm/
 
+%{buildroot}%{_libdir}/statefs/install-provider default examples %{_libdir}/statefs/libexample_power.so
+%{buildroot}%{_libdir}/statefs/install-provider default examples %{_libdir}/statefs/libexample_statefspp.so
+
+
 %clean
 rm -rf %{buildroot}
 
@@ -105,6 +109,9 @@ rm -rf %{buildroot}
 %{_libdir}/libstatefs-util.so
 %{_libdir}/statefs/libloader-default.so
 %{_libdir}/statefs/libloader-inout.so
+%{_libdir}/statefs/install-provider
+%{_libdir}/statefs/loader-do
+%{_libdir}/statefs/provider-do
 
 %files provider-devel
 %defattr(-,root,root,-)
@@ -122,24 +129,21 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_datarootdir}/doc/statefs/html/*
 
-%files examples
+%files examples -f examples.files
 %defattr(-,root,root,-)
-%{_libdir}/statefs/libexample_power.so
-%{_libdir}/statefs/libexample_statefspp.so
 
 %files tests
 %defattr(-,root,root,-)
 /opt/tests/statefs/*
 
 %posttrans
-statefs register %{_libdir}/statefs/libloader-default.so --statefs-type=loader
-statefs register %{_libdir}/statefs/libloader-inout.so --statefs-type=loader || :
-statefs register --system %{_libdir}/statefs/libloader-default.so --statefs-type=loader
-statefs register --system %{_libdir}/statefs/libloader-inout.so --statefs-type=loader || :
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so system
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so system || :
 
 %posttrans examples
-statefs register %{_statefs_libdir}/libexample_power.so --statefs-type=default
-statefs register %{_statefs_libdir}/libexample_statefspp.so --statefs-type=default || :
+%{_libdir}/statefs/provider-do register default examples || :
 
 %postun examples
 statefs cleanup || :

@@ -4,7 +4,7 @@ mount_dir=/run/user/$uid/state
 cfg_dir=/var/lib/statefs
 if [ "x$uid" == "x0" ]; then
     mount_dir=/run/state
-    cfg_dir = /var/lib/statefs/system
+    cfg_dir=/var/lib/statefs/system
 fi
 is_mounted=`mount | grep "$mount_dir" | wc -l`
 

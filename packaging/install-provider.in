@@ -1,0 +1,37 @@
+#!/bin/sh
+
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 type name path system|user"
+    exit 1
+fi
+
+provider_type=$1
+group_name=$2
+provider_path=$3
+stype=$4
+params=
+
+if [ "$stype" == "system" ]; then
+    params="--system";
+fi
+
+scripts_dir=@prefix@/@DST_LIB@/statefs/scripts
+scripts_install_dir=$RPM_BUILD_ROOT/${scripts_dir}
+
+if [ "$provider_type" == "loader" ]; then
+    exit 1
+else
+    loader_dir=$scripts_dir/$provider_type
+    mkdir -p $RPM_BUILD_ROOT/$loader_dir
+    script_name=$loader_dir/on-$group_name
+    echo "statefs \$1 $provider_path --statefs-type=$provider_type $params" \
+        >> $RPM_BUILD_ROOT/$script_name
+    chmod a+x $RPM_BUILD_ROOT/$script_name
+    files=${group_name}.files
+    if [ ! -f ${files} ]; then
+        echo $script_name >> ${files}
+    elif ! grep $script_name ${files}; then
+        echo $script_name >> ${files}
+    fi
+    echo $provider_path >> ${files}
+fi

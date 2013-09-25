@@ -919,8 +919,6 @@ std::string dump(std::string const &cfg_dir
 {
     auto full_path = fs::path(mk_provider_path(path));
     return dump_(cfg_dir, dst, full_path, provider_type);
-    std::cerr << "Don't know how to dump " << path << std::endl;
-    return "";
 }
 
 /**
@@ -942,6 +940,7 @@ void save(std::string const &cfg_dir
         std::cerr << "Can't retrieve information from " << fname << std::endl;
         return;
     }
+    std::cout << name << std::endl;
 
     auto cfg_path = fs::path(cfg_dir);
     cfg_path /= (name + cfg_extension());
