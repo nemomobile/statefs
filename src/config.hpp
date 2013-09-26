@@ -51,6 +51,7 @@ std::string dump(std::string const&, std::ostream &
                  , std::string const&, std::string const&);
 
 void save(std::string const&, std::string const&, std::string const&);
+void rm(std::string const &, std::string const &, std::string const&);
 
 } // config
 

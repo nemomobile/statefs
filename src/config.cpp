@@ -953,4 +953,18 @@ void save(std::string const &cfg_dir
     fs::last_write_time(cfg_dir, n);
 }
 
+void rm(std::string const &cfg_dir
+        , std::string const &fname
+        , std::string const& provider_type)
+{
+    auto full_path = mk_provider_path(fname);
+    auto rm_config = [full_path](std::string const &cfg_path
+                                 , std::shared_ptr<config::Library> p) {
+        auto lib_fname = p->path;
+        if (lib_fname == full_path && fs::exists(cfg_path))
+            fs::remove(cfg_path);
+    };
+    config::visit(cfg_dir, rm_config);
+}
+
 } // config

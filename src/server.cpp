@@ -820,7 +820,8 @@ enum statefs_cmd {
     statefs_cmd_run,
     statefs_cmd_dump,
     statefs_cmd_register,
-    statefs_cmd_cleanup
+    statefs_cmd_cleanup,
+    statefs_cmd_unregister
 };
 
 namespace metafuse {
@@ -889,6 +890,7 @@ public:
         , commands({
                 {"dump", statefs_cmd_dump}
                 , {"register", statefs_cmd_register}
+                , {"unregister", statefs_cmd_unregister}
                 , {"cleanup", statefs_cmd_cleanup}
             })
     {
@@ -936,6 +938,9 @@ public:
         case statefs_cmd_register:
             rc = save_provider_config();
             break;
+        case statefs_cmd_unregister:
+            rc = rm_provider_config();
+            break;
         case statefs_cmd_cleanup:
             rc = cleanup_config();
             break;
@@ -948,8 +953,9 @@ private:
 
     void parse_fuse_opts()
     {
-        auto is_ok = split_pairs
-            (opts["options"], ",", "=", std::inserter(opts, opts.begin()));
+        if (!split_pairs(opts["options"], ",", "="
+                         , std::inserter(opts, opts.begin())))
+            throw cor::Error("Invalid fuse options");
     }
 
     int dump()
@@ -975,6 +981,19 @@ private:
             return -1;
 
         config::save(cfg_dir, params[2], opts["type"]);
+        return 0;
+    }
+
+    int rm_provider_config()
+    {
+        if (params.size() < 3)
+            return show_help(-1);
+
+        namespace fs = boost::filesystem;
+        if (!ensure_dir_exists(cfg_dir))
+            return -1;
+
+        config::rm(cfg_dir, params[2], opts["type"]);
         return 0;
     }
 
@@ -1026,6 +1045,7 @@ private:
                           "[command] [options] [fuse_options]\n"
                           "\t[command]:\n"
                           "\t\tdump plugin_path\n"
+                          "\t\tunregister plugin_path\n"
                           "\t\tregister plugin_path\n"
                           "\t\tcleanup\n"
                           "\t[options]:\n");
