@@ -16,6 +16,8 @@ systemctl stop statefs.service \
 %{nil}
 
 %statefs_start() \
+systemctl daemon-reload \
+systemctl-user daemon-reload \
 systemctl start statefs.service \
 systemctl-user start statefs.service \
 %{nil}

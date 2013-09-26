@@ -136,14 +136,43 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 /opt/tests/statefs/*
 
+%pretrans
+systemctl-user stop statefs.service
+systemctl stop statefs.service
+touch %{_localstatedir}/lib/rpm-state/statefs-stop
+
+%preun
+if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
+    systemctl-user stop statefs.service
+    systemctl stop statefs.service || :
+fi
+
+%postun
+statefs cleanup --system
+statefs cleanup
+if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
+    systemctl daemon-reload
+    systemctl-user daemon-reload
+    systemctl start statefs.service
+    systemctl-user start statefs.service || :
+fi
+
 %posttrans
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so system
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so system || :
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so system
+if [ -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
+    systemctl daemon-reload
+    systemctl-user daemon-reload
+    systemctl start statefs.service
+    systemctl-user start statefs.service
+    /bin/rm %{_localstatedir}/lib/rpm-state/statefs-stop || :
+fi
 
 %posttrans examples
 %{_libdir}/statefs/provider-do register default examples || :
 
 %postun examples
+statefs cleanup --system
 statefs cleanup || :

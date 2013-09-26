@@ -14,7 +14,7 @@ if [ "$stype" == "system" ]; then
 fi
 
 if [ $cmd == "register" ]; then
-    statefs register $provider_path --statefs-type=loader $params | cut -d '-' -f 2 | read loader_type
+    loader_type=$(statefs register $provider_path --statefs-type=loader $params | cut -d '-' -f 2)
     scripts_dir=@prefix@/@DST_LIB@/statefs/scripts/$loader_type
     if [ -d $scripts_dir ]; then
         find $scripts_dir -name "on-*" -exec sh -c "sh {} register" \;
