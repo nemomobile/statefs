@@ -843,6 +843,35 @@ static fuse_root_type & fuse()
     return fuse;
 }
 
+
+template <class OutputIterator>
+bool split_pairs(std::string const &src, std::string const &items_sep
+                 , std::string const &pair_sep, OutputIterator dst)
+{
+    //typedef typename OutputIterator::value_type v_type;
+    std::list<std::string> items;
+    cor::split(src, items_sep, std::back_inserter(items));
+    std::vector<std::string> pair;
+    for (auto &v : items) {
+        if (v == "")
+            continue;
+        cor::split(v, pair_sep, std::back_inserter(pair));
+        auto sz = pair.size();
+        switch (sz) {
+        case 1:
+            *dst = {pair[0], ""};
+            break;
+        case 2:
+            *dst = {pair[0], pair[1]};
+            break;
+        default:
+            return false;
+        }
+        pair.clear();
+    }
+    return true;
+}
+
 class Server
 {
     typedef cor::OptParse<std::string> option_parser_type;
@@ -850,23 +879,20 @@ public:
 
     Server(int argc, char *argv[])
         : cfg_dir("/var/lib/statefs")
-        , options({{'h', "help"}},
+        , options({{'h', "help"}, {'o', "options"}},
                   {{"statefs-config-dir", "config"}
                       , {"statefs-type", "type"}
                       , {"system", "system"}
                       , {"help", "help"}},
-                  {"config", "type"},
-                  {"help"})
+                  {"config", "type", "options"},
+                  {"help", "options"})
         , commands({
                 {"dump", statefs_cmd_dump}
                 , {"register", statefs_cmd_register}
                 , {"cleanup", statefs_cmd_cleanup}
             })
-        , opts({{"type", "default"}})
     {
         options.parse(argc, argv, opts, params);
-        if (opts.count("system"))
-            cfg_dir = "/var/lib/statefs/system";
     }
 
     ~Server() {
@@ -877,6 +903,14 @@ public:
     {
         statefs_cmd cmd = statefs_cmd_run;
         int rc = 0;
+
+        parse_fuse_opts();
+
+        if (opts.count("system"))
+            cfg_dir = "/var/lib/statefs/system";
+
+        if (!opts.count("type"))
+            opts["type"] = "default";
 
         if (params.size() > 1) {
             // first param can be a command
@@ -911,6 +945,12 @@ public:
     }
 
 private:
+
+    void parse_fuse_opts()
+    {
+        auto is_ok = split_pairs
+            (opts["options"], ",", "=", std::inserter(opts, opts.begin()));
+    }
 
     int dump()
     {
@@ -967,6 +1007,14 @@ private:
 
     int main()
     {
+        auto p = opts.find("uid");
+        if (p != opts.end())
+            ::setuid(::atoi(p->second.c_str()));
+
+        p = opts.find("gid");
+        if (p != opts.end())
+            ::setgid(::atoi(p->second.c_str()));
+
         fuse().impl().init(cfg_dir);
         int rc = fuse_run();
         return rc;

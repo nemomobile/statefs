@@ -3,7 +3,7 @@ Description=StateFS FUSE filesystem, system-wide
 
 [Service]
 ExecStartPre=/usr/bin/statefs-prerun
-ExecStart=/usr/bin/statefs --system -oallow_other /run/state -f
+ExecStart=/usr/bin/statefs /run/state -f --system -o allow_other,gid=100
 Restart=always
 RestartSec=1
 
