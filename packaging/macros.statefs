@@ -22,7 +22,7 @@ systemctl start statefs.service \
 systemctl-user start statefs.service \
 %{nil}
 
-%statefs_pretrans() \
+%statefs_pre() \
 %statefs_stop \
 touch %{_localstatedir}/lib/rpm-state/statefs-stop \
 %{nil}

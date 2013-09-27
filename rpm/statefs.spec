@@ -136,7 +136,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 /opt/tests/statefs/*
 
-%pretrans
+%pre
 systemctl-user stop statefs.service
 systemctl stop statefs.service
 touch %{_localstatedir}/lib/rpm-state/statefs-stop
