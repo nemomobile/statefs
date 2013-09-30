@@ -11,7 +11,7 @@ BuildRequires: boost-filesystem
 BuildRequires: boost-devel
 BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
-BuildRequires: pkgconfig(cor) >= 0.1.7
+BuildRequires: pkgconfig(cor) >= 0.1.10
 BuildRequires: systemd
 Requires: systemd-user-session-targets
 

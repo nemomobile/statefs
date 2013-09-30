@@ -4,6 +4,8 @@
 #include <list>
 #include <string>
 #include <utility>
+#include <cor/util.hpp>
+
 
 namespace statefs
 {
@@ -14,11 +16,6 @@ std::string property_path_in_default(std::string const&);
 
 }
 
-
-template <typename T, typename ... Args>
-std::unique_ptr<T> make_unique(Args&&... args)
-{
-    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
+using cor::make_unique;
 
 #endif // _STATEFS_UTIL_HPP_
