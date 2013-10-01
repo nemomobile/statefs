@@ -1,3 +1,5 @@
+%{!?_with_usersession: %{!?_without_usersession: %define _with_usersession --with-usersession}}
+
 Summary: Syntetic filesystem to expose system state
 Name: statefs
 Version: 0.0.0
@@ -13,13 +15,12 @@ BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
 BuildRequires: pkgconfig(cor) >= 0.1.10
 BuildRequires: systemd
-Requires: systemd-user-session-targets
-
+%{?_with_usersession:Requires: systemd-user-session-targets}
 %description
 StateFS is the syntetic filesystem to expose current system state
 provided by StateFS plugins as properties wrapped into namespaces.
 
-%define _userunitdir %{_libdir}/systemd/user/
+%{?_with_usersession:%define _userunitdir %{_libdir}/systemd/user/}
 
 %package pp
 Summary: Statefs framework for C++ providers
@@ -65,7 +66,7 @@ Requires:   python >= 2.7
 %setup -q
 
 %build
-%cmake -DSTATEFS_VERSION=%{version}
+%cmake -DSTATEFS_VERSION=%{version} %{?_with_multiarch:-DENABLE_MULTIARCH=ON}
 make %{?jobs:-j%jobs}
 make statefs-doc
 
@@ -73,11 +74,15 @@ make statefs-doc
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
 
+%if 0%{?_with_usersession:1}
 install -D -p -m644 packaging/statefs.service %{buildroot}%{_userunitdir}/statefs.service
+%endif
 install -D -p -m644 packaging/statefs-system.service %{buildroot}%{_unitdir}/statefs.service
 
+%if 0%{?_with_usersession:1}
 mkdir -p %{buildroot}%{_userunitdir}/pre-user-session.target.wants
 ln -sf ../statefs.service %{buildroot}%{_userunitdir}/pre-user-session.target.wants/
+%endif
 mkdir -p %{buildroot}%{_unitdir}/multi-user.target.wants
 ln -sf ../statefs.service %{buildroot}%{_unitdir}/multi-user.target.wants/
 mkdir -p %{buildroot}%{_unitdir}/actdead-pre.target.wants
@@ -103,8 +108,10 @@ rm -rf %{buildroot}
 %{_bindir}/statefs
 %{_bindir}/statefs-prerun
 %{_sharedstatedir}/statefs
+%if 0%{?_with_usersession:1}
 %{_userunitdir}/statefs.service
 %{_userunitdir}/pre-user-session.target.wants/statefs.service
+%endif
 %{_unitdir}/statefs.service
 %{_unitdir}/multi-user.target.wants/statefs.service
 %{_unitdir}/actdead-pre.target.wants/statefs.service
@@ -140,42 +147,60 @@ rm -rf %{buildroot}
 /opt/tests/statefs/*
 
 %pre
+%if 0%{?_with_usersession:1}
 systemctl-user stop statefs.service
+%endif
 systemctl stop statefs.service
-touch %{_localstatedir}/lib/rpm-state/statefs-stop
+touch %{_localstatedir}/lib/rpm-state/statefs-stop || :
 
 %preun
 if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
+%if 0%{?_with_usersession:1}
     systemctl-user stop statefs.service
+%endif
     systemctl stop statefs.service || :
 fi
 
 %postun
 statefs cleanup --system
+%if 0%{?_with_usersession:1}
 statefs cleanup
+%endif
 if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
     systemctl daemon-reload
+    systemctl start statefs.service || :
+%if 0%{?_with_usersession:1}
     systemctl-user daemon-reload
-    systemctl start statefs.service
     systemctl-user start statefs.service || :
+%endif
 fi
 
 %posttrans
+%if 0%{?_with_usersession:1}
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so
+%endif
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so system
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so system
 if [ -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
     systemctl daemon-reload
-    systemctl-user daemon-reload
     systemctl start statefs.service
+%if 0%{?_with_usersession:1}
+    systemctl-user daemon-reload
     systemctl-user start statefs.service
+%endif
     /bin/rm %{_localstatedir}/lib/rpm-state/statefs-stop || :
 fi
 
 %posttrans examples
+%if 0%{?_with_usersession:1}
 %{_libdir}/statefs/provider-do register default examples || :
+%else
+%{_libdir}/statefs/provider-do register default examples system || :
+%endif
 
 %postun examples
-statefs cleanup --system
+statefs cleanup --system || :
+%if 0%{?_with_usersession:1}
 statefs cleanup || :
+%endif

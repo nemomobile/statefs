@@ -2,8 +2,8 @@
 Description=StateFS FUSE filesystem, system-wide
 
 [Service]
-ExecStartPre=/usr/bin/statefs-prerun
-ExecStart=/usr/bin/statefs /run/state -f --system -o allow_other,gid=100
+ExecStartPre=@prefix@/bin/statefs-prerun
+ExecStart=@prefix@/bin/statefs /run/state -f --system -o allow_other,gid=@USERS_GID@
 Restart=always
 RestartSec=1
 

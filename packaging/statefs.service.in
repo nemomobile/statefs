@@ -6,8 +6,8 @@ Description=StateFS FUSE filesystem
 Requires=dbus.socket
 
 [Service]
-ExecStartPre=/usr/bin/statefs-prerun
-ExecStart=/usr/bin/statefs ${XDG_RUNTIME_DIR}/state -f
+ExecStartPre=@prefix@/bin/statefs-prerun
+ExecStart=@prefix@/bin/statefs ${XDG_RUNTIME_DIR}/state -f
 Restart=always
 RestartSec=1
 
