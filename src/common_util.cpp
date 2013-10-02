@@ -81,6 +81,25 @@ std::string property_path_default(std::string const& name)
     return join(parts, "/");
 }
 
+/**
+ * get path to the statefs property file for the system statefs
+ * instance mounted to the default statefs root
+ *
+ * @param name dot- or slash-separated full property name
+ *
+ * @return full path to the property file
+ */
+std::string property_path_sys_default(std::string const& name)
+{
+    auto parts = property_name_parts(name);
+    if (!is_property_path_valid(parts))
+        return "";
+
+    parts.push_front("namespaces");
+    parts.push_front("/run/state"); // TODO hardcoded source!
+    return join(parts, "/");
+}
+
 static const std::string in_prop_prefix = "@";
 
 /**

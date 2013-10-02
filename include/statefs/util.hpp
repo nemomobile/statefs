@@ -12,6 +12,7 @@ namespace statefs
 
 std::list<std::string> property_name_parts(std::string const& name);
 std::string property_path_default(std::string const&);
+std::string property_path_sys_default(std::string const&);
 std::string property_path_in_default(std::string const&);
 
 }
