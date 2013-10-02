@@ -23,7 +23,7 @@ target_link_libraries(statefspp
 )
 
 add_library(statefs-util
-  SHARED common_util.cpp
+  SHARED common_util.cpp consumer.cpp
 )
 
 add_library(loader-default
