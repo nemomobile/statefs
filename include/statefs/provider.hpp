@@ -340,7 +340,7 @@ public:
     template <typename ... Args>
     APropertyOwner(char const *name, Args&& ...args)
         : AProperty(name)
-        , impl_(new T(this, args...))
+        , impl_(new T(this, std::forward<Args>(args)...))
     {}
 
     virtual ~APropertyOwner() {}
@@ -364,12 +364,12 @@ class BasicPropertyOwner : public APropertyOwner<T>
 public:
     template <typename ... Args>
     BasicPropertyOwner(char const *name, Args&& ...args)
-        : APropertyOwner<T>(name, args...)
+        : APropertyOwner<T>(name, std::forward<Args>(args)...)
     {}
 
     template <typename ... Args>
     BasicPropertyOwner(std::string const &name, Args&& ...args)
-        : APropertyOwner<T>(name.c_str(), args...)
+        : APropertyOwner<T>(name.c_str(), std::forward<Args>(args)...)
     {}
 
     virtual statefs::APropertyAccessor* open(int flags)

@@ -550,14 +550,14 @@ public:
 private:
 
     template <typename OpT, typename ... Args>
-    void namespaces_init(OpT op, Args ... args)
+    void namespaces_init(OpT op, Args&& ... args)
     {
         for (auto &d : dirs) {
             trace() << "Init ns " << d.first << std::endl;
             auto p = dir_entry_impl<PluginNsDir>(d.second);
             if (!p)
                 throw std::logic_error("Can't cast to namespace???");
-            std::mem_fn(op)(p.get(), args...);
+            std::mem_fn(op)(p.get(), std::forward<Args>(args)...);
         }
     }
 

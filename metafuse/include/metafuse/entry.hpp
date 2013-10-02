@@ -427,7 +427,8 @@ protected:
 
         if (path->is_top()) {
             auto l(lock(*impl_));
-            return std::mem_fn(impl_op)(impl_.get(), path->front(), args...);
+            return std::mem_fn(impl_op)(impl_.get(), path->front()
+                                        , std::forward<Args>(args)...);
         }
         return call_child<LockT>(lock, std::move(path), child_op
                                  , std::forward<Args>(args)...);
@@ -447,7 +448,8 @@ protected:
                 (impl_.get(), std::forward<Args>(args)...);
         }
 
-        return call_child<LockT>(lock, std::move(path), child_op, args...);
+        return call_child<LockT>(lock, std::move(path), child_op
+                                 , std::forward<Args>(args)...);
     }
 
     template <typename LockT>
