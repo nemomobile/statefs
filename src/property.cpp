@@ -1,8 +1,9 @@
 #include <statefs/property.hpp>
+#include <errno.h>
 
 namespace statefs {
 
-setter_type property_setter(std::shared_ptr<AnalogProperty> const &p)
+setter_type property_setter(std::shared_ptr<DiscreteProperty> const &p)
 {
     return [p](std::string const &v) mutable {
         return p->update(v);
@@ -10,40 +11,33 @@ setter_type property_setter(std::shared_ptr<AnalogProperty> const &p)
 }
 
 AnalogProperty::AnalogProperty
-(statefs::AProperty *parent, std::string const &defval)
-    : parent_(parent), v_(defval)
+(statefs::AProperty *parent, std::unique_ptr<PropertySource> s)
+    : parent_(parent), source_(std::move(s))
 {}
 
 statefs_ssize_t AnalogProperty::size() const
 {
-    std::lock_guard<std::mutex> lock(m_);
-    return (statefs_ssize_t)v_.size();
+    return source_ ? source_->size() : 0;
 }
 
-int AnalogProperty::read
-(std::string *h, char *dst, statefs_size_t len, statefs_off_t off)
+int AnalogProperty::read(std::string *h, char *dst, statefs_size_t len, statefs_off_t off)
 {
-    if (!off) {
-        std::lock_guard<std::mutex> lock(m_);
-        *h = v_;
-    }
+    if (!h)
+        return -ENOENT;
+
+    if (!source_)
+        return -ENOENT;
+
+    if (!off)
+        *h = source_->read();
 
     return read_from(*h, dst, len, off);
 }
 
-PropertyStatus AnalogProperty::update(std::string const& v)
-{
-    std::lock_guard<std::mutex> lock(m_);
-    if (v_ == v)
-        return PropertyUnchanged;
-
-    v_ = v;
-    return PropertyUpdated;
-}
 
 DiscreteProperty::DiscreteProperty
 (statefs::AProperty *parent, std::string const &defval)
-    : AnalogProperty(parent, defval)
+    : parent_(parent), v_(defval)
     , slot_(nullptr)
 {}
 
@@ -60,18 +54,36 @@ void DiscreteProperty::disconnect()
     slot_ = nullptr;
 }
 
+statefs_ssize_t DiscreteProperty::size() const
+{
+    std::lock_guard<std::mutex> lock(m_);
+    return (statefs_ssize_t)v_.size();
+}
+
+int DiscreteProperty::read
+(std::string *h, char *dst, statefs_size_t len, statefs_off_t off)
+{
+    if (!off) {
+        std::lock_guard<std::mutex> lock(m_);
+        *h = v_;
+    }
+
+    return read_from(*h, dst, len, off);
+}
 
 PropertyStatus DiscreteProperty::update(std::string const &v)
 {
-    auto status = AnalogProperty::update(v);
-    if (status == PropertyUpdated) {
-        std::unique_lock<std::mutex> lock(m_);
-        auto slot = slot_;
-        lock.unlock();
-        if (slot)
-            slot_->on_changed(slot_, parent_);
-    }
-    return status;
+    std::unique_lock<std::mutex> lock(m_);
+    if (v_ == v)
+        return PropertyUnchanged;
+
+    v_ = v;
+    auto slot = slot_;
+    lock.unlock();
+    if (slot)
+        slot_->on_changed(slot_, parent_);
+
+    return PropertyUpdated;
 }
 
 BasicWriter::BasicWriter(statefs::AProperty *parent, setter_type update)

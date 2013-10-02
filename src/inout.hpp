@@ -29,7 +29,7 @@
 
 #include <statefs/provider.hpp>
 #include <statefs/property.hpp>
-#include <mutex>
+#include <cor/mt.hpp>
 
 //using statefs::BranchStorage;
 
@@ -45,6 +45,59 @@ public:
     virtual void release() {}
 };
 
+struct Cache : public cor::Mutex
+{
+    Cache(std::string const &v) : value_(v) {}
+    std::string value_;
+};
+
+class AnalogSource : public PropertySource
+{
+public:
+    AnalogSource(std::shared_ptr<Cache> const &c)
+        : cache_(c)
+    {}
+
+    virtual statefs_ssize_t size() const
+    {
+        auto lock = cor::rlock(*cache_);
+        return cache_->value_.size();
+    }
+
+    virtual std::string read() const
+    {
+        auto lock = cor::rlock(*cache_);
+        return cache_->value_;
+    }
+private:
+    std::shared_ptr<Cache> cache_;
+};
+
+class AnalogSetter : public setter_type
+{
+public:
+    AnalogSetter(std::string const &data)
+        : cache_(std::make_shared<Cache>(data))
+    {}
+
+    std::unique_ptr<AnalogSource> source() const
+    {
+        return cor::make_unique<AnalogSource>(cache_);
+    }
+
+    virtual PropertyStatus operator()(std::string const &v)
+    {
+        auto lock = cor::wlock(*cache_);
+         if (cache_->value_ == v)
+            return PropertyUnchanged;
+
+        cache_->value_ = v;
+        return PropertyUpdated;
+    }
+private:
+    std::shared_ptr<Cache> cache_;
+};
+
 class Src : public statefs::Namespace
 {
     typedef statefs::BasicPropertyOwner<BasicWriter, std::string> in_type;
@@ -54,12 +107,19 @@ public:
 
     virtual void release() {}
 
-    template <typename T>
-    void insert_inout(PropTraits<T> const &t)
+    void insert_inout(Discrete const &t)
     {
-        auto out = t.create();
+        auto out = create(t);
         *dst_ << out;
         insert_input(t.name, setter(out));
+    }
+
+    void insert_inout(Analog const &t)
+    {
+        AnalogSetter s(t.defval);
+        auto out = create(t, s.source());
+        *dst_ << out;
+        insert_input(t.name, s);
     }
 
 private:
