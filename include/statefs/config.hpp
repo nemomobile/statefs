@@ -123,7 +123,8 @@ void parse(std::basic_istream<CharT> &input, ReceiverT receiver)
 typedef std::function<void (std::string const &
                             , std::shared_ptr<Library>) > config_receiver_fn;
 
-void from_file(std::string const &, config_receiver_fn);
+bool from_file(std::string const &, config_receiver_fn);
+void visit(std::string const &, config_receiver_fn);
 
 class ConfigReceiver
 {

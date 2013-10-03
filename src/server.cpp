@@ -26,12 +26,12 @@
 using namespace metafuse;
 using statefs::provider_ptr;
 
-class Provider
+class Provider : public statefs_server
 {
 public:
-    Provider(std::weak_ptr<Loader> loader, std::string const &path);
+    Provider(std::shared_ptr<Loader> loader, std::string const &path);
 
-    ~Provider() { }
+    ~Provider() {}
 
     bool loaded() const
     {
@@ -45,7 +45,28 @@ public:
         return loaded() ? &(provider_->io) : nullptr;
     }
 
+    void on_provider_event(statefs_provider *p, statefs_event e)
+    {
+        if (e == statefs_event_reload) {
+            std::cerr << "Reloading required, exiting" << std::endl;
+            ::exit(0);
+        }
+    }
+
 private:
+
+    static statefs_server* init_server(statefs_server *s)
+    {
+        s->event = &Provider::on_event_;
+        return s;
+    }
+
+    static void on_event_
+    (statefs_server *s, statefs_provider *p, statefs_event e)
+    {
+        auto *self = static_cast<Provider*>(s);
+        self->on_provider_event(p, e);
+    }
 
     static void ns_release(statefs_namespace *p)
     {
@@ -53,6 +74,8 @@ private:
             statefs_node_release(&p->node);
     };
 
+    // storing to be sure loader is unloaded only after provider
+    std::shared_ptr<Loader> loader_;
     provider_ptr provider_;
 };
 
@@ -177,17 +200,11 @@ void Property::disconnect()
         io_->disconnect(handle_.get());
 }
 
-static provider_ptr load_provider
-(std::weak_ptr<Loader> loader, std::string const &path)
-{
-    auto p = loader.lock();
-    if (!p)
-        return nullptr;
-    return p->load(path);
-}
-
-Provider::Provider(std::weak_ptr<Loader> loader, std::string const &path)
-    : provider_(load_provider(loader, path))
+Provider::Provider(std::shared_ptr<Loader> loader, std::string const &path)
+    : loader_(loader)
+    , provider_(loader_
+                ? loader_->load(path, Provider::init_server(this))
+                : nullptr)
 { }
 
 ns_handle_type Provider::ns(std::string const &name) const
@@ -257,7 +274,8 @@ public:
 	int poll(struct fuse_file_info &fi,
              poll_handle_type &ph, unsigned *reventsp)
     {
-        return -ENOTSUP;
+        std::cerr << "Loader file can't be polled\n";
+        return 0;
     }
 
 private:
@@ -320,7 +338,9 @@ public:
 	int poll(struct fuse_file_info &fi,
              poll_handle_type &ph, unsigned *reventsp)
     {
-        return -ENOTSUP;
+        std::cerr << "User wants to poll unpollable file "
+                  << prop_->name() << std::endl;
+        return 0;
     }
 
     int getattr(struct stat *buf)
@@ -405,17 +425,23 @@ public:
     {
         // call is originated from provider, so acquire lock
         auto l(cor::wlock(*this));
-
         update_time(modification_time_bit | change_time_bit | access_time_bit);
+        if (!handles_.size())
+            return;
+        std::list<handle_ptr> snapshot;
         for (auto h : handles_)
-            h.second->notify();
+            snapshot.push_back(h.second);
+        l.unlock();
+        for (auto h : snapshot)
+            h->notify();
     }
 };
 
 template <typename LoadT, typename ... Args>
-PluginLoadFile<LoadT>* mk_loader(LoadT loader, Args ... args)
+std::unique_ptr<PluginLoadFile<LoadT> > mk_loader(LoadT loader, Args&& ... args)
 {
-    return new PluginLoadFile<LoadT>(loader, args...);
+    return make_unique<PluginLoadFile<LoadT> >
+        (loader, std::forward<Args>(args)...);
 }
 
 class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
@@ -432,7 +458,7 @@ public:
 
 private:
 
-    void add_prop_file(std::shared_ptr<config::Property> prop
+    void add_prop_file(std::shared_ptr<config::Property> const &prop
                        , std::function<void()> const& plugin_load);
 
     info_ptr info_;
@@ -448,7 +474,7 @@ PluginNsDir::PluginNsDir
 }
 
 void PluginNsDir::add_prop_file
-(std::shared_ptr<config::Property> prop
+(std::shared_ptr<config::Property> const &prop
  , std::function<void()> const& plugin_load)
 {
     std::string name = prop->value();
@@ -461,31 +487,30 @@ void PluginNsDir::add_prop_file
     // initially adding loader file - it accesses provider
     // implementation only on first read/write access to the
     // file itself. Default size is 1Kb
-    add_file(name, mk_file_entry
-             (mk_loader(load_get, prop->mode(), 1024)));
+    add_file(name, mk_file_entry(mk_loader(load_get, prop->mode(), 1024)));
 }
 
 void PluginNsDir::load(std::shared_ptr<Provider> prov)
 {
     auto lock(cor::wlock(*this));
     files.clear();
-    std::unique_ptr<Namespace> ns
-        (new Namespace(prov->ns(info_->value())));
+    auto ns = make_unique<Namespace>(prov->ns(info_->value()));
+
     for (auto cfg : info_->props_) {
         std::string name = cfg->value();
-        std::unique_ptr<Property> prop
-            (new Property(prov->io(), ns->property(name)));
+        auto prop = make_unique<Property>(prov->io(), ns->property(name));
         if (!prop->exists()) {
             std::cerr << "PROPERTY " << name << " is absent\n";
             add_file(name, mk_file_entry
-                     (new BasicTextFile<>(cfg->defval(), cfg->mode())));
+                     (make_unique<BasicTextFile<> >
+                      (cfg->defval(), cfg->mode())));
         } else {
             if (prop->is_discrete())
                 add_file(name, mk_file_entry
-                         (new DiscretePropFile(prop, prop->mode())));
+                         (make_unique<DiscretePropFile>(prop, prop->mode())));
             else
                 add_file(name, mk_file_entry
-                         (new ContinuousPropFile(prop, prop->mode())));
+                         (make_unique<ContinuousPropFile>(prop, prop->mode())));
         }
     }
     ns_ = std::move(ns);
@@ -498,7 +523,7 @@ void PluginNsDir::load_fake()
     for (auto prop : info_->props_) {
         std::string name = prop->value();
         add_file(name, mk_file_entry
-                 (new BasicTextFile<>(prop->defval(), prop->mode())));
+                 (make_unique<BasicTextFile<> >(prop->defval(), prop->mode())));
     }
 }
 
@@ -552,7 +577,12 @@ public:
     void plugin_add(PluginDir::info_ptr p)
     {
         auto lock(cor::wlock(*this));
-        trace() << "Plugin " << p->value() << std::endl;
+        auto name = p->value();
+        trace() << "Plugin " << name << std::endl;
+        if (dirs.find(name)) {
+            std::cerr << "There is already a plugin " << name << "...skipping\n";
+            return;
+        }
         auto d = std::make_shared<PluginDir>(this, p);
         add_dir(p->value(), mk_dir_entry(d));
     }
@@ -566,11 +596,12 @@ public:
 
     void loader_rm(loader_info_ptr p)
     {
+        auto lock(cor::wlock(*this));
         if (p)
             LoadersStorage::loader_rm(p->value());
     }
 
-    std::weak_ptr<Loader> loader_get(std::string const& name)
+    std::shared_ptr<Loader> loader_get(std::string const& name)
     {
         auto lock(cor::wlock(*this));
         return LoadersStorage::loader_get(name);
@@ -591,7 +622,8 @@ PluginDir::info_ptr PluginDir::load_namespaces(info_ptr p)
 {
     auto plugin_load = std::bind(&PluginDir::load, this);
     for (auto ns : p->namespaces_)
-        add_dir(ns->value(), mk_dir_entry(new PluginNsDir(ns, plugin_load)));
+        add_dir(ns->value(), mk_dir_entry
+                (make_unique<PluginNsDir>(ns, plugin_load)));
     return p;
 }
 
@@ -609,9 +641,8 @@ void PluginDir::load()
 
     trace() << "Loading plugin " << info_->path << std::endl;
     auto provider_type = config::to_string(info_->info_["type"]);
-    provider_.reset
-        (new Provider(parent_->loader_get(provider_type)
-                      , info_->path));
+    provider_ = make_unique<Provider>
+        (parent_->loader_get(provider_type), info_->path);
 
     if (!provider_->loaded()) {
         std::cerr << "Can't load " << info_->path
@@ -650,7 +681,7 @@ public:
     {
         auto lock(cor::wlock(*this));
         for (auto ns : p->namespaces_)
-            add_dir(ns->value(), mk_dir_entry(new NamespaceDir(p, ns)));
+            add_dir(ns->value(), mk_dir_entry(make_unique<NamespaceDir>(p, ns)));
     }
 
     void plugin_rm(PluginDir::info_ptr p)
@@ -727,7 +758,7 @@ private:
     void load_monitor()
     {
         auto receiver = static_cast<ConfigReceiver*>(this);
-        cfg_mon_.reset(new config::Monitor(cfg_dir_, *receiver));
+        cfg_mon_ = make_unique<config::Monitor>(cfg_dir_, *receiver);
     }
 
     virtual void provider_add(std::shared_ptr<config::Plugin> p)
@@ -776,7 +807,7 @@ class RootDirEntry : public DirEntry<RootDir>
     typedef DirEntry<RootDir> base_type;
 public:
 
-    RootDirEntry() : base_type(new RootDir()) {}
+    RootDirEntry() : base_type(make_unique<RootDir>()) {}
     virtual ~RootDirEntry() {}
 
     void init(std::string const &cfg_dir)
@@ -788,7 +819,9 @@ public:
 enum statefs_cmd {
     statefs_cmd_run,
     statefs_cmd_dump,
-    statefs_cmd_register
+    statefs_cmd_register,
+    statefs_cmd_cleanup,
+    statefs_cmd_unregister
 };
 
 namespace metafuse {
@@ -806,9 +839,38 @@ fuse_root_type::instance()
 static fuse_root_type & fuse()
 {
     if (!fuse_root)
-        fuse_root.reset(new fuse_root_type());
+        fuse_root = make_unique<fuse_root_type>();
     static auto &fuse = fuse_root_type::instance();
     return fuse;
+}
+
+
+template <class OutputIterator>
+bool split_pairs(std::string const &src, std::string const &items_sep
+                 , std::string const &pair_sep, OutputIterator dst)
+{
+    //typedef typename OutputIterator::value_type v_type;
+    std::list<std::string> items;
+    cor::split(src, items_sep, std::back_inserter(items));
+    std::vector<std::string> pair;
+    for (auto &v : items) {
+        if (v == "")
+            continue;
+        cor::split(v, pair_sep, std::back_inserter(pair));
+        auto sz = pair.size();
+        switch (sz) {
+        case 1:
+            *dst = {pair[0], ""};
+            break;
+        case 2:
+            *dst = {pair[0], pair[1]};
+            break;
+        default:
+            return false;
+        }
+        pair.clear();
+    }
+    return true;
 }
 
 class Server
@@ -818,15 +880,19 @@ public:
 
     Server(int argc, char *argv[])
         : cfg_dir("/var/lib/statefs")
-        , options({{'h', "help"}},
+        , options({{'h', "help"}, {'o', "options"}},
                   {{"statefs-config-dir", "config"}
                       , {"statefs-type", "type"}
+                      , {"system", "system"}
                       , {"help", "help"}},
-                  {"config", "type"},
-                  {"help"})
-        , commands({{"dump", statefs_cmd_dump},
-                    {"register", statefs_cmd_register}})
-        , opts({{"type", "default"}})
+                  {"config", "type", "options"},
+                  {"help", "options"})
+        , commands({
+                {"dump", statefs_cmd_dump}
+                , {"register", statefs_cmd_register}
+                , {"unregister", statefs_cmd_unregister}
+                , {"cleanup", statefs_cmd_cleanup}
+            })
     {
         options.parse(argc, argv, opts, params);
     }
@@ -839,6 +905,14 @@ public:
     {
         statefs_cmd cmd = statefs_cmd_run;
         int rc = 0;
+
+        parse_fuse_opts();
+
+        if (opts.count("system"))
+            cfg_dir = "/var/lib/statefs/system";
+
+        if (!opts.count("type"))
+            opts["type"] = "default";
 
         if (params.size() > 1) {
             // first param can be a command
@@ -864,12 +938,25 @@ public:
         case statefs_cmd_register:
             rc = save_provider_config();
             break;
+        case statefs_cmd_unregister:
+            rc = rm_provider_config();
+            break;
+        case statefs_cmd_cleanup:
+            rc = cleanup_config();
+            break;
         }
 
         return rc;
     }
 
 private:
+
+    void parse_fuse_opts()
+    {
+        if (!split_pairs(opts["options"], ",", "="
+                         , std::inserter(opts, opts.begin())))
+            throw cor::Error("Invalid fuse options");
+    }
 
     int dump()
     {
@@ -897,6 +984,41 @@ private:
         return 0;
     }
 
+    int rm_provider_config()
+    {
+        if (params.size() < 3)
+            return show_help(-1);
+
+        namespace fs = boost::filesystem;
+        if (!ensure_dir_exists(cfg_dir))
+            return -1;
+
+        config::rm(cfg_dir, params[2], opts["type"]);
+        return 0;
+    }
+
+    int cleanup_config()
+    {
+        namespace fs = boost::filesystem;
+        if (!ensure_dir_exists(cfg_dir))
+            return -1;
+
+        auto rm_absent = [](std::string const &cfg_path
+                            , std::shared_ptr<config::Library> p) {
+            auto lib_fname = p->path;
+            if (fs::exists(lib_fname))
+                return;
+            
+            std::cerr << "Library " << lib_fname
+            << " doesn't exist, unregistering, removing config: "
+            << cfg_path << std::endl;
+            fs::remove(cfg_path);
+            return;
+        };
+        config::visit(cfg_dir, rm_absent);
+        return 0;
+    }
+
     int fuse_run()
     {
         return fuse().main(params.size(), &params[0], true);
@@ -904,6 +1026,14 @@ private:
 
     int main()
     {
+        auto p = opts.find("uid");
+        if (p != opts.end())
+            ::setuid(::atoi(p->second.c_str()));
+
+        p = opts.find("gid");
+        if (p != opts.end())
+            ::setgid(::atoi(p->second.c_str()));
+
         fuse().impl().init(cfg_dir);
         int rc = fuse_run();
         return rc;
@@ -915,8 +1045,9 @@ private:
                           "[command] [options] [fuse_options]\n"
                           "\t[command]:\n"
                           "\t\tdump plugin_path\n"
-                          "\t\tregister plugin_path\n"
                           "\t\tunregister plugin_path\n"
+                          "\t\tregister plugin_path\n"
+                          "\t\tcleanup\n"
                           "\t[options]:\n");
         params.push_back("-ho");
         int fuse_rc = fuse_run();

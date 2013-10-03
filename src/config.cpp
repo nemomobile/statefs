@@ -45,25 +45,46 @@ namespace fs = boost::filesystem;
 static const std::set<std::string> cfg_prefices
 = {cfg_provider_prefix(), cfg_loader_prefix()};
 
-static bool is_prefix_permitted(std::string const& fname)
+static std::string filename_prefix(std::string const& path)
 {
-    fs::path path(fname);
-    auto base = path.filename().string();
-    auto n = base.find("-");
-    if (n == std::string::npos)
-        return false;
-
-    base = base.substr(0, n);
-    return (cfg_prefices.count(base) > 0);
+    auto n = path.find("-");
+    return (n != std::string::npos) ? path.substr(0, n) : "";
 }
 
-void from_file(std::string const &cfg_src, config_receiver_fn receiver)
+static bool is_config_file(fs::path const& path)
 {
-    if (!is_prefix_permitted(cfg_src)) {
-        std::cerr << "File " << cfg_src << " has unknown prefix, skipping" << std::endl;
-        return;
-    }
+    if (path.extension() != cfg_extension())
+        return false;
 
+    auto prefix = filename_prefix(path.filename().string());
+    return (cfg_prefices.count(prefix) > 0);
+}
+
+static bool is_config_file(std::string const& fname)
+{
+    fs::path path(fname);
+    return is_config_file(path);
+}
+
+static bool is_prefixed_config_file
+(fs::path const& path, std::string const& prefix)
+{
+    return (path.extension() == cfg_extension()
+            && filename_prefix(path.filename().string()) == prefix);
+}
+
+static bool is_provider_config_file(fs::path const& path)
+{
+    return is_prefixed_config_file(path, cfg_provider_prefix());
+}
+
+static bool is_loader_config_file(fs::path const& path)
+{
+    return is_prefixed_config_file(path, cfg_loader_prefix());
+}
+
+bool from_file(std::string const &cfg_src, config_receiver_fn receiver)
+{
     trace() << "Loading config from " << cfg_src << std::endl;
     std::ifstream input(cfg_src);
     try {
@@ -71,8 +92,20 @@ void from_file(std::string const &cfg_src, config_receiver_fn receiver)
         parse(input, std::bind(receiver, cfg_src, _1));
     } catch (...) {
         std::cerr << "Error parsing " << cfg_src << ":" << input.tellg()
-                  << ", skiping..." << std::endl;
+                 << ", skiping..." << std::endl;
+        return false;
     }
+    return true;
+}
+
+bool check_name_load(std::string const &cfg_src, config_receiver_fn receiver)
+{
+    if (!is_config_file(cfg_src)) {
+        std::cerr << "File " << cfg_src
+                  << " is not config?, skipping" << std::endl;
+        return false;
+    }
+    return from_file(cfg_src, receiver);
 }
 
 template <typename ReceiverT>
@@ -80,9 +113,8 @@ void from_dir(std::string const &cfg_src, ReceiverT receiver)
 {
     trace() << "Config dir " << cfg_src << std::endl;
     auto check_load = [&receiver](fs::directory_entry const &d) {
-        auto path = d.path();
-        if (path.extension() == cfg_extension())
-            from_file(path.string(), receiver);
+        if (!fs::is_directory(d.path()))
+            check_name_load(d.path().string(), receiver);
     };
     std::for_each(fs::directory_iterator(cfg_src),
                   fs::directory_iterator(),
@@ -96,12 +128,16 @@ void load(std::string const &cfg_src, ReceiverT receiver)
         return;
 
     if (fs::is_regular_file(cfg_src))
-        return from_file(cfg_src, receiver);
-
-    if (fs::is_directory(cfg_src))
+        check_name_load(cfg_src, receiver);
+    else if (fs::is_directory(cfg_src))
         return from_dir(cfg_src, receiver);
+    else
+        throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
+}
 
-    throw cor::Error("Unknown configuration source %s", cfg_src.c_str());
+void visit(std::string const &path, config_receiver_fn fn)
+{
+    load(path, fn);
 }
 
 class Loaders : public LoadersStorage
@@ -508,6 +544,15 @@ Monitor::~Monitor()
 void Monitor::lib_add(std::string const &cfg_path
                       , Monitor::lib_ptr p)
 {
+    if (!p)
+        return;
+
+    auto lib_fname = p->path;
+    if (!fs::exists(lib_fname)) {
+        std::cerr << "Library " << lib_fname
+                  << " doesn't exist, skipping" << std::endl;
+        return;
+    }
     auto fname = fs::path(cfg_path).filename().string();
     files_libs_[fname] = p;
     using namespace std::placeholders;
@@ -544,6 +589,75 @@ int Monitor::watch_thread()
     return -1;
 }
 
+template <typename AdderT, typename RemoverT>
+static void eval_cfg_changes
+(std::string const& config_dir_path
+ , Monitor::config_map_type const& cur_config
+ , AdderT add, RemoverT rm)
+{
+    // configuration is changed rarely (only on un/installation of
+    // providers/loader), so it is simplier and more robust just to
+    // iterate through 'em and calculate changes each time anything
+    // changed in the configuration directory.
+
+    fs::path path(config_dir_path);
+    std::unordered_map<std::string, std::string> existing_files;
+
+    auto register_existing_config_file = [&existing_files]
+        (fs::directory_entry const &d) {
+        auto p = d.path();
+        if (is_config_file(p))
+            existing_files[p.filename().string()]
+                = fs::canonical(p).string();
+    };
+    std::for_each(fs::directory_iterator(path)
+                  , fs::directory_iterator()
+                  , register_existing_config_file);
+
+    typedef std::pair<std::string, std::time_t> file_info_type;
+    std::set<file_info_type> cur, prev;
+
+    for (auto &kv : existing_files) {
+        auto const& fname = kv.first;
+        cur.insert({fname, fs::last_write_time(path / fname)});
+    }
+
+    for (auto &kv : cur_config) {
+        auto const& fname = kv.first;
+        auto const& info = kv.second;
+        prev.insert({fname, fs::last_write_time(info->path)});
+    }
+
+    std::list<file_info_type> added, removed;
+    std::set_difference(cur.begin(), cur.end(),
+                        prev.begin(), prev.end(),
+                        std::back_inserter(added));
+    std::set_difference(prev.begin(), prev.end(),
+                        cur.begin(), cur.end(),
+                        std::back_inserter(removed));
+
+    for (auto &nt : removed) {
+        auto const& v = nt.first;
+        if (is_provider_config_file(v)) {
+            std::cerr << "Removed " << v << std::endl;
+            rm(v);
+        }
+    }
+
+    for (auto &nt : added) {
+        auto const& v = nt.first;
+        if (is_provider_config_file(v)
+            || (is_loader_config_file(v) && !prev.count(nt))) {
+            std::cerr << "Added " << v << std::endl;
+            using namespace std::placeholders;
+            check_name_load(existing_files[v], add);
+        } else {
+            std::cerr << "Skipping " << v << std::endl;
+        }
+    }
+
+}
+
 bool Monitor::process_poll()
 {
     std::cerr << "Maybe config is changed" << std::endl;
@@ -562,54 +676,10 @@ bool Monitor::process_poll()
     // read all events
     while ((rc = inotify_.read(buf, sizeof(buf))) > (int)sizeof(buf)) {}
 
-    // configuration is changed rarely (only on
-    // un/installation of plugins), so it is simplier and more
-    // robust just to iterate through 'em and calculate
-    // changes each time anything changed in the configuration
-    // directory
-    std::unordered_map<std::string, std::string> cur_config_paths;
-    typedef std::pair<std::string, std::time_t> file_info_type;
-    std::set<file_info_type> cur, prev;
-    std::for_each
-        (fs::directory_iterator(path_), fs::directory_iterator(),
-         [&](fs::directory_entry const &d) {
-            auto p = d.path();
-            if (p.extension() == cfg_extension())
-                cur_config_paths[p.filename().string()]
-                    = fs::canonical(p).string();
-        });
-    for (auto &kv : cur_config_paths) {
-        auto const& fname = kv.first;
-        auto mtime = fs::last_write_time(fs::path(path_) / fname);
-        cur.insert({fname, mtime});
-    }
-
-    for (auto &kv : files_libs_) {
-        auto const& fname = kv.first;
-        auto mtime = fs::last_write_time(kv.second->path);
-        prev.insert({fname, mtime});
-    }
-
-    std::list<file_info_type> added, removed;
-    std::set_difference(cur.begin(), cur.end(),
-                        prev.begin(), prev.end(),
-                        std::back_inserter(added));
-    std::set_difference(prev.begin(), prev.end(),
-                        cur.begin(), cur.end(),
-                        std::back_inserter(removed));
-    for (auto &nt : removed) {
-        auto const& v = nt.first;
-        std::cerr << "Removed " << v << std::endl;
-        lib_rm(v);
-    }
-    for (auto &nt : added) {
-        auto const& v = nt.first;
-        std::cerr << "Added " << v << std::endl;
-        using namespace std::placeholders;
-        auto add = std::bind(std::mem_fn(&Monitor::lib_add)
-                             , this, _1, _2);
-        from_file(cur_config_paths[v], add);
-    }
+    using namespace std::placeholders;
+    eval_cfg_changes(path_, files_libs_
+                     , std::bind(&Monitor::lib_add, this, _1, _2)
+                     , std::bind(&Monitor::lib_rm, this, _1));
 
     return true;
 }
@@ -741,7 +811,9 @@ static std::shared_ptr<Plugin> from_api
 static std::shared_ptr<Loader> from_api
 (std::shared_ptr< ::Loader> loader_, std::string const& path)
 {
-    return std::make_shared<Loader>(loader_->name(), path);
+    return loader_
+        ? std::make_shared<Loader>(loader_->name(), path)
+        : nullptr;
 }
 
 static std::string mk_provider_path(std::string const &path)
@@ -759,12 +831,17 @@ static inline std::string dump_provider_cfg_file
     auto dump_plugin = [&dst, &plugin_name]
         (std::string const &cfg_path, Monitor::lib_ptr p) {
         if (p) {
+             // special case: config file itself is a provider file
+            if (!p->path.size())
+                p->path = cfg_path;
             dst << p;
             plugin_name = p->value();
         }
     };
-    from_file(path.native(), dump_plugin);
-    return plugin_name;
+    if (check_name_load(path.native(), dump_plugin))
+        return cfg_provider_prefix() + '-' + plugin_name;
+    else
+        return "";
 }
 
 static inline std::string dump_loader
@@ -772,8 +849,8 @@ static inline std::string dump_loader
 {
     auto loader = std::make_shared< ::Loader>(path.native());
     if (!loader->is_valid()) {
-        std::cerr << "Loader is not valid: " << path.string() << std::endl;
-        return "";
+        std::cerr << "Not a loader: " << path.string() << std::endl;
+        return dump_provider_cfg_file(dst, path);
     }
 
     auto loader_info = from_api(loader, path.native());
@@ -785,20 +862,24 @@ static inline std::string dump_provider
 (std::string const& cfg_dir, std::ostream &dst
  , fs::path const &path, std::string const& provider_type)
 {
+    std::cerr << "Trying to dump " << provider_type
+              << " provider " << path << std::endl;
     Loaders loaders(cfg_dir);
-    auto p = loaders.loader_get(provider_type);
-    auto loader = p.lock();
+    auto loader = loaders.loader_get(provider_type);
     if (!loader) {
-        if (provider_type == "default")
+        if (provider_type == "default") {
+            std::cerr << "Trying to dump as a loader" << std::endl;
             return dump_loader(cfg_dir, dst, path);
-        else {
-            std::cerr << "Can't find " << provider_type << " loader" << std::endl;
+        } else {
+            std::cerr << "Can't find " << provider_type
+                      << " loader" << std::endl;
             return "";
         }
     }
 
     auto prov_info = from_api
-        (loader->load(path.native()), path.native(), provider_type);
+        (loader->load(path.native(), nullptr)
+         , path.native(), provider_type);
     if (!prov_info) {
         std::cerr << "Not provider, trying loader\n";
         return dump_loader(cfg_dir, dst, path);
@@ -808,12 +889,14 @@ static inline std::string dump_provider
     return cfg_provider_prefix() + "-" + prov_info->value();
 }
 
-static inline std::string dump_so
+static inline std::string dump_
 (std::string const& cfg_dir, std::ostream &dst
  , fs::path const &path, std::string const& provider_type)
 {
-    if (provider_type == "loader")
+    if (provider_type == "loader") {
+        std::cerr << "Dumping loader " << path << std::endl;
         return dump_loader(cfg_dir, dst, path);
+    }
 
     return dump_provider(cfg_dir, dst, path, provider_type);
 }
@@ -835,13 +918,7 @@ std::string dump(std::string const &cfg_dir
                  , std::string const& provider_type)
 {
     auto full_path = fs::path(mk_provider_path(path));
-    if (full_path.extension() == cfg_extension()) {
-        return dump_provider_cfg_file(dst, full_path);
-    } else if (full_path.extension() == ".so") {
-        return dump_so(cfg_dir, dst, full_path, provider_type);
-    }
-    std::cerr << "Don't know how to dump " << path << std::endl;
-    return "";
+    return dump_(cfg_dir, dst, full_path, provider_type);
 }
 
 /**
@@ -849,7 +926,7 @@ std::string dump(std::string const &cfg_dir
  * format
  *
  * @param cfg_dir destination directory
- * @param fname subject (so, conf file...) file name
+ * @param fname provider/info file name
  */
 void save(std::string const &cfg_dir
           , std::string const &fname
@@ -863,6 +940,7 @@ void save(std::string const &cfg_dir
         std::cerr << "Can't retrieve information from " << fname << std::endl;
         return;
     }
+    std::cout << name << std::endl;
 
     auto cfg_path = fs::path(cfg_dir);
     cfg_path /= (name + cfg_extension());
@@ -873,6 +951,20 @@ void save(std::string const &cfg_dir
     // observe changes
     std::time_t n = std::time(0);
     fs::last_write_time(cfg_dir, n);
+}
+
+void rm(std::string const &cfg_dir
+        , std::string const &fname
+        , std::string const& provider_type)
+{
+    auto full_path = mk_provider_path(fname);
+    auto rm_config = [full_path](std::string const &cfg_path
+                                 , std::shared_ptr<config::Library> p) {
+        auto lib_fname = p->path;
+        if (lib_fname == full_path && fs::exists(cfg_path))
+            fs::remove(cfg_path);
+    };
+    config::visit(cfg_dir, rm_config);
 }
 
 } // config

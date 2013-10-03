@@ -24,6 +24,12 @@ namespace statefs
 
 typedef std::shared_ptr<statefs_provider> provider_ptr;
 
+/* increase minor version for backward compatible loaders, major - if
+ * provider logic or interface is changed in way not handled by new
+ * version of the server
+ */
+#define STATEFS_CPP_LOADER_VERSION STATEFS_MK_VERSION(4, 0)
+
 /**
  * Interface to be implemented by loader
  */
@@ -32,16 +38,18 @@ class Loader
 public:
     virtual ~Loader() {}
 
-    /** 
+    /**
      * called to load provider
      *
      * @param path provider path
+     * @param server server notification interface for provider
      *
      * @return pointer to provider handle
      */
-    virtual provider_ptr load(std::string const& path) =0;
+    virtual provider_ptr load(std::string const& path
+                              , statefs_server *server) =0;
 
-    /** 
+    /**
      * provider type name, e.g. "default" loader used to load
      * providers by default, e.g. "qt" can be used to load Qt-based
      * providers
@@ -50,7 +58,17 @@ public:
      */
     virtual std::string name() const =0;
 
-    unsigned version() { return STATEFS_CURRENT_VERSION; }
+    /**
+     * if loader can't be unloaded and loaded back w/o issues this
+     * function should return false. Statefs expects this property can
+     * change
+     *
+     *
+     * @return false if it is unsafe to reopen loader
+     */
+    virtual bool is_reloadable() const =0;
+
+    unsigned version() { return STATEFS_CPP_LOADER_VERSION; }
 };
 
 static inline char const *cpp_loader_accessor()
@@ -69,4 +87,3 @@ EXTERN_C statefs::Loader * create_cpp_provider_loader();
  */
 
 #endif //_STATEFS_LOADER_HPP_
-

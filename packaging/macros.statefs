@@ -1,0 +1,76 @@
+#
+# StateFS rpm macros
+#
+
+%_statefs_libdir %{_libdir}/statefs
+
+%_statefs_datadir %{_datadir}/statefs
+
+%_statefs_sharedstatedir %{_sharedstatedir}/statefs
+
+%_statefs_sharedhooksdir %{_statefs_sharedstatedir}/hooks
+
+%statefs_stop() \
+systemctl-user stop statefs.service \
+systemctl stop statefs.service \
+%{nil}
+
+%statefs_start() \
+systemctl daemon-reload \
+systemctl-user daemon-reload \
+systemctl start statefs.service \
+systemctl-user start statefs.service \
+%{nil}
+
+%statefs_pre() \
+%statefs_stop \
+touch %{_localstatedir}/lib/rpm-state/statefs-stop \
+%{nil}
+
+%statefs_preun() \
+if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then \
+%statefs_stop \
+fi \
+%{nil}
+
+%statefs_postun() \
+if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then \
+%statefs_start \
+fi \
+%{nil}
+
+
+%statefs_posttrans() \
+if [ -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then \
+%statefs_start \
+/bin/rm %{_localstatedir}/lib/rpm-state/statefs-stop \
+fi \
+%{nil}
+
+%statefs_provider_install() \
+%{_statefs_libdir}/install-provider %{*} \
+%{nil}
+
+%statefs_provider_register() \
+%{_statefs_libdir}/provider-do register %{*} \
+%{nil}
+
+%statefs_provider_unregister() \
+%{_statefs_libdir}/provider-do unregister %{*} \
+%{nil}
+
+%statefs_loader_register() \
+%{_statefs_libdir}/loader-do register %{*} \
+%{nil}
+
+%statefs_loader_unregister() \
+%{_statefs_libdir}/loader-do unregister %{*} \
+%{nil}
+
+%statefs_cleanup() statefs cleanup
+
+%statefs_cleanup_system() \
+statefs cleanup --system \
+%{nil}
+
+

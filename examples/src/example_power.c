@@ -419,7 +419,8 @@ static struct statefs_provider provider = {
 
 /** @} power_example */
 
-EXTERN_C struct statefs_provider * statefs_provider_get(void)
+EXTERN_C struct statefs_provider * statefs_provider_get
+(struct statefs_server *e)
 {
     return &provider;
 }

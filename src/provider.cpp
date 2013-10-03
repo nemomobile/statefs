@@ -244,8 +244,16 @@ void AProvider::init_data()
     memcpy(&(this->io), &io_template, sizeof(::statefs_io));
 }
 
-AProvider::AProvider(char const *name)
+void AProvider::event(statefs_event event)
+{
+    if (server_ && server_->event) {
+        server_->event(server_, this, event);
+    }
+}
+
+AProvider::AProvider(char const *name, statefs_server *server)
     : base_type(name, node_template)
+    , server_(server)
 {
     init_data();
 }

@@ -1,0 +1,7 @@
+(provider "<provider-name>" "" :type "inout"
+    (ns "<namespace-name>"
+        (prop "<property-name>"  "<property-default-value")
+        ...
+        )
+    ...
+)

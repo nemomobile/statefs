@@ -1,5 +1,9 @@
 [Unit]
 Description=StateFS FUSE filesystem
+# statefs has not this dependency but some providers has
+# TODO: make it smarter, maybe it is possible to make
+# this dependency conditional
+Requires=dbus.socket
 
 [Service]
 ExecStartPre=/usr/bin/statefs-prerun

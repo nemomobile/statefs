@@ -367,6 +367,11 @@ public:
         : APropertyOwner<T>(name, args...)
     {}
 
+    template <typename ... Args>
+    BasicPropertyOwner(std::string const &name, Args&& ...args)
+        : APropertyOwner<T>(name.c_str(), args...)
+    {}
+
     virtual statefs::APropertyAccessor* open(int flags)
     {
         return statefs::mk_prop_accessor(this->impl_, new HandleT());
@@ -387,6 +392,16 @@ public:
 
 class AProvider : public Branch<statefs_provider>
 {
+public:
+    AProvider(char const *name, statefs_server *server);
+    virtual ~AProvider();
+
+protected:
+    static AProvider* self_cast();
+
+    void event(statefs_event);
+
+private:
     typedef Branch<statefs_provider> base_type;
 
     static const statefs_io io_template;
@@ -403,12 +418,7 @@ class AProvider : public Branch<statefs_provider>
 
     void init_data();
 
-protected:
-    static AProvider* self_cast();
-
-public:
-    AProvider(char const *name);
-    virtual ~AProvider();
+    statefs_server *server_;
 };
 
 // class Namespace : public ABranch

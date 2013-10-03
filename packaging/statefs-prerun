@@ -1,12 +1,29 @@
 #!/bin/sh
 uid=`id -u`
-dir=/run/user/$uid/state
-is_mounted=`mount | grep $dir | wc -l`
+mount_dir=/run/user/$uid/state
+cfg_dir=/var/lib/statefs
+if [ "x$uid" == "x0" ]; then
+    mount_dir=/run/state
+    cfg_dir=/var/lib/statefs/system
+fi
+is_mounted=`mount | grep "$mount_dir" | wc -l`
 
 if [ "X$is_mounted" != "X0" ]; then
-    fusermount -u $dir
+    fusermount -u -z "$mount_dir"
 fi
 
-if [ ! -e $dir ]; then
-    mkdir -p $dir
+if [ ! -e "$mount_dir" ]; then
+    mkdir -p "$mount_dir"
+fi
+
+hooks_dir=$cfg_dir/hooks
+if [[ -d "$hooks_dir" ]]; then
+    for hook in `find $hooks_dir/ -name 'prestart*'`; do
+        if [[ -x "$hook" ]]; then
+            echo "Prestart hook $hook"
+            exec "$hook"
+        else
+            echo "$hook is not executable"
+        fi
+    done
 fi

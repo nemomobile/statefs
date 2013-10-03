@@ -1,11 +1,16 @@
 PROJECT(statefs)
 cmake_minimum_required(VERSION 2.6)
 
-IF(CMAKE_SIZEOF_VOID_P EQUAL 4)
+option(ENABLE_MULTIARCH "Enable support for multi-arch distros (lib64)" OFF)
+IF(ENABLE_MULTIARCH)
+  IF(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    SET(LIB_SUFFIX "")
+  ELSE(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    SET(LIB_SUFFIX 64)
+  ENDIF(CMAKE_SIZEOF_VOID_P EQUAL 4)
+ELSE()
   SET(LIB_SUFFIX "")
-ELSE(CMAKE_SIZEOF_VOID_P EQUAL 4)
-  SET(LIB_SUFFIX 64)
-ENDIF(CMAKE_SIZEOF_VOID_P EQUAL 4)
+ENDIF()
 
 set(DST_LIB lib${LIB_SUFFIX})
 set(prefix ${CMAKE_INSTALL_PREFIX})
@@ -56,11 +61,12 @@ link_directories(
   ${COR_LIBRARY_DIRS}
 )
 
-add_custom_target(provider-doc
-  COMMAND doxygen ${CMAKE_CURRENT_SOURCE_DIR}/doc/provider.Doxyfile)
+add_custom_target(statefs-doc
+  COMMAND doxygen ${CMAKE_CURRENT_SOURCE_DIR}/doc/statefs.Doxyfile)
 
 add_subdirectory(src)
 add_subdirectory(examples/src)
 add_subdirectory(packaging)
 add_subdirectory(tests)
 add_subdirectory(include/statefs)
+add_subdirectory(tools/poller)

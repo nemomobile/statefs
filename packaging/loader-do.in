@@ -1,0 +1,24 @@
+#!/bin/sh
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 cmd path system|user"
+    exit 1
+fi
+
+cmd=$1
+provider_path=$2
+stype=$3
+params=
+
+if [ "$stype" == "system" ]; then
+    params="--system";
+fi
+
+if [ $cmd == "register" ]; then
+    loader_type=$(statefs register $provider_path --statefs-type=loader $params | cut -d '-' -f 2)
+    scripts_dir=@prefix@/@DST_LIB@/statefs/scripts/$loader_type
+    if [ -d $scripts_dir ]; then
+        find $scripts_dir -name "on-*" -exec sh -c "sh {} register" \;
+    fi
+elif [ $cmd == "unregister" ]; then
+    statefs unregister $provider_path --statefs-type=loader $params
+fi

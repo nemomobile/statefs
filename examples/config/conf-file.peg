@@ -1,0 +1,11 @@
+ascii <- \w
+name <- '"' [A-Z0-9_-]+ '"'
+
+provider-name <- name
+namespace-name <- name
+property-name <- name
+property-default-value <- '"' ascii* '"'
+
+property <- '(' 'prop' property-name property-default-value ')'
+namespace <- '(' 'ns' namespace-name property* ')'
+configuration-file <- '(' 'provider' provider-params namespace* ')'

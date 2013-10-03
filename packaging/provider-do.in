@@ -1,0 +1,27 @@
+#!/bin/sh
+
+if [ $# -lt 3 ]; then
+    echo "Usage: $0 cmd type group <system>?"
+    exit 1
+fi
+
+cmd=$1
+provider_type=$2
+group_name=$3
+stype=$4
+params=
+
+if [ "$stype" == "system" ]; then
+    params="--system";
+fi
+
+scripts_dir=@prefix@/@DST_LIB@/statefs/scripts
+
+if [ "$provider_type" == "loader" ]; then
+    exit 1
+else
+    loader_dir=$scripts_dir/$provider_type
+    mkdir -p $loader_dir
+    script_name=$loader_dir/on-$group_name
+    sh $script_name $cmd
+fi

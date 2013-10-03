@@ -9,3 +9,4 @@ cscope*
 tools/introspect/introspect
 statefs-cpp.pc
 statefs.pc
+install_manifest.txt
