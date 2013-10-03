@@ -80,6 +80,8 @@ mkdir -p %{buildroot}%{_userunitdir}/pre-user-session.target.wants
 ln -sf ../statefs.service %{buildroot}%{_userunitdir}/pre-user-session.target.wants/
 mkdir -p %{buildroot}%{_unitdir}/multi-user.target.wants
 ln -sf ../statefs.service %{buildroot}%{_unitdir}/multi-user.target.wants/
+mkdir -p %{buildroot}%{_unitdir}/actdead-pre.target.wants
+ln -sf ../statefs.service %{buildroot}%{_unitdir}/actdead-pre.target.wants/
 
 install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
 install -d -D -p -m755 %{buildroot}%{_datarootdir}/doc/statefs/html
@@ -105,6 +107,7 @@ rm -rf %{buildroot}
 %{_userunitdir}/pre-user-session.target.wants/statefs.service
 %{_unitdir}/statefs.service
 %{_unitdir}/multi-user.target.wants/statefs.service
+%{_unitdir}/actdead-pre.target.wants/statefs.service
 %{_libdir}/libstatefs-config.so
 %{_libdir}/libstatefs-util.so
 %{_libdir}/statefs/libloader-default.so

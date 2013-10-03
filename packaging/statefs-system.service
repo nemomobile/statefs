@@ -8,5 +8,4 @@ Restart=always
 RestartSec=1
 
 [Install]
-WantedBy=multi-user.target
-
+WantedBy=multi-user.target actdead-pre.target
