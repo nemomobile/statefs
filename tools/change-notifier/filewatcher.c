@@ -4,16 +4,10 @@
 #include <limits.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <stdbool.h>
-#include <string.h>
+#include "filecontents.h"
 
 #define INOTIFY_EVENT_SIZE (sizeof(struct inotify_event) + FILENAME_MAX + 1)
 #define INOTIFY_READ_BUFFER_LENGTH (10 * INOTIFY_EVENT_SIZE)
-
-typedef struct {
-    char* data;
-    int length;
-} FileContents;
 
 typedef struct {
     int watchDescriptor;
@@ -29,9 +23,6 @@ typedef struct {
 
 WatchedFilename _createWatchedFilename(FilesWatcher* this, char *filepath);
 WatchedFilename* _getWatcherFile(FilesWatcher* this, int watchDescriptor);
-FileContents _readFileContents(char *filepath);
-void _deleteFileContents(FileContents contents);
-bool areContentsDifferent(FileContents c1, FileContents c2);
 
 
 WATCHER createFileWatcher(char* filePaths[], int count) {
@@ -56,7 +47,7 @@ WatchedFilename _createWatchedFilename(FilesWatcher* this, char *filepath) {
         printf("Can't open %s\n", filepath);
     }
     wf.filepath = filepath;
-    wf.contents = _readFileContents(filepath);
+    wf.contents = readFileContents(filepath);
     return wf;
 }
 
@@ -88,10 +79,10 @@ void listenFileChanges(WATCHER watcher, void (*listener)(char *)) {
             wf = _getWatcherFile(this, event->wd);
 
             if (wf) {
-                newContents = _readFileContents(wf->filepath);
+                newContents = readFileContents(wf->filepath);
 
-                if (areContentsDifferent(wf->contents, newContents)) {
-                    _deleteFileContents(wf->contents);
+                if (!isFileContentsEqual(wf->contents, newContents)) {
+                    freeFileContents(wf->contents);
                     wf->contents = newContents;
                     listener(wf->filepath);
                 }
@@ -113,32 +104,3 @@ WatchedFilename* _getWatcherFile(FilesWatcher* this, int watchDescriptor) {
 }
 
 
-FileContents _readFileContents(char *filepath) {
-    FileContents contents = {
-        0, 0
-    };
-    FILE* file = fopen(filepath, "r");
-
-    if (file) {
-        fseek(file, 0, SEEK_END);
-        contents.length = ftell(file);
-        fseek(file, 0, SEEK_SET);
-        contents.data = malloc(contents.length);
-        if (contents.data) {
-            fread(contents.data, 1, contents.length, file);
-        }
-        fclose(file);
-    }
-    return contents;
-}
-
-void _deleteFileContents(FileContents contents) {
-    free(contents.data);
-}
-
-bool areContentsDifferent(FileContents c1, FileContents c2) {
-    if (c1.length != c2.length) {
-        return true;
-    }
-    return memcmp(c1.data, c2.data, c1.length);
-}
