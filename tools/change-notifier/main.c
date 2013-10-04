@@ -10,7 +10,7 @@ int main(int argc, char * argv[]) {
     WATCHER watcher;
 
     if (count < 1) {
-        printf("Usage: %s filenames...\n", argv[0]);
+        fprintf(stderr, "Usage: %s filenames...\n", argv[0]);
         exit(-1);
     }
 

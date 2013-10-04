@@ -44,7 +44,7 @@ WatchedFile _createWatchedFilename(FilesWatcher* this, char *filepath) {
     WatchedFile wf;
     wf.watchDescriptor = inotify_add_watch(this->inotifyFd, filepath, IN_CLOSE_WRITE);
     if (wf.watchDescriptor < 0) {
-        printf("Can't open %s\n", filepath);
+        fprintf(stderr, "Can't open %s\n", filepath);
     }
     wf.filepath = filepath;
     wf.contents = readFileContents(filepath);
