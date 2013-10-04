@@ -85,6 +85,8 @@ void listenFileChanges(WATCHER watcher, void (*listener)(char *)) {
                     freeFileContents(wf->contents);
                     wf->contents = newContents;
                     listener(wf->filepath);
+                } else {
+                    freeFileContents(newContents);
                 }
             }
 
