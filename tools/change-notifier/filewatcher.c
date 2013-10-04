@@ -13,23 +13,23 @@ typedef struct {
     int watchDescriptor;
     char* filepath;
     FileContents contents;
-} WatchedFilename;
+} WatchedFile;
 
 typedef struct {
-    WatchedFilename *files;
+    WatchedFile *files;
     int count;
     int inotifyFd;
 } FilesWatcher;
 
-WatchedFilename _createWatchedFilename(FilesWatcher* this, char *filepath);
-WatchedFilename* _getWatcherFile(FilesWatcher* this, int watchDescriptor);
+WatchedFile _createWatchedFilename(FilesWatcher* this, char *filepath);
+WatchedFile* _getWatcherFile(FilesWatcher* this, int watchDescriptor);
 
 
 WATCHER createFileWatcher(char* filePaths[], int count) {
     int i;
     FilesWatcher* this = (FilesWatcher*) malloc(sizeof(FilesWatcher));
     this->inotifyFd = inotify_init1(IN_CLOEXEC);
-    this->files = malloc(sizeof(WatchedFilename) * count);
+    this->files = malloc(sizeof(WatchedFile) * count);
     this->count = count;
 
     for (i = 0; i < count; i++) {
@@ -40,8 +40,8 @@ WATCHER createFileWatcher(char* filePaths[], int count) {
     return this;
 }
 
-WatchedFilename _createWatchedFilename(FilesWatcher* this, char *filepath) {
-    WatchedFilename wf;
+WatchedFile _createWatchedFilename(FilesWatcher* this, char *filepath) {
+    WatchedFile wf;
     wf.watchDescriptor = inotify_add_watch(this->inotifyFd, filepath, IN_CLOSE_WRITE);
     if (wf.watchDescriptor < 0) {
         printf("Can't open %s\n", filepath);
@@ -69,7 +69,7 @@ void listenFileChanges(WATCHER watcher, void (*listener)(char *)) {
     int readCount;
     char buf[INOTIFY_READ_BUFFER_LENGTH];
     char *p;
-    WatchedFilename *wf;
+    WatchedFile *wf;
     FileContents newContents;
 
     while (true) {
@@ -93,7 +93,7 @@ void listenFileChanges(WATCHER watcher, void (*listener)(char *)) {
     }
 }
 
-WatchedFilename* _getWatcherFile(FilesWatcher* this, int watchDescriptor) {
+WatchedFile* _getWatcherFile(FilesWatcher* this, int watchDescriptor) {
     int i;
     for (i = 0; i < this->count; i++) {
         if (this->files[i].watchDescriptor == watchDescriptor) {
