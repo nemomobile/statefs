@@ -5,7 +5,7 @@
  * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
  */
 
-//#include <statefs/util.hpp>
+#include <statefs/util.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/join.hpp>
 //#include <algorithm>

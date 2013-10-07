@@ -1,6 +1,13 @@
-add_library(statefs-config SHARED config.cpp)
+add_library(statefs-config SHARED
+  config.cpp
+  util.cpp
+)
+target_link_libraries(statefs-config
+  ${COR_LIBRARIES}
+  ${Boost_FILESYSTEM_LIBRARY}
+  )
 
-add_executable(statefs server.cpp util.cpp)
+add_executable(statefs server.cpp)
 
 target_link_libraries(statefs
   statefs-config
