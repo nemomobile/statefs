@@ -1,4 +1,5 @@
 %{!?_with_usersession: %{!?_without_usersession: %define _with_usersession --with-usersession}}
+%define cor_version 0.1.11
 
 Summary: Syntetic filesystem to expose system state
 Name: statefs
@@ -13,7 +14,7 @@ BuildRequires: boost-filesystem
 BuildRequires: boost-devel
 BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
-BuildRequires: pkgconfig(cor) >= 0.1.10
+BuildRequires: pkgconfig(cor) >= %{cor_version}
 BuildRequires: systemd
 %{?_with_usersession:Requires: systemd-user-session-targets}
 %description
@@ -28,11 +29,19 @@ Group: System Environment/Libraries
 %description pp
 Statefs framework to be used to write providers in C++
 
+%package devel
+Summary: Files to develop statefs clients and providers
+Group: System Environment/Libraries
+Requires: cor-devel >= %{cor_version}
+%description devel
+Headers, libraries etc. needed to develop statefs clients and providers
+
 %package provider-devel
 Summary: Files to develop statefs providers
 Group: System Environment/Libraries
 Requires: statefs-pp = %{version}-%{release}
-Requires: cor-devel >= 0.1.4
+Requires: cor-devel >= %{cor_version}
+Requires: statefs-devel = %{version}-%{release}
 %description provider-devel
 Headers, libraries etc. needed to develop statefs providers
 
@@ -123,10 +132,22 @@ rm -rf %{buildroot}
 %{_libdir}/statefs/loader-do
 %{_libdir}/statefs/provider-do
 
+
+%files devel
+%defattr(-,root,root,-)
+%{_includedir}/statefs/config.hpp
+%{_includedir}/statefs/util.hpp
+%{_includedir}/statefs/consumer.hpp
+%{_libdir}/pkgconfig/statefs-util.pc
+%{_sysconfdir}/rpm/macros.statefs
+
 %files provider-devel
 %defattr(-,root,root,-)
-%{_includedir}/statefs/*.h
-%{_includedir}/statefs/*.hpp
+%{_includedir}/statefs/util.h
+%{_includedir}/statefs/loader.hpp
+%{_includedir}/statefs/property.hpp
+%{_includedir}/statefs/provider.h
+%{_includedir}/statefs/provider.hpp
 %{_libdir}/pkgconfig/statefs.pc
 %{_libdir}/pkgconfig/statefs-cpp.pc
 %{_sysconfdir}/rpm/macros.statefs

@@ -58,5 +58,7 @@ install(TARGETS loader-inout DESTINATION ${DST_LIB}/statefs)
 
 configure_file(statefs.pc.in statefs.pc @ONLY)
 configure_file(statefs-cpp.pc.in statefs-cpp.pc @ONLY)
+configure_file(statefs-util.pc.in statefs-util.pc @ONLY)
 install(FILES statefs.pc DESTINATION ${DST_LIB}/pkgconfig)
 install(FILES statefs-cpp.pc DESTINATION ${DST_LIB}/pkgconfig)
+install(FILES statefs-util.pc DESTINATION ${DST_LIB}/pkgconfig)
