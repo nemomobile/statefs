@@ -35,10 +35,6 @@ int main(int argc, char * argv[])
             printf("Can't open %s\n", name);
             goto out;
         }
-
-        memset(&pfds[i], 0, sizeof(pfds[0]));
-        pfds[i].fd = fds[i];
-        pfds[i].events = POLLIN | POLLPRI;
     }
 
     while (true) {
@@ -69,7 +65,6 @@ int main(int argc, char * argv[])
             char const *fname = argv[i + 1];
 
             printf("file %s: %d\n", fname, fd);
-            lseek(fd, 0, SEEK_SET);
             printf("rc %i, ev %x, rev %x\n", rc, pfd->events, pfd->revents);
             if (pfd->revents & (POLLERR | POLLHUP | POLLNVAL)) {
                 printf("Poll error(E H N)=(%d %d %d)\n"
@@ -79,6 +74,7 @@ int main(int argc, char * argv[])
                     );
                 goto out;
             }
+            int tmp = open(fname, O_RDONLY);
             memset(buf, 0, sizeof(buf));
             int rc = read(fd, buf, sizeof(buf) - 1);
             printf("read %i\n", rc);
@@ -87,6 +83,8 @@ int main(int argc, char * argv[])
                        , fname);
                 goto out;
             }
+            if (tmp >= 0) close(tmp);
+            lseek(fd, 0, SEEK_SET);
             if (rc) {
                 buf[rc] = 0;
                 printf("%s\n", buf);
