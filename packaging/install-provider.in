@@ -15,7 +15,8 @@ if [ "$stype" == "system" ]; then
     params="--system";
 fi
 
-scripts_dir=@prefix@/@DST_LIB@/statefs/scripts
+lib_dir=@prefix@/@DST_LIB@/statefs
+scripts_dir=$lib_dir/scripts
 scripts_install_dir=$RPM_BUILD_ROOT/${scripts_dir}
 
 if [ "$provider_type" == "loader" ]; then
@@ -24,7 +25,8 @@ else
     loader_dir=$scripts_dir/$provider_type
     mkdir -p $RPM_BUILD_ROOT/$loader_dir
     script_name=$loader_dir/on-$group_name
-    echo "statefs \$1 $provider_path --statefs-type=$provider_type $params" \
+    action_script=$lib_dir/provider-action
+    echo "$action_script \$1 $provider_path $provider_type $params \${@:2}" \
         >> $RPM_BUILD_ROOT/$script_name
     chmod a+x $RPM_BUILD_ROOT/$script_name
     files=${group_name}.files

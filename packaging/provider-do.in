@@ -23,5 +23,5 @@ else
     loader_dir=$scripts_dir/$provider_type
     mkdir -p $loader_dir
     script_name=$loader_dir/on-$group_name
-    sh $script_name $cmd
+    sh $script_name $cmd $params
 fi

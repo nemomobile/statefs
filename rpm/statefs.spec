@@ -131,6 +131,7 @@ rm -rf %{buildroot}
 %{_libdir}/statefs/install-provider
 %{_libdir}/statefs/loader-do
 %{_libdir}/statefs/provider-do
+%{_libdir}/statefs/provider-action
 
 
 %files devel
