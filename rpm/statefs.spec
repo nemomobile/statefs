@@ -167,27 +167,31 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 /opt/tests/statefs/*
 
-%pre
-%if 0%{?_with_usersession:1}
-systemctl-user stop statefs.service
-%endif
-systemctl stop statefs.service
-touch %{_localstatedir}/lib/rpm-state/statefs-stop || :
 
-%preun
-if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
+%pre
+if [ $1 -gt 1 ]; then
 %if 0%{?_with_usersession:1}
-    systemctl-user stop statefs.service
+    if [ -x /bin/systemctl-user ]; then
+       /bin/systemctl-user stop statefs.service || :
+    fi
 %endif
     systemctl stop statefs.service || :
+%if 0%{?_with_usersession:1}
+%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so || :
+%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so || :
+%endif
+%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so system || :
+%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so system || :
 fi
 
-%postun
-statefs cleanup --system
+%post
 %if 0%{?_with_usersession:1}
-statefs cleanup
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so
 %endif
-if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so system
+%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so system
+if [ $1 -eq 1 ]; then
     systemctl daemon-reload
     systemctl start statefs.service || :
 %if 0%{?_with_usersession:1}
@@ -196,32 +200,57 @@ if [ ! -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
 %endif
 fi
 
-%posttrans
+%preun
+if [ $1 -eq 0 ]; then
 %if 0%{?_with_usersession:1}
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so
+    if [ -x /bin/systemctl-user ]; then
+       /bin/systemctl-user stop statefs.service || :
+    fi
+    statefs cleanup || :
 %endif
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so system
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so system
-if [ -f %{_localstatedir}/lib/rpm-state/statefs-stop ]; then
-    systemctl daemon-reload
-    systemctl start statefs.service
+    systemctl stop statefs.service || :
+    statefs cleanup --system || :
 %if 0%{?_with_usersession:1}
-    systemctl-user daemon-reload
-    systemctl-user start statefs.service
+%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so || :
+%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so || :
 %endif
-    /bin/rm %{_localstatedir}/lib/rpm-state/statefs-stop || :
+%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so system || :
+%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so system || :
 fi
 
-%posttrans examples
+%postun
+%if 0%{?_with_usersession:1}
+%endif
+if [ $1 -eq 0 ]; then
+    systemctl daemon-reload
+    systemctl start statefs.service || :
+%if 0%{?_with_usersession:1}
+    systemctl-user daemon-reload
+    systemctl-user start statefs.service || :
+%endif
+fi
+
+%pre examples
+if [ $1 -gt 1 ]; then
+%if 0%{?_with_usersession:1}
+%{_libdir}/statefs/provider-do unregister default examples >/dev/null 2>&1 || :
+%else
+%{_libdir}/statefs/provider-do unregister default examples system >/dev/null 2>&1 || :
+%endif
+fi
+
+%post examples
 %if 0%{?_with_usersession:1}
 %{_libdir}/statefs/provider-do register default examples || :
 %else
 %{_libdir}/statefs/provider-do register default examples system || :
 %endif
 
-%postun examples
-statefs cleanup --system || :
+%preun examples
+if [ $1 -eq 0 ]; then
 %if 0%{?_with_usersession:1}
-statefs cleanup || :
+%{_libdir}/statefs/provider-do unregister default examples || :
+%else
+%{_libdir}/statefs/provider-do unregister default examples system || :
 %endif
+fi
