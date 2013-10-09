@@ -1,0 +1,8 @@
+#!/bin/sh
+
+systemctl daemon-reload || :
+systemctl start statefs.service || :
+if [ -x /bin/systemctl-user ]; then
+   /bin/systemctl-user daemon-reload || :
+   systemctl-user start statefs.service || :
+fi
