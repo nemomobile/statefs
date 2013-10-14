@@ -126,6 +126,10 @@ rm -rf %{buildroot}
 %{_unitdir}/actdead-pre.target.wants/statefs.service
 %{_libdir}/libstatefs-config.so
 %{_libdir}/libstatefs-util.so
+%{_libdir}/libstatefs-config.so.0
+%{_libdir}/libstatefs-util.so.0
+%{_libdir}/libstatefs-config.so.%{version}
+%{_libdir}/libstatefs-util.so.%{version}
 %{_libdir}/statefs/libloader-default.so
 %{_libdir}/statefs/libloader-inout.so
 %{_libdir}/statefs/install-provider
@@ -157,7 +161,9 @@ rm -rf %{buildroot}
 
 %files pp
 %defattr(-,root,root,-)
-%{_libdir}/libstatefspp.so
+%{_libdir}/libstatefs-pp.so
+%{_libdir}/libstatefs-pp.so.0
+%{_libdir}/libstatefs-pp.so.%{version}
 
 %files doc
 %defattr(-,root,root,-)
@@ -188,6 +194,7 @@ if [ $1 -gt 1 ]; then
 fi
 
 %post
+/sbin/ldconfig
 %if 0%{?_with_usersession:1}
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so
@@ -222,6 +229,7 @@ if [ $1 -eq 0 ]; then
 fi
 
 %postun
+/sbin/ldconfig
 %if 0%{?_with_usersession:1}
 %endif
 if [ $1 -eq 0 ]; then
@@ -232,6 +240,12 @@ if [ $1 -eq 0 ]; then
     systemctl-user start statefs.service || :
 %endif
 fi
+
+%post pp
+/sbin/ldconfig
+
+%postun pp
+/sbin/ldconfig
 
 %pre examples
 if [ $1 -gt 1 ]; then

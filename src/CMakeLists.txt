@@ -2,6 +2,14 @@ add_library(statefs-config SHARED
   config.cpp
   util.cpp
 )
+
+SET_TARGET_PROPERTIES(
+  statefs-config
+  PROPERTIES
+  SOVERSION 0
+  VERSION ${STATEFS_VERSION}
+  )
+
 target_link_libraries(statefs-config
   ${COR_LIBRARIES}
   ${Boost_FILESYSTEM_LIBRARY}
@@ -21,17 +29,31 @@ target_link_libraries(statefs
 install(TARGETS statefs DESTINATION bin)
 install(TARGETS statefs-config DESTINATION ${DST_LIB})
 
-add_library(statefspp
+add_library(statefs-pp
   SHARED provider.cpp property.cpp
 )
 
-target_link_libraries(statefspp
+SET_TARGET_PROPERTIES(
+  statefs-pp
+  PROPERTIES
+  SOVERSION 0
+  VERSION ${STATEFS_VERSION}
+  )
+
+target_link_libraries(statefs-pp
   ${COR_LIBRARIES}
 )
 
 add_library(statefs-util
   SHARED common_util.cpp consumer.cpp
 )
+
+SET_TARGET_PROPERTIES(
+  statefs-util
+  PROPERTIES
+  SOVERSION 0
+  VERSION ${STATEFS_VERSION}
+  )
 
 add_library(loader-default
   SHARED loader.cpp
@@ -47,11 +69,11 @@ add_library(loader-inout
 
 target_link_libraries(loader-inout
   statefs-config
-  statefspp
+  statefs-pp
   ${COR_LIBRARIES}
 )
 
-install(TARGETS statefspp DESTINATION ${DST_LIB})
+install(TARGETS statefs-pp DESTINATION ${DST_LIB})
 install(TARGETS statefs-util DESTINATION ${DST_LIB})
 install(TARGETS loader-default DESTINATION ${DST_LIB}/statefs)
 install(TARGETS loader-inout DESTINATION ${DST_LIB}/statefs)

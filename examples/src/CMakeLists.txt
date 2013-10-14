@@ -8,5 +8,5 @@ target_link_libraries(example_power
 install(TARGETS example_power DESTINATION ${DST_LIB}/statefs)
 
 add_library(example_statefspp SHARED example_statefspp.cpp)
-target_link_libraries(example_statefspp statefspp)
+target_link_libraries(example_statefspp statefs-pp)
 install(TARGETS example_statefspp DESTINATION ${DST_LIB}/statefs)

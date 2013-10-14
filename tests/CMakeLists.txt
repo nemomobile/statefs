@@ -23,4 +23,4 @@ add_executable(test-link-statefs-config link-statefs-config.cpp)
 target_link_libraries(test-link-statefs-config statefs-config)
 
 add_executable(test-link-statefspp link-statefspp.cpp)
-target_link_libraries(test-link-statefspp statefspp)
+target_link_libraries(test-link-statefspp statefs-pp)
