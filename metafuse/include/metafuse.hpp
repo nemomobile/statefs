@@ -245,13 +245,19 @@ class FileHandle
 public:
     FileHandle() : pos(0), is_changed_(true) {}
 
-    void notify()
+    virtual ~FileHandle() {}
+
+    // should acquire lock because it is called not from fuse but from
+    // provider
+    template <typename LockT>
+    void notify(LockT const &lock)
     {
+        auto l(cor::wlock(lock));
         is_changed_ = true;
-        if (poll_) {
+        auto ph = poll_;
+        l.unlock();
+        if (ph)
             fuse_notify_poll(poll_.get());
-            poll_ = nullptr;
-        }
     }
 
     void poll(poll_handle_type &ph)

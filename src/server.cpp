@@ -433,7 +433,7 @@ public:
             snapshot.push_back(h.second);
         l.unlock();
         for (auto h : snapshot)
-            h->notify();
+            h->notify(*this);
     }
 };
 
