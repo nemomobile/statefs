@@ -95,7 +95,7 @@ public:
 private:
     static void release_bridge(::statefs_node *n)
     {
-        NodeWrapper *self = static_cast<NodeWrapper*>(node_to<NodeT>(n));
+        auto self = static_cast<NodeWrapper*>(node_to<NodeT>(n));
         static_cast<ANode*>(self)->release();
     }
 };
@@ -148,12 +148,18 @@ BranchWrapper<statefs_provider> const* branch_to<statefs_provider>(statefs_branc
 template <typename BranchT>
 class BranchWrapper : public NodeWrapper<BranchT>
 {
+    typedef NodeWrapper<BranchT> base_type;
 public:
 
-    ::statefs_branch *branch_cast()
-    { return branch_from(static_cast<BranchT*>(this)); }
-    ::statefs_branch const* branch_cast() const
-    { return branch_from(static_cast<BranchT const*>(this)); }
+    ::statefs_branch *branch_cast() {
+        base_type *base = static_cast<base_type*>(this);
+        return branch_from(static_cast<BranchT*>(base));
+    }
+
+    ::statefs_branch const* branch_cast() const {
+        base_type const *base = static_cast<base_type const*>(this);
+        return branch_from(static_cast<BranchT const*>(base));
+    }
 
     BranchWrapper
     (char const *name
@@ -182,7 +188,6 @@ class BranchStorage
 public:
     typedef std::shared_ptr<ANode> child_ptr;
 
-protected:
     typedef std::map<std::string, child_ptr> storage_type;
     typedef storage_type::const_iterator iter_type;
 
@@ -192,8 +197,6 @@ public:
 
     child_ptr insert(child_ptr child);
     child_ptr insert(ANode *child);
-
-protected:
 
     statefs_node* find(char const*) const;
     statefs_node* get(statefs_handle_t) const;
@@ -207,8 +210,28 @@ private:
 };
 
 template <class BranchT>
-class Branch : public BranchWrapper<BranchT>, public BranchStorage
+class Branch : public BranchWrapper<BranchT>
 {
+public:
+
+    Branch(char const *name, statefs_node const& node_template)
+        : base_type(name, node_template, branch_template)
+    {}
+
+    virtual ~Branch() {}
+
+    typedef typename BranchStorage::child_ptr child_ptr;
+
+    child_ptr insert(child_ptr child)
+    {
+        return storage_.insert(child);
+    }
+
+    child_ptr insert(ANode *child)
+    {
+        return storage_.insert(child);
+    }
+
 private:
 
     static const statefs_branch branch_template;
@@ -219,31 +242,31 @@ private:
                                      , char const *name)
     {
         auto self = self_cast(branch);
-        return self->BranchStorage::find(name);
+        return self->find(name);
     }
 
     static statefs_node * child_get(statefs_branch const* branch, statefs_handle_t h)
     {
         auto self = self_cast(branch);
-        return self->BranchStorage::get(h);
+        return self->get(h);
     }
 
     static statefs_handle_t child_first(statefs_branch const* branch)
     {
         auto self = self_cast(branch);
-        return self->BranchStorage::first();
+        return self->first();
     }
 
     static void child_next(statefs_branch const* branch, statefs_handle_t *h)
     {
         auto self = self_cast(branch);
-        return self->BranchStorage::next(h);
+        return self->next(h);
     }
 
     static bool child_release(statefs_branch const* branch, statefs_handle_t h)
     {
         auto self = self_cast(branch);
-        return self->BranchStorage::release(h);
+        return self->release(h);
     }
 
 protected:
@@ -256,12 +279,32 @@ protected:
             (base_type::self_cast(branch));
     }
 
-public:
-    Branch(char const *name, statefs_node const& node_template)
-        : base_type(name, node_template, branch_template)
-    {}
 
-    virtual ~Branch() {}
+    statefs_node* find(char const *name) const
+    {
+        return storage_.find(name);
+    }
+
+    statefs_node* get(statefs_handle_t h) const
+    {
+        return storage_.get(h);
+    }
+
+    statefs_handle_t first() const
+    {
+        return storage_.first();
+    }
+    void next(statefs_handle_t *ph) const
+    {
+        return storage_.next(ph);
+    }
+    bool release(statefs_handle_t h) const
+    {
+        return storage_.release(h);
+    }
+
+private:
+    BranchStorage storage_;
 };
 
 
