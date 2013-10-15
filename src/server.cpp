@@ -26,12 +26,13 @@
 using namespace metafuse;
 using statefs::provider_ptr;
 
-class Provider : public statefs_server
+
+class ProviderBridge : public statefs_server
 {
 public:
-    Provider(std::shared_ptr<Loader> loader, std::string const &path);
+    ProviderBridge(std::shared_ptr<Loader> loader, std::string const &path);
 
-    ~Provider() {}
+    ~ProviderBridge() {}
 
     bool loaded() const
     {
@@ -57,14 +58,14 @@ private:
 
     static statefs_server* init_server(statefs_server *s)
     {
-        s->event = &Provider::on_event_;
+        s->event = &ProviderBridge::on_event_;
         return s;
     }
 
     static void on_event_
     (statefs_server *s, statefs_provider *p, statefs_event e)
     {
-        auto *self = static_cast<Provider*>(s);
+        auto *self = static_cast<ProviderBridge*>(s);
         self->on_provider_event(p, e);
     }
 
@@ -200,14 +201,14 @@ void Property::disconnect()
         io_->disconnect(handle_.get());
 }
 
-Provider::Provider(std::shared_ptr<Loader> loader, std::string const &path)
+ProviderBridge::ProviderBridge(std::shared_ptr<Loader> loader, std::string const &path)
     : loader_(loader)
     , provider_(loader_
-                ? loader_->load(path, Provider::init_server(this))
+                ? loader_->load(path, ProviderBridge::init_server(this))
                 : nullptr)
 { }
 
-ns_handle_type Provider::ns(std::string const &name) const
+ns_handle_type ProviderBridge::ns(std::string const &name) const
 {
     return mk_namespace_handle
         ((loaded() ? statefs_ns_find(&provider_->root, name.c_str())
@@ -383,7 +384,7 @@ public:
     {
         if (!handles_.empty()) {
             trace() << "DiscretePropFile " << prop_->name()
-                    << " was not released?";
+                    << " was not released?\n";
             prop_->disconnect();
         }
     }
@@ -453,7 +454,7 @@ public:
 
     PluginNsDir(info_ptr info, std::function<void()> const& plugin_load);
 
-    void load(std::shared_ptr<Provider> prov);
+    void load(std::shared_ptr<ProviderBridge> prov);
     void load_fake();
 
 private:
@@ -490,7 +491,7 @@ void PluginNsDir::add_prop_file
     add_file(name, mk_file_entry(mk_loader(load_get, prop->mode(), 1024)));
 }
 
-void PluginNsDir::load(std::shared_ptr<Provider> prov)
+void PluginNsDir::load(std::shared_ptr<ProviderBridge> prov)
 {
     auto lock(cor::wlock(*this));
     files.clear();
@@ -532,7 +533,7 @@ void PluginNsDir::load_fake()
 class PluginStorage
 {
 protected:
-    std::shared_ptr<Provider> provider_;
+    std::shared_ptr<ProviderBridge> provider_;
 };
 
 class PluginsDir;
@@ -641,7 +642,7 @@ void PluginDir::load()
 
     trace() << "Loading plugin " << info_->path << std::endl;
     auto provider_type = config::to_string(info_->info_["type"]);
-    provider_ = make_unique<Provider>
+    provider_ = make_unique<ProviderBridge>
         (parent_->loader_get(provider_type), info_->path);
 
     if (!provider_->loaded()) {
