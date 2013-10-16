@@ -77,7 +77,7 @@ struct statefs_meta
 };
 
 /**
- * Tree node type 
+ * Tree node type
  */
 typedef enum
 {
@@ -86,18 +86,26 @@ typedef enum
     statefs_node_root = statefs_node_ns | 4
 } statefs_node_type;
 
-/** 
+/**
  * Node of statefs tree
  */
 struct statefs_node
 {
-    /** 
+    /**
      *there are provider root node, namespace nodes and property nodes
      */
     statefs_node_type type;
     /** name - c string */
     char const *name;
-    /** if not NULL called to free resources used by node */  
+    /**
+     * if not NULL - called to free resources used by node
+     *
+     * Node allocated in dynamic memory itself ordinary better to be
+     * deleted by parent because node does not have a reference to its
+     * parent and can not notify it if deleted. Also it should be safe
+     * to call this member more than one time
+     *
+     */
     void (*release)(struct statefs_node*);
     /** array of node metadata, last element has NULL name member */
     struct statefs_meta const* info;
@@ -173,7 +181,7 @@ struct statefs_io
      */
     int (*getattr)(struct statefs_property const *);
 
-    /** 
+    /**
      * get property size. If property length is variable it is
      * better to return maximum property size
      */
@@ -199,9 +207,9 @@ struct statefs_io
     /** close I/O handle */
     void (*close)(statefs_handle_t);
 
-    /** 
+    /**
      * connect discrete property to server slot, provider should invoke
-     * statefs_slot.on_changed() when property value is changed  
+     * statefs_slot.on_changed() when property value is changed
      *
      * @note only single connection is opened for single property, so if
      * called several times provider can just replace previous slot
@@ -212,7 +220,7 @@ struct statefs_io
     void (*disconnect)(struct statefs_property *);
 };
 
-/** 
+/**
  * Namespace node
  */
 struct statefs_namespace
@@ -255,14 +263,14 @@ struct statefs_server
                   , statefs_event);
 };
 
-/** 
+/**
  * Signature of statefs_provider_get function must be defined by
  * provider
  */
 typedef struct statefs_provider * (*statefs_provider_fn)
     (struct statefs_server*);
 
-/** 
+/**
  * Function defined in provider library to access the root node
  */
 struct statefs_provider * statefs_provider_get(struct statefs_server*);
