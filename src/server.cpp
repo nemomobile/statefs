@@ -445,6 +445,8 @@ std::unique_ptr<PluginLoadFile<LoadT> > mk_loader(LoadT loader, Args&& ... args)
         (loader, std::forward<Args>(args)...);
 }
 
+class PluginDir;
+
 class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
     typedef RODir<DirFactory, FileFactory, Mutex> base_type;
@@ -452,7 +454,7 @@ public:
 
     typedef std::shared_ptr<config::Namespace> info_ptr;
 
-    PluginNsDir(info_ptr info, std::function<void()> const& plugin_load);
+    PluginNsDir(PluginDir *, info_ptr, std::function<void()> const&);
 
     void load(std::shared_ptr<ProviderBridge> prov);
     void load_fake();
@@ -462,13 +464,15 @@ private:
     void add_prop_file(std::shared_ptr<config::Property> const &prop
                        , std::function<void()> const& plugin_load);
 
+    PluginDir *parent_;
     info_ptr info_;
     std::unique_ptr<Namespace> ns_;
 };
 
 PluginNsDir::PluginNsDir
-(info_ptr info, std::function<void()> const& plugin_load)
-    : info_(info)
+(PluginDir *parent, info_ptr info, std::function<void()> const& plugin_load)
+    : parent_(parent)
+    , info_(info)
 {
     for (auto prop : info->props_)
         add_prop_file(prop, plugin_load);
@@ -624,7 +628,7 @@ PluginDir::info_ptr PluginDir::load_namespaces(info_ptr p)
     auto plugin_load = std::bind(&PluginDir::load, this);
     for (auto ns : p->namespaces_)
         add_dir(ns->value(), mk_dir_entry
-                (make_unique<PluginNsDir>(ns, plugin_load)));
+                (make_unique<PluginNsDir>(this, ns, plugin_load)));
     return p;
 }
 
