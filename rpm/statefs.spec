@@ -33,6 +33,7 @@ Statefs framework to be used to write providers in C++
 Summary: Files to develop statefs clients and providers
 Group: System Environment/Libraries
 Requires: cor-devel >= %{cor_version}
+Requires: statefs = %{version}-%{release}
 %description devel
 Headers, libraries etc. needed to develop statefs clients and providers
 
