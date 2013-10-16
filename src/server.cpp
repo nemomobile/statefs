@@ -469,6 +469,51 @@ private:
     std::unique_ptr<Namespace> ns_;
 };
 
+/// extracted into separate class from PluginDir to initialize later
+/// in the proper order
+class PluginStorage
+{
+protected:
+    std::shared_ptr<ProviderBridge> provider_;
+    TaskQueue task_queue_;
+};
+
+class PluginsDir;
+
+class PluginDir : private PluginStorage,
+                  public RODir<DirFactory, FileFactory, cor::Mutex>
+{
+public:
+    typedef DirEntry<PluginNsDir> ns_type;
+    typedef std::shared_ptr<config::Plugin> info_ptr;
+
+    PluginDir(PluginsDir *parent, info_ptr info);
+    void load();
+
+    bool enqueue(std::packaged_task<void()> task)
+    {
+        return task_queue_.enqueue(std::move(task));
+    }
+
+private:
+
+    template <typename OpT, typename ... Args>
+    void namespaces_init(OpT op, Args&& ... args)
+    {
+        for (auto &d : dirs) {
+            trace() << "Init ns " << d.first << std::endl;
+            auto p = dir_entry_impl<PluginNsDir>(d.second);
+            if (!p)
+                throw std::logic_error("Can't cast to namespace???");
+            std::mem_fn(op)(p.get(), std::forward<Args>(args)...);
+        }
+    }
+
+    info_ptr load_namespaces(info_ptr);
+
+    info_ptr info_;
+    PluginsDir *parent_;
+};
 PluginNsDir::PluginNsDir
 (PluginDir *parent, info_ptr info, std::function<void()> const& plugin_load)
     : parent_(parent)
@@ -531,46 +576,6 @@ void PluginNsDir::load_fake()
                  (make_unique<BasicTextFile<> >(prop->defval(), prop->mode())));
     }
 }
-
-/// extracted into separate class from PluginDir to initialize later
-/// in the proper order
-class PluginStorage
-{
-protected:
-    std::shared_ptr<ProviderBridge> provider_;
-};
-
-class PluginsDir;
-
-class PluginDir : private PluginStorage,
-                  public RODir<DirFactory, FileFactory, cor::Mutex>
-{
-public:
-    typedef DirEntry<PluginNsDir> ns_type;
-    typedef std::shared_ptr<config::Plugin> info_ptr;
-
-    PluginDir(PluginsDir *parent, info_ptr info);
-    void load();
-
-private:
-
-    template <typename OpT, typename ... Args>
-    void namespaces_init(OpT op, Args&& ... args)
-    {
-        for (auto &d : dirs) {
-            trace() << "Init ns " << d.first << std::endl;
-            auto p = dir_entry_impl<PluginNsDir>(d.second);
-            if (!p)
-                throw std::logic_error("Can't cast to namespace???");
-            std::mem_fn(op)(p.get(), std::forward<Args>(args)...);
-        }
-    }
-
-    info_ptr load_namespaces(info_ptr);
-
-    info_ptr info_;
-    PluginsDir *parent_;
-};
 
 
 class PluginsDir : private LoadersStorage,
@@ -1013,7 +1018,7 @@ private:
             auto lib_fname = p->path;
             if (fs::exists(lib_fname))
                 return;
-            
+
             std::cerr << "Library " << lib_fname
             << " doesn't exist, unregistering, removing config: "
             << cfg_path << std::endl;
