@@ -10,6 +10,7 @@
 #include <sstream>
 #include <memory>
 #include <vector>
+#include <functional>
 #include <string.h>
 #include <unistd.h>
 #include <algorithm>
@@ -856,12 +857,15 @@ public:
             argv_vec.push_back("-o");
             argv_vec.push_back(_gid.c_str());
         }
-        return fuse_main(argv_vec.size(),
-                         const_cast<char**>(&argv_vec[0]),
-                         &ops, NULL);
+        auto args = const_cast<char**>(&argv_vec[0]);
+        int rc = main_(argv_vec.size(), args, &ops, sizeof(ops), nullptr);
+        release();
+        return rc;
     }
 
     static FuseFs &instance();
+
+    static void release();
 
     static RootT& impl()
     {
@@ -870,6 +874,7 @@ public:
 
 
     FuseFs()
+        : main_(fuse_main_real)
     {
         memset(&ops, 0, sizeof(ops));
         ops.getattr = FuseFs::getattr;
@@ -890,6 +895,10 @@ public:
         ops.poll = FuseFs::poll;
         ops.readlink = FuseFs::readlink;
     }
+
+protected:
+
+    std::function<int (int, char *[], const struct fuse_operations *, size_t, void *)> main_;
 
 private:
 

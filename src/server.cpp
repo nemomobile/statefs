@@ -844,6 +844,13 @@ fuse_root_type::instance()
 {
     return *fuse_root;
 }
+
+template<>
+void fuse_root_type::release()
+{
+    fuse_root.reset();
+}
+
 }
 
 static fuse_root_type & fuse()
@@ -1071,14 +1078,17 @@ private:
     std::vector<char const*> params;
 };
 
+static std::unique_ptr<Server> server;
 
 int main(int argc, char *argv[])
 {
+    int rc = -1;
     try {
-        Server server(argc, argv);
-        return server();
+        server = cor::make_unique<Server>(argc, argv);
+        rc = (*server)();
     } catch (std::exception const &e) {
         std::cerr << "exception: " << e.what() << std::endl;
     }
-    return -1;
+    server.reset();
+    return rc;
 }
