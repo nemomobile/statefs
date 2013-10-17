@@ -16,8 +16,10 @@
 #include <stdbool.h>
 #include <poll.h>
 
-namespace config
-{
+namespace statefs { namespace config {
+
+using statefs::server::LoadersStorage;
+using statefs::server::LoaderProxy;
 
 template <typename ProviderFn, typename LoaderFn>
 void process_lib_info(std::shared_ptr<Library> p
@@ -809,7 +811,7 @@ static std::shared_ptr<Plugin> from_api
 }
 
 static std::shared_ptr<Loader> from_api
-(std::shared_ptr< ::Loader> loader_, std::string const& path)
+(std::shared_ptr<LoaderProxy> loader_, std::string const& path)
 {
     return loader_
         ? std::make_shared<Loader>(loader_->name(), path)
@@ -847,7 +849,7 @@ static inline std::string dump_provider_cfg_file
 static inline std::string dump_loader
 (std::string const& cfg_dir, std::ostream &dst, fs::path const &path)
 {
-    auto loader = std::make_shared< ::Loader>(path.native());
+    auto loader = std::make_shared<LoaderProxy>(path.native());
     if (!loader->is_valid()) {
         std::cerr << "Not a loader: " << path.string() << std::endl;
         return dump_provider_cfg_file(dst, path);
@@ -967,4 +969,4 @@ void rm(std::string const &cfg_dir
     config::visit(cfg_dir, rm_config);
 }
 
-} // config
+}} // namespaces

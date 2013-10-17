@@ -909,12 +909,11 @@ private:
         try {
             trace() << "-" << caller_name() << "\n";
             trace() << "Op for: '" << path << "'\n";
-            res = std::mem_fn(op)(&impl(), mk_path(path)
-                                  , std::forward<Args>(args)...);
+            res = std::mem_fn(op)
+                (&impl(), mk_path(path), std::forward<Args>(args)...);
             trace() << "Op res:" << res << std::endl;
         } catch(std::exception const &e) {
-            std::cerr << "Caught exception: "
-                      << e.what() << std::endl;
+            std::cerr << "Caught exception: " << e.what() << std::endl;
             res = -ENOMEM;
         } catch(...) {
             std::cerr << "Caught unknown exception" << std::endl;
@@ -1026,8 +1025,6 @@ private:
         gid_stream << ::getgid();
         _gid += gid_stream.str();
     }
-
-    static FuseFs self;
 
     RootT root_;
     fuse_operations ops;

@@ -11,21 +11,21 @@ public:
     std::shared_ptr<statefs_provider> load(std::string const& path
                                            , statefs_server *server)
     {
-        std::shared_ptr<cor::SharedLib> lib
-            (new cor::SharedLib(path, RTLD_LAZY));
+        auto lib = std::make_shared<cor::SharedLib>(path, RTLD_LAZY);
         if (!lib->is_loaded())
             return nullptr;
-        auto fn = lib->sym<statefs_provider_fn>
-            (statefs_provider_accessor());
+        auto fn = lib->sym<statefs_provider_fn>(statefs_provider_accessor());
         if (!fn)
             return nullptr;
 
-        statefs::provider_ptr res
-            (fn(server), [lib](statefs_provider* p) mutable {
-                if (p)
-                    statefs_provider_release(p);
-                lib.reset();
-            });
+        auto dtor = [lib, path](statefs_provider* p) mutable {
+            std::cerr << "DTOR:" << path << std::endl;
+            if (p)
+                statefs_provider_release(p);
+            lib.reset();
+        };
+
+        statefs::provider_ptr res{fn(server), dtor};
 
         if (!res)
             return nullptr;

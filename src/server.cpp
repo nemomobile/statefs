@@ -23,14 +23,17 @@
 
 //static const char *statefs_version = DQUOTESTR(STATEFS_VERSION);
 
+
+namespace statefs { namespace server {
+
 using namespace metafuse;
 using statefs::provider_ptr;
-
+namespace config = statefs::config;
 
 class ProviderBridge : public statefs_server
 {
 public:
-    ProviderBridge(std::shared_ptr<Loader> loader, std::string const &path);
+    ProviderBridge(std::shared_ptr<LoaderProxy> loader, std::string const &path);
 
     ~ProviderBridge() {}
 
@@ -76,7 +79,7 @@ private:
     };
 
     // storing to be sure loader is unloaded only after provider
-    std::shared_ptr<Loader> loader_;
+    std::shared_ptr<LoaderProxy> loader_;
     provider_ptr provider_;
 };
 
@@ -201,7 +204,7 @@ void Property::disconnect()
         io_->disconnect(handle_.get());
 }
 
-ProviderBridge::ProviderBridge(std::shared_ptr<Loader> loader, std::string const &path)
+ProviderBridge::ProviderBridge(std::shared_ptr<LoaderProxy> loader, std::string const &path)
     : loader_(loader)
     , provider_(loader_
                 ? loader_->load(path, ProviderBridge::init_server(this))
@@ -611,7 +614,7 @@ public:
             LoadersStorage::loader_rm(p->value());
     }
 
-    std::shared_ptr<Loader> loader_get(std::string const& name)
+    std::shared_ptr<LoaderProxy> loader_get(std::string const& name)
     {
         auto lock(cor::wlock(*this));
         return LoadersStorage::loader_get(name);
@@ -826,6 +829,34 @@ public:
     }
 };
 
+typedef metafuse::FuseFs<RootDirEntry> fuse_root_type;
+static std::unique_ptr<fuse_root_type> fuse_root;
+
+}} // namespace
+
+
+namespace metafuse {
+
+// metafuse leaves implementation for FuseFs.instance() and
+// FuseFs.release() to be done by fs implementation
+
+using statefs::server::fuse_root_type;
+using statefs::server::fuse_root;
+
+template<> fuse_root_type& fuse_root_type::instance()
+{
+    return *fuse_root;
+}
+
+template<> void fuse_root_type::release()
+{
+    fuse_root.reset();
+}
+
+} // metafuse
+
+namespace statefs { namespace server {
+
 enum statefs_cmd {
     statefs_cmd_run,
     statefs_cmd_dump,
@@ -834,24 +865,8 @@ enum statefs_cmd {
     statefs_cmd_unregister
 };
 
-namespace metafuse {
-
-typedef FuseFs<RootDirEntry> fuse_root_type;
-static std::unique_ptr<fuse_root_type> fuse_root;
-
-template<> fuse_root_type&
-fuse_root_type::instance()
-{
-    return *fuse_root;
 }
 
-template<>
-void fuse_root_type::release()
-{
-    fuse_root.reset();
-}
-
-}
 
 static fuse_root_type & fuse()
 {
@@ -889,6 +904,8 @@ bool split_pairs(std::string const &src, std::string const &items_sep
     }
     return true;
 }
+
+namespace config = statefs::config;
 
 class Server
 {
@@ -1077,6 +1094,10 @@ private:
     option_parser_type::map_type opts;
     std::vector<char const*> params;
 };
+
+}}
+
+using statefs::server::Server;
 
 static std::unique_ptr<Server> server;
 

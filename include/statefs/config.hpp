@@ -7,8 +7,7 @@
 #include <boost/variant.hpp>
 #include <fstream>
 
-namespace config
-{
+namespace statefs { namespace config {
 
 static inline std::string cfg_extension()
 {
@@ -136,7 +135,7 @@ public:
 };
 
 
-}
+}} // namespaces
 
 
 #endif // _STATEFS_CONFIG_HPP_

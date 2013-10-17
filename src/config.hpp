@@ -13,8 +13,7 @@
 
 #include <poll.h>
 
-namespace config
-{
+namespace statefs { namespace config {
 
 class Monitor
 {
@@ -53,6 +52,6 @@ std::string dump(std::string const&, std::ostream &
 void save(std::string const&, std::string const&, std::string const&);
 void rm(std::string const &, std::string const &, std::string const&);
 
-} // config
+}} // namespaces
 
 #endif // _STATEFS_PRIVATE_CONFIG_HPP_
