@@ -602,7 +602,20 @@ public:
           files(file_f)
     {}
 
-    virtual ~DefaultDir() {}
+    virtual ~DefaultDir()
+    {
+        clear();
+    }
+
+    void clear()
+    {
+        auto l(cor::wlock(*this));
+        cor::error_trace_nothrow([this]() {
+                files.clear();
+                dirs.clear();
+                links.clear();
+            });
+    }
 
     entry_ptr acquire(std::string const &name)
     {
