@@ -38,6 +38,19 @@ static inline void statefs_provider_release(struct statefs_provider *p)
         statefs_ns_release(&p->root);
 }
 
+static inline struct statefs_namespace *
+statefs_node2namespace(struct statefs_node *from)
+{
+    return container_of(from, struct statefs_namespace, node);
+}
+
+static inline struct statefs_provider *
+statefs_node2provider(struct statefs_node *from)
+{
+    return container_of(statefs_node2namespace(from)
+                        , struct statefs_provider, root);
+}
+
 static inline intptr_t statefs_first(struct statefs_branch const* self)
 {
     return (self->first ? self->first(self) : 0);

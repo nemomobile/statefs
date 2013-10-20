@@ -3,6 +3,8 @@
 #include <chrono>
 #include <future>
 
+#include <cor/mt.hpp>
+
 /** @defgroup statefspp_example Example C++ provider
  *
  * @brief Example C++ provider - uses statefspp framework
@@ -127,6 +129,7 @@ public:
 
     int read(std::string *h, char *dst, size_t len, off_t off)
     {
+        std::unique_lock<std::mutex> lock(mutex_);
         if (!slot_)
             v_ = calc();
 
@@ -134,6 +137,7 @@ public:
         if (!off)
             v = v_;
 
+        lock.unlock();
         return read_from(v, dst, len, off);
     }
 
@@ -157,19 +161,26 @@ private:
 
     void periodic_update() {
         v_ = calc();
-        if (slot_) {
-            std::cerr << "periodic\n";
-            std::thread([this]() {
-                    std::cerr << "next\n";
-                    ::usleep(update_interval_usec_);
-                    auto slot = slot_;
-                    if (slot_)
-                        slot->on_changed(slot_, parent_);
+        if (!slot_)
+            return;
+
+        std::cerr << "periodic\n";
+        std::thread([this]() {
+                std::cerr << "next\n";
+                ::usleep(update_interval_usec_);
+                if (slot_) {
+                    if (!slot_)
+                        return;
+
+                    std::unique_lock<std::mutex> lock(mutex_);
+                    slot_->on_changed(slot_, parent_);
                     periodic_update();
-                }).detach();
-        }
+                }
+            }).detach();
     }
+
     unsigned update_interval_usec_;
+    std::mutex mutex_;
     statefs::AProperty *parent_;
     std::string v_;
     ::statefs_slot *slot_;
