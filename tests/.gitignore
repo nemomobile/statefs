@@ -1,3 +1,4 @@
 atest-*
 tests.xml
 *.pyc
+test-link*
