@@ -25,6 +25,10 @@
 #include <unordered_map>
 #include <set>
 #include <fstream>
+#include <signal.h>
+
+
+#include "fuse_lowlevel.h"
 
 #define STRINGIFY(x) #x
 #define DQUOTESTR(x) STRINGIFY(x)
@@ -890,6 +894,11 @@ public:
     {
         impl_->init(cfg_dir);
     }
+
+    void destroy()
+    {
+        impl()->clear();
+    }
 };
 
 
@@ -966,8 +975,8 @@ public:
     /*
       Code in this class mostly was copy/pasted from fuse code. It has
       statefs cleanup hook to avoid access to fuse when server got
-      signal: it results in unpredictable consequences like segfault
-      etc.
+      signal because it results in unpredictable consequences like
+      segfault etc.
 
       FUSE: Filesystem in Userspace
       Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
@@ -976,18 +985,16 @@ public:
       See the file COPYING.LIB
     */
 
-    static struct fuse_session *fuse_instance;
+    static ::fuse_session *fuse_instance;
+    static ::fuse *fuse;
+    static char *mountpoint;
+    static ::fuse_chan *ch;
 
     static void exit_handler(int sig)
     {
         (void) sig;
         if (fuse_instance) {
-            // TODO race condition probability still exists: deleted
-            // implementation object can be accessed from fuse
-            // operation. To avoid it statefs root dir operation
-            // should be invoked to release fuse_session and stop
-            // fuse. This ops are thread-safe
-            statefs_root.release();
+            statefs_root.stop();
             fuse_session_exit(fuse_instance);
         }
     }
@@ -1030,19 +1037,18 @@ public:
 
     static struct fuse *statefs_setup_common
     (int argc, char *argv[], ::fuse_operations const *op, size_t op_size
-     , char **mountpoint, int *multithreaded, int *fd, void *user_data)
+     , int *multithreaded, int *fd, void *user_data)
     {
         ::fuse_args args = FUSE_ARGS_INIT(argc, argv);
-        ::fuse_chan *ch;
-        ::fuse *fuse;
+        //::fuse *fuse;
         int foreground;
         int res;
 
-        res = ::fuse_parse_cmdline(&args, mountpoint, multithreaded, &foreground);
+        res = ::fuse_parse_cmdline(&args, &mountpoint, multithreaded, &foreground);
         if (res == -1)
             return NULL;
 
-        ch = ::fuse_mount(*mountpoint, &args);
+        ch = ::fuse_mount(mountpoint, &args);
         if (!ch) {
             ::fuse_opt_free_args(&args);
             goto err_free;
@@ -1067,11 +1073,11 @@ public:
         return fuse;
 
     err_unmount:
-        ::fuse_unmount(*mountpoint, ch);
+        ::fuse_unmount(mountpoint, ch);
         if (fuse)
             ::fuse_destroy(fuse);
     err_free:
-        free(*mountpoint);
+        free(mountpoint);
         return NULL;
     }
 
@@ -1080,11 +1086,10 @@ public:
                                    void *user_data)
     {
         struct fuse *fuse;
-        char *mountpoint;
         int multithreaded;
         int res;
 
-        fuse = statefs_setup_common(argc, argv, op, op_size, &mountpoint,
+        fuse = statefs_setup_common(argc, argv, op, op_size,
                                     &multithreaded, NULL, user_data);
         if (fuse == NULL)
             return 1;
@@ -1105,6 +1110,9 @@ public:
 };
 
 ::fuse_session *FuseMain::fuse_instance = nullptr;
+::fuse *FuseMain::fuse = nullptr;
+char *FuseMain::mountpoint = nullptr;
+::fuse_chan *FuseMain::ch = nullptr;
 
 //using metafuse::statefs_root_type;
 

@@ -9,6 +9,7 @@
  */
 
 #include <cor/trace.hpp>
+#include <cor/error.hpp>
 #include <metafuse/common.hpp>
 #include <metafuse/entry.hpp>
 
@@ -883,13 +884,14 @@ public:
         return rc;
     }
 
-    static FuseFs &instance();
+    static FuseFs *instance();
 
     static void release();
 
-    static RootT& impl()
+    static RootT* impl()
     {
-        return instance().root_;
+        auto p = instance();
+        return p ? &(p->root_) : nullptr;
     }
 
 
@@ -914,9 +916,8 @@ public:
         ops.access  = FuseFs::access;
         ops.poll = FuseFs::poll;
         ops.readlink = FuseFs::readlink;
+        ops.destroy = FuseFs::destroy;
     }
-
-protected:
 
     std::function<int (int, char *[], const struct fuse_operations *, size_t, void *)> main_;
 
@@ -925,15 +926,18 @@ private:
     template <typename OpT, typename ... Args>
     static int invoke(const char* path, OpT op, Args&&... args)
     {
-        int res;
+        int res = -EPERM;
         try {
             trace() << "-" << caller_name() << "\n";
             trace() << "Op for: '" << path << "'\n";
-            res = std::mem_fn(op)
-                (&impl(), mk_path(path), std::forward<Args>(args)...);
-            trace() << "Op res:" << res << std::endl;
+            auto p = impl();
+            if (p) {
+                res = std::mem_fn(op)
+                    (p, mk_path(path), std::forward<Args>(args)...);
+                trace() << "Op res:" << res << std::endl;
+            }
         } catch(std::exception const &e) {
-            std::cerr << "Caught exception: " << e.what() << std::endl;
+            std::cerr << "Caught: " << e.what() << std::endl;
             res = -ENOMEM;
         } catch(...) {
             std::cerr << "Caught unknown exception" << std::endl;
@@ -1030,6 +1034,13 @@ private:
     static int readlink(const char* path, char* buf, size_t size)
     {
         return invoke(path, &RootT::readlink, buf, size);
+    }
+
+    static void destroy(void *p)
+    {
+        auto root = impl();
+        if (root)
+            root->destroy();
     }
 
     void update_uid() {

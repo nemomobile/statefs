@@ -285,6 +285,11 @@ typename DirEntry<T>::impl_ptr dir_entry_impl(entry_ptr entry)
     return (p) ? p->impl() : typename DirEntry<T>::impl_ptr();
 }
 
+template <typename T>
+typename DirEntry<T>::impl_ptr dir_entry_impl(DirEntry<T> *entry)
+{
+    return entry->impl();
+}
 
 template <typename ImplT>
 class DirEntry : public Entry
@@ -415,6 +420,7 @@ public:
 protected:
 
     friend impl_ptr dir_entry_impl<ImplT>(entry_ptr);
+    friend impl_ptr dir_entry_impl<ImplT>(DirEntry<ImplT>*);
 
     impl_ptr impl()
     {
