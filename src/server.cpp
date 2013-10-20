@@ -632,45 +632,52 @@ class PluginsDir : private LoadersStorage,
 public:
     PluginsDir() { }
 
-    void plugin_add(PluginDir::info_ptr p)
-    {
-        auto lock(cor::wlock(*this));
-        auto name = p->value();
-        trace() << "Plugin " << name << std::endl;
-        if (dirs.find(name)) {
-            std::cerr << "There is already a plugin " << name << "...skipping\n";
-            return;
-        }
-        auto d = std::make_shared<PluginDir>(this, p);
-        add_dir(p->value(), mk_dir_entry(d));
-    }
+    void plugin_add(PluginDir::info_ptr);
+    void loader_add(loader_info_ptr);
+    void loader_rm(loader_info_ptr);
     void stop();
 
-    void loader_add(loader_info_ptr p)
-    {
-        auto lock(cor::wlock(*this));
-        trace() << "Loader " << p->value() << std::endl;
-        loader_register(p);
-    }
+    std::shared_ptr<LoaderProxy> loader_get(std::string const&);
+};
 
-    void loader_rm(loader_info_ptr p)
-    {
-        auto lock(cor::wlock(*this));
-        if (p)
-            LoadersStorage::loader_rm(p->value());
-    }
 void PluginsDir::stop()
 {
     for (auto e: dirs)
         dir_entry_impl<PluginDir>(e.second)->stop();
 }
 
-    std::shared_ptr<LoaderProxy> loader_get(std::string const& name)
-    {
-        auto lock(cor::wlock(*this));
-        return LoadersStorage::loader_get(name);
+void PluginsDir::plugin_add(PluginDir::info_ptr p)
+{
+    auto lock(cor::wlock(*this));
+    auto name = p->value();
+    trace() << "Plugin " << name << std::endl;
+    if (dirs.find(name)) {
+        std::cerr << "There is already a plugin " << name << "...skipping\n";
+        return;
     }
-};
+    auto d = std::make_shared<PluginDir>(this, p);
+    add_dir(p->value(), mk_dir_entry(d));
+}
+
+void PluginsDir::loader_add(loader_info_ptr p)
+{
+    auto lock(cor::wlock(*this));
+    trace() << "Loader " << p->value() << std::endl;
+    loader_register(p);
+}
+
+void PluginsDir::loader_rm(loader_info_ptr p)
+{
+    auto lock(cor::wlock(*this));
+    if (p)
+        LoadersStorage::loader_rm(p->value());
+}
+
+std::shared_ptr<LoaderProxy> PluginsDir::loader_get(std::string const& name)
+{
+    auto lock(cor::wlock(*this));
+    return LoadersStorage::loader_get(name);
+}
 
 
 class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
