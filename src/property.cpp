@@ -91,10 +91,9 @@ PropertyStatus DiscreteProperty::update(std::string const &v)
         return PropertyUnchanged;
 
     v_ = v;
-    auto slot = slot_;
-    lock.unlock();
-    if (slot)
+    if (slot_)
         slot_->on_changed(slot_, parent_);
+    lock.unlock();
 
     return PropertyUpdated;
 }

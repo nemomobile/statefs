@@ -14,6 +14,7 @@
 #include <metafuse.hpp>
 #include <cor/mt.hpp>
 #include <cor/so.hpp>
+#include <cor/util.hpp>
 #include "config.hpp"
 
 #include <boost/algorithm/string/join.hpp>
@@ -371,6 +372,7 @@ protected:
     std::unique_ptr<Property> prop_;
 };
 
+class PluginNsDir;
 
 class DiscretePropFile : public statefs_slot, public ContinuousPropFile
 {
@@ -384,69 +386,24 @@ class DiscretePropFile : public statefs_slot, public ContinuousPropFile
     }
 
 public:
-    DiscretePropFile(std::unique_ptr<Property> &prop, int mode)
-        : ContinuousPropFile(prop, mode)
-    {
-        on_changed = &DiscretePropFile::slot_on_changed;
-    }
+    DiscretePropFile(PluginNsDir *, std::unique_ptr<Property> &, int);
+    virtual ~DiscretePropFile();
 
-    virtual ~DiscretePropFile()
-    {
-        if (!handles_.empty()) {
-            trace() << "DiscretePropFile " << prop_->name()
-                    << " was not released?\n";
-            prop_->disconnect();
-        }
-    }
+	int poll(struct fuse_file_info &, poll_handle_type &, unsigned *);
+    int open(struct fuse_file_info &);
+    int release(struct fuse_file_info &fi);
+    void notify();
 
     int getattr(struct stat *buf)
     {
         return ContinuousPropFile::base_type::getattr(buf);
     }
 
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
-    {
-        auto p = reinterpret_cast<handle_type*>(fi.fh);
-        if (p->is_changed() && reventsp)
-            *reventsp |= POLLIN;
-
-        p->poll(ph);
-        return 0;
-    }
-
-    int open(struct fuse_file_info &fi)
-    {
-        if (handles_.empty())
-            prop_->connect(this);
-
-        return ContinuousPropFile::open(fi);
-    }
-
-    int release(struct fuse_file_info &fi)
-    {
-        int rc = ContinuousPropFile::release(fi);
-        if (handles_.empty())
-            prop_->disconnect();
-
-        return rc;
-    }
-
-    void notify()
-    {
-        // call is originated from provider, so acquire lock
-        auto l(cor::wlock(*this));
-        update_time(modification_time_bit | change_time_bit | access_time_bit);
-        if (!handles_.size())
-            return;
-        std::list<handle_ptr> snapshot;
-        for (auto h : handles_)
-            snapshot.push_back(h.second);
-        l.unlock();
-        for (auto h : snapshot)
-            h->notify(*this);
-    }
+private:
+    PluginNsDir *parent_;
+    cor::Completion notify_counter_;
 };
+
 
 template <typename LoadT, typename ... Args>
 std::unique_ptr<PluginLoadFile<LoadT> > mk_loader(LoadT loader, Args&& ... args)
@@ -469,6 +426,8 @@ public:
     void load(std::shared_ptr<ProviderBridge> prov);
     void load_fake();
 
+    bool enqueue(std::packaged_task<void()>);
+
 private:
 
     void add_prop_file(std::shared_ptr<config::Property> const &prop
@@ -485,7 +444,7 @@ class PluginStorage
 {
 protected:
     std::shared_ptr<ProviderBridge> provider_;
-    TaskQueue task_queue_;
+    cor::TaskQueue task_queue_;
 };
 
 class PluginsDir;
@@ -503,6 +462,11 @@ public:
     bool enqueue(std::packaged_task<void()> task)
     {
         return task_queue_.enqueue(std::move(task));
+    }
+
+    void stop()
+    {
+        task_queue_.stop();
     }
 
 private:
@@ -524,6 +488,74 @@ private:
     info_ptr info_;
     PluginsDir *parent_;
 };
+
+DiscretePropFile::DiscretePropFile
+(PluginNsDir *parent, std::unique_ptr<Property> &prop, int mode)
+    : ContinuousPropFile(prop, mode)
+    , parent_(parent)
+{
+    on_changed = &DiscretePropFile::slot_on_changed;
+}
+
+DiscretePropFile::~DiscretePropFile()
+{
+    if (!handles_.empty()) {
+        trace() << "DiscretePropFile " << prop_->name()
+                << " was not released?\n";
+        prop_->disconnect();
+    }
+}
+
+int DiscretePropFile::poll(struct fuse_file_info &fi,
+                           poll_handle_type &ph, unsigned *reventsp)
+{
+    auto p = reinterpret_cast<handle_type*>(fi.fh);
+    if (p->is_changed() && reventsp)
+        *reventsp |= POLLIN;
+
+    p->poll(ph);
+    return 0;
+}
+
+int DiscretePropFile::open(struct fuse_file_info &fi)
+{
+    if (handles_.empty())
+        prop_->connect(this);
+
+    return ContinuousPropFile::open(fi);
+}
+
+int DiscretePropFile::release(struct fuse_file_info &fi)
+{
+    int rc = ContinuousPropFile::release(fi);
+    if (handles_.empty())
+        prop_->disconnect();
+
+    return rc;
+}
+
+void DiscretePropFile::notify()
+{
+    auto fn = [this]() {
+        // CALL is originated from provider, so acquire lock
+        auto l(cor::wlock(*this));
+        update_time(modification_time_bit | change_time_bit | access_time_bit);
+        if (handles_.empty())
+            return;
+        std::list<handle_ptr> snapshot;
+        for (auto h : handles_)
+            snapshot.push_back(h.second);
+        l.unlock();
+        for (auto h : snapshot)
+            h->notify(*this);
+
+        notify_counter_.down();
+    };
+    notify_counter_.up();
+    parent_->enqueue(std::packaged_task<void()>{fn});
+}
+
+
 PluginNsDir::PluginNsDir
 (PluginDir *parent, info_ptr info, std::function<void()> const& plugin_load)
     : parent_(parent)
@@ -532,6 +564,12 @@ PluginNsDir::PluginNsDir
     for (auto prop : info->props_)
         add_prop_file(prop, plugin_load);
 }
+
+bool PluginNsDir::enqueue(std::packaged_task<void()> task)
+{
+    return parent_->enqueue(std::move(task));
+}
+
 
 void PluginNsDir::add_prop_file
 (std::shared_ptr<config::Property> const &prop
@@ -567,7 +605,7 @@ void PluginNsDir::load(std::shared_ptr<ProviderBridge> prov)
         } else {
             if (prop->is_discrete())
                 add_file(name, mk_file_entry
-                         (make_unique<DiscretePropFile>(prop, prop->mode())));
+                         (make_unique<DiscretePropFile>(this, prop, prop->mode())));
             else
                 add_file(name, mk_file_entry
                          (make_unique<ContinuousPropFile>(prop, prop->mode())));
@@ -606,6 +644,7 @@ public:
         auto d = std::make_shared<PluginDir>(this, p);
         add_dir(p->value(), mk_dir_entry(d));
     }
+    void stop();
 
     void loader_add(loader_info_ptr p)
     {
@@ -620,6 +659,11 @@ public:
         if (p)
             LoadersStorage::loader_rm(p->value());
     }
+void PluginsDir::stop()
+{
+    for (auto e: dirs)
+        dir_entry_impl<PluginDir>(e.second)->stop();
+}
 
     std::shared_ptr<LoaderProxy> loader_get(std::string const& name)
     {
@@ -740,6 +784,11 @@ public:
         add_dir("namespaces", mk_dir_entry(namespaces));
     }
 
+    void stop()
+    {
+        plugins->stop();
+    }
+
     void init(std::string const &cfg_dir)
     {
         cfg_dir_ = cfg_dir;
@@ -851,6 +900,12 @@ struct Root {
     }
 
     impl_ptr get();
+
+    void stop()
+    {
+        auto entry = impl->impl();
+        dir_entry_impl<RootDir>(entry)->stop();
+    }
 
     impl_ptr instance()
     {
