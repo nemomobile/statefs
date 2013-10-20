@@ -1,3 +1,16 @@
+/**
+ * @file property.cpp
+ * @brief Simple implementation of statefs-pp properties
+ *
+ * This implementation supports analog (continious) and discrete
+ * properties. Discrete property is updated from final implementation
+ * through setter function, analog property requires from
+ * implementation to implement PropertySource interface
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
+
 #include <statefs/property.hpp>
 #include <errno.h>
 

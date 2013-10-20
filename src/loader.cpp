@@ -1,3 +1,14 @@
+/**
+ * @file loader.cpp
+ * @brief Default statefs loader
+ *
+ * Default loader can load any statefs provider supporting statefs
+ * provider API if this provider can be run/started from fuse thread
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
+
 #include <statefs/loader.hpp>
 #include <statefs/util.h>
 #include <cor/so.hpp>

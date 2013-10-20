@@ -1,3 +1,10 @@
+/**
+ * @file server.cpp
+ * @brief Statefs server implementation
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
+
 #include "statefs.hpp"
 
 #include <statefs/provider.h>
@@ -829,8 +836,32 @@ public:
     }
 };
 
-typedef metafuse::FuseFs<RootDirEntry> fuse_root_type;
-static std::unique_ptr<fuse_root_type> fuse_root;
+
+struct Root {
+
+    typedef metafuse::FuseFs<RootDirEntry> impl_type;
+    typedef metafuse::FuseFs<RootDirEntry> & impl_ref;
+    typedef metafuse::FuseFs<RootDirEntry> * impl_ptr;
+
+    void release()
+    {
+        // can be release from signal handler
+        std::lock_guard<std::mutex> lock(release_mutex_);
+        impl.reset();
+    }
+
+    impl_ptr get();
+
+    impl_ptr instance()
+    {
+        return impl.get();
+    }
+
+    std::mutex release_mutex_;
+    std::unique_ptr<impl_type> impl;
+};
+
+static Root statefs_root;
 
 }} // namespace
 
@@ -840,17 +871,17 @@ namespace metafuse {
 // metafuse leaves implementation for FuseFs.instance() and
 // FuseFs.release() to be done by fs implementation
 
-using statefs::server::fuse_root_type;
-using statefs::server::fuse_root;
+using statefs::server::Root;
+using statefs::server::statefs_root;
 
-template<> fuse_root_type& fuse_root_type::instance()
+template<> Root::impl_ptr Root::impl_type::instance()
 {
-    return *fuse_root;
+    return statefs_root.instance();
 }
 
-template<> void fuse_root_type::release()
+template<> void Root::impl_type::release()
 {
-    fuse_root.reset();
+    statefs_root.release();
 }
 
 } // metafuse
@@ -865,15 +896,168 @@ enum statefs_cmd {
     statefs_cmd_unregister
 };
 
+
+class FuseMain
+{
+public:
+
+    /*
+      Code in this class mostly was copy/pasted from fuse code. It has
+      statefs cleanup hook to avoid access to fuse when server got
+      signal: it results in unpredictable consequences like segfault
+      etc.
+
+      FUSE: Filesystem in Userspace
+      Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+      This program can be distributed under the terms of the GNU LGPLv2.
+      See the file COPYING.LIB
+    */
+
+    static struct fuse_session *fuse_instance;
+
+    static void exit_handler(int sig)
+    {
+        (void) sig;
+        if (fuse_instance) {
+            // TODO race condition probability still exists: deleted
+            // implementation object can be accessed from fuse
+            // operation. To avoid it statefs root dir operation
+            // should be invoked to release fuse_session and stop
+            // fuse. This ops are thread-safe
+            statefs_root.release();
+            fuse_session_exit(fuse_instance);
+        }
+    }
+
+    static int set_one_signal_handler(int sig, void (*handler)(int))
+    {
+        struct sigaction sa;
+        struct sigaction old_sa;
+
+        memset(&sa, 0, sizeof(struct sigaction));
+        sa.sa_handler = handler;
+        sigemptyset(&(sa.sa_mask));
+        sa.sa_flags = 0;
+
+        if (sigaction(sig, NULL, &old_sa) == -1) {
+            perror("fuse: cannot get old signal handler");
+            return -1;
+        }
+
+        if (old_sa.sa_handler == SIG_DFL &&
+            sigaction(sig, &sa, NULL) == -1) {
+            perror("fuse: cannot set signal handler");
+            return -1;
+        }
+        return 0;
+    }
+
+    static int set_signal_handlers(struct fuse_session *se)
+    {
+        if (set_one_signal_handler(SIGHUP, exit_handler) == -1 ||
+            set_one_signal_handler(SIGINT, exit_handler) == -1 ||
+            set_one_signal_handler(SIGTERM, exit_handler) == -1 ||
+            set_one_signal_handler(SIGPIPE, SIG_IGN) == -1)
+            return -1;
+
+        fuse_instance = se;
+        return 0;
+    }
+
+
+    static struct fuse *statefs_setup_common
+    (int argc, char *argv[], ::fuse_operations const *op, size_t op_size
+     , char **mountpoint, int *multithreaded, int *fd, void *user_data)
+    {
+        ::fuse_args args = FUSE_ARGS_INIT(argc, argv);
+        ::fuse_chan *ch;
+        ::fuse *fuse;
+        int foreground;
+        int res;
+
+        res = ::fuse_parse_cmdline(&args, mountpoint, multithreaded, &foreground);
+        if (res == -1)
+            return NULL;
+
+        ch = ::fuse_mount(*mountpoint, &args);
+        if (!ch) {
+            ::fuse_opt_free_args(&args);
+            goto err_free;
+        }
+
+        fuse = ::fuse_new(ch, &args, op, op_size, user_data);
+        ::fuse_opt_free_args(&args);
+        if (fuse == NULL)
+            goto err_unmount;
+
+        res = ::fuse_daemonize(foreground);
+        if (res == -1)
+            goto err_unmount;
+
+        res = set_signal_handlers(fuse_get_session(fuse));
+        if (res == -1)
+            goto err_unmount;
+
+        if (fd)
+            *fd = ::fuse_chan_fd(ch);
+
+        return fuse;
+
+    err_unmount:
+        ::fuse_unmount(*mountpoint, ch);
+        if (fuse)
+            ::fuse_destroy(fuse);
+    err_free:
+        free(*mountpoint);
+        return NULL;
+    }
+
+    static int statefs_main_common(int argc, char *argv[],
+                                   const struct fuse_operations *op, size_t op_size,
+                                   void *user_data)
+    {
+        struct fuse *fuse;
+        char *mountpoint;
+        int multithreaded;
+        int res;
+
+        fuse = statefs_setup_common(argc, argv, op, op_size, &mountpoint,
+                                    &multithreaded, NULL, user_data);
+        if (fuse == NULL)
+            return 1;
+
+        if (multithreaded)
+            res = fuse_loop_mt(fuse);
+        else
+            res = fuse_loop(fuse);
+
+        statefs_root.release();
+        fuse_teardown(fuse, mountpoint);
+        if (res == -1)
+            return 1;
+
+        return 0;
+    }
+
+};
+
+::fuse_session *FuseMain::fuse_instance = nullptr;
+
+//using metafuse::statefs_root_type;
+
+Root::impl_ptr Root::get()
+{
+    if (!impl) {
+        impl = make_unique<impl_type>();
+        impl->main_ = FuseMain::statefs_main_common;
+    }
+    return instance();
 }
 
-
-static fuse_root_type & fuse()
+static Root::impl_ptr fuse()
 {
-    if (!fuse_root)
-        fuse_root = make_unique<fuse_root_type>();
-    static auto &fuse = fuse_root_type::instance();
-    return fuse;
+    return statefs_root.get();
 }
 
 
@@ -932,10 +1116,10 @@ public:
     }
 
     ~Server() {
-        fuse_root.reset(nullptr);
+        statefs_root.release();
     }
 
-    int operator()()
+    int execute()
     {
         statefs_cmd cmd = statefs_cmd_run;
         int rc = 0;
@@ -1055,7 +1239,8 @@ private:
 
     int fuse_run()
     {
-        return fuse().main(params.size(), &params[0], true);
+        auto root = fuse();
+        return root ? root->main(params.size(), &params[0], true) : -EPERM;
     }
 
     int main()
@@ -1068,8 +1253,13 @@ private:
         if (p != opts.end())
             ::setgid(::atoi(p->second.c_str()));
 
-        fuse().impl().init(cfg_dir);
-        int rc = fuse_run();
+
+        auto root = fuse();
+        int rc = -EPERM;
+        if (root) {
+            root->impl()->init(cfg_dir);
+            rc = fuse_run();
+        }
         return rc;
     }
 
@@ -1106,7 +1296,7 @@ int main(int argc, char *argv[])
     int rc = -1;
     try {
         server = cor::make_unique<Server>(argc, argv);
-        rc = (*server)();
+        rc = server->execute();
     } catch (std::exception const &e) {
         std::cerr << "exception: " << e.what() << std::endl;
     }

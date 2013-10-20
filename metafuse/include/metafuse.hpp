@@ -1,5 +1,12 @@
 #ifndef _METAFUSE_HPP_
 #define _METAFUSE_HPP_
+/**
+ * @file metafuse.hpp
+ * @brief Overcomplicated fuse C++ library
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
 
 #include <cor/trace.hpp>
 #include <metafuse/common.hpp>

@@ -1,5 +1,12 @@
 #ifndef _STATEFS_PRIVATE_CONFIG_HPP_
 #define _STATEFS_PRIVATE_CONFIG_HPP_
+/**
+ * @file config.hpp
+ * @brief Statefs configuration access, private header
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
 
 #include <statefs/config.hpp>
 

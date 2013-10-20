@@ -1,5 +1,12 @@
 #ifndef _STATEFS_PROPERTY_HPP_
 #define _STATEFS_PROPERTY_HPP_
+/**
+ * @file property.cpp
+ * @brief Simple implementation of statefs-pp properties
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
 
 #include <statefs/provider.hpp>
 
