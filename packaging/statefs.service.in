@@ -7,7 +7,7 @@ Requires=dbus.socket
 
 [Service]
 ExecStartPre=@prefix@/bin/statefs-prerun
-ExecStart=@prefix@/bin/statefs ${XDG_RUNTIME_DIR}/state -f
+ExecStart=@prefix@/bin/statefs ${XDG_RUNTIME_DIR}/state -f -o allow_other
 Restart=always
 RestartSec=1
 

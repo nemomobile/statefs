@@ -16,6 +16,7 @@ BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
 BuildRequires: pkgconfig(cor) >= %{cor_version}
 BuildRequires: systemd
+Requires: fuse >= 2.9.0-1.4
 %{?_with_usersession:Requires: systemd-user-session-targets}
 %description
 StateFS is the syntetic filesystem to expose current system state
