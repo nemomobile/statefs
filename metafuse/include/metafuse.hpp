@@ -266,7 +266,7 @@ public:
         auto ph = poll_;
         l.unlock();
         if (ph)
-            fuse_notify_poll(poll_.get());
+            fuse_notify_poll(ph.get());
     }
 
     void poll(poll_handle_type &ph)
