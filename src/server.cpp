@@ -24,6 +24,7 @@
 #include <exception>
 #include <unordered_map>
 #include <set>
+#include <atomic>
 #include <fstream>
 #include <signal.h>
 
@@ -405,7 +406,7 @@ public:
 
 private:
     PluginNsDir *parent_;
-    cor::Completion notify_counter_;
+    std::atomic_flag is_notify_;
 };
 
 
@@ -497,6 +498,7 @@ DiscretePropFile::DiscretePropFile
 (PluginNsDir *parent, std::unique_ptr<Property> &prop, int mode)
     : ContinuousPropFile(prop, mode)
     , parent_(parent)
+    , is_notify_(ATOMIC_FLAG_INIT)
 {
     on_changed = &DiscretePropFile::slot_on_changed;
 }
@@ -553,10 +555,10 @@ void DiscretePropFile::notify()
         for (auto h : snapshot)
             h->notify(*this);
 
-        notify_counter_.down();
+        is_notify_.clear();
     };
-    notify_counter_.up();
-    parent_->enqueue(std::packaged_task<void()>{fn});
+    if (is_notify_.test_and_set())
+        parent_->enqueue(std::packaged_task<void()>{fn});
 }
 
 
