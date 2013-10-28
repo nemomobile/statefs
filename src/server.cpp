@@ -312,7 +312,7 @@ public:
     typedef DefaultFile<ContinuousPropFile, StateFsHandle,
                         cor::Mutex> base_type;
 
-    ContinuousPropFile(std::unique_ptr<Property> &prop, int mode)
+    ContinuousPropFile(std::unique_ptr<Property> prop, int mode)
         : base_type(mode), prop_(std::move(prop))
     {}
 
@@ -391,7 +391,7 @@ class DiscretePropFile : public statefs_slot, public ContinuousPropFile
     }
 
 public:
-    DiscretePropFile(PluginNsDir *, std::unique_ptr<Property> &, int);
+    DiscretePropFile(PluginNsDir *, std::unique_ptr<Property>, int);
     virtual ~DiscretePropFile();
 
 	int poll(struct fuse_file_info &, poll_handle_type &, unsigned *);
@@ -435,8 +435,9 @@ public:
 
 private:
 
-    void add_prop_file(std::shared_ptr<config::Property> const &prop
+    void add_loader_file(std::shared_ptr<config::Property> const &
                        , std::function<void()> const& plugin_load);
+    void add_prop_file(std::unique_ptr<Property>);
 
     PluginDir *parent_;
     info_ptr info_;
@@ -495,8 +496,8 @@ private:
 };
 
 DiscretePropFile::DiscretePropFile
-(PluginNsDir *parent, std::unique_ptr<Property> &prop, int mode)
-    : ContinuousPropFile(prop, mode)
+(PluginNsDir *parent, std::unique_ptr<Property> prop, int mode)
+    : ContinuousPropFile(std::move(prop), mode)
     , parent_(parent)
     , is_notify_(ATOMIC_FLAG_INIT)
 {
@@ -568,7 +569,7 @@ PluginNsDir::PluginNsDir
     , info_(info)
 {
     for (auto prop : info->props_)
-        add_prop_file(prop, plugin_load);
+        add_loader_file(prop, plugin_load);
 }
 
 bool PluginNsDir::enqueue(std::packaged_task<void()> task)
@@ -577,7 +578,7 @@ bool PluginNsDir::enqueue(std::packaged_task<void()> task)
 }
 
 
-void PluginNsDir::add_prop_file
+void PluginNsDir::add_loader_file
 (std::shared_ptr<config::Property> const &prop
  , std::function<void()> const& plugin_load)
 {
@@ -594,6 +595,20 @@ void PluginNsDir::add_prop_file
     add_file(name, mk_file_entry(mk_loader(load_get, prop->mode(), 1024)));
 }
 
+void PluginNsDir::add_prop_file(std::unique_ptr<Property> prop)
+{
+    std::string name = prop->name();
+    auto mode = prop->mode();
+    if (prop->is_discrete()) {
+        auto file = make_unique<DiscretePropFile>
+            (this, std::move(prop), mode);
+        add_file(name, mk_file_entry(std::move(file)));
+    } else {
+        auto file = make_unique<ContinuousPropFile>(std::move(prop), mode);
+        add_file(name, mk_file_entry(std::move(file)));
+    }
+}
+
 void PluginNsDir::load(std::shared_ptr<ProviderBridge> prov)
 {
     auto lock(cor::wlock(*this));
@@ -603,18 +618,13 @@ void PluginNsDir::load(std::shared_ptr<ProviderBridge> prov)
     for (auto cfg : info_->props_) {
         std::string name = cfg->value();
         auto prop = make_unique<Property>(prov->io(), ns->property(name));
-        if (!prop->exists()) {
+        if (prop->exists()) {
+            add_prop_file(std::move(prop));
+        } else {
             std::cerr << "PROPERTY " << name << " is absent\n";
             add_file(name, mk_file_entry
                      (make_unique<BasicTextFile<> >
                       (cfg->defval(), cfg->mode())));
-        } else {
-            if (prop->is_discrete())
-                add_file(name, mk_file_entry
-                         (make_unique<DiscretePropFile>(this, prop, prop->mode())));
-            else
-                add_file(name, mk_file_entry
-                         (make_unique<ContinuousPropFile>(prop, prop->mode())));
         }
     }
     ns_ = std::move(ns);
