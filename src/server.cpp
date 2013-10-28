@@ -302,27 +302,48 @@ private:
 
 class StateFsHandle : public FileHandle {
 public:
+    StateFsHandle() : h_(0) {}
+    void set(intptr_t h)
+    {
+        h_ = h;
+    }
+    intptr_t get() const
+    {
+        return h_;
+    }
+private:
     intptr_t h_;
 };
 
-class ContinuousPropFile :
-    public DefaultFile<ContinuousPropFile, StateFsHandle, cor::Mutex>
+struct PropertyStorage
+{
+    PropertyStorage(std::unique_ptr<Property> from)
+        : prop_(std::move(from))
+    {}
+
+    std::unique_ptr<Property> prop_;
+};
+
+class ContinuousPropFile
+    : protected PropertyStorage
+    , public DefaultFile<ContinuousPropFile, StateFsHandle, cor::Mutex>
 {
 public:
     typedef DefaultFile<ContinuousPropFile, StateFsHandle,
                         cor::Mutex> base_type;
 
     ContinuousPropFile(std::unique_ptr<Property> prop, int mode)
-        : base_type(mode), prop_(std::move(prop))
+        : PropertyStorage(std::move(prop))
+        , base_type(mode)
     {}
 
     int open(struct fuse_file_info &fi)
     {
         int rc = base_type::open(fi);
         if (rc >= 0) {
-            intptr_t h = prop_->open(fi.flags);
+            auto h = prop_->open(fi.flags);
             if (h)
-                handles_[fi.fh]->h_ = h;
+                handles_[fi.fh]->set(h);
             else
                 rc = -1;
         }
@@ -331,20 +352,20 @@ public:
 
     int release(struct fuse_file_info &fi)
     {
-        prop_->close(handle(fi));
+        prop_->close(provider_handle(fi));
         return base_type::release(fi);
     }
 
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
     {
-        return prop_->read(handle(fi), buf, size, offset);
+        return prop_->read(provider_handle(fi), buf, size, offset);
     }
 
     int write(const char* src, size_t size,
               off_t offset, struct fuse_file_info &fi)
     {
-        return prop_->write(handle(fi), src, size, offset);
+        return prop_->write(provider_handle(fi), src, size, offset);
     }
 
     size_t size() const
@@ -368,13 +389,21 @@ public:
 
 protected:
 
-    intptr_t handle(struct fuse_file_info &fi) const
+    handle_type const* handle(struct fuse_file_info &fi) const
     {
-        auto p = reinterpret_cast<StateFsHandle const*>(fi.fh);
-        return p->h_;
+        return reinterpret_cast<handle_type const*>(fi.fh);
     }
 
-    std::unique_ptr<Property> prop_;
+    handle_type* handle(struct fuse_file_info &fi)
+    {
+        return reinterpret_cast<handle_type*>(fi.fh);
+    }
+
+    intptr_t provider_handle(struct fuse_file_info &fi) const
+    {
+        auto h = handle(fi);
+        return h ? h->get() : 0;
+    }
 };
 
 class PluginNsDir;
@@ -507,6 +536,9 @@ DiscretePropFile::DiscretePropFile
 
 DiscretePropFile::~DiscretePropFile()
 {
+    // called not from fuse thread, so should be explicitely protected
+    // by lock
+    auto l(cor::wlock(*this));
     if (!handles_.empty()) {
         trace() << "DiscretePropFile " << prop_->name()
                 << " was not released?\n";
@@ -518,9 +550,16 @@ DiscretePropFile::~DiscretePropFile()
 int DiscretePropFile::poll(struct fuse_file_info &fi,
                            poll_handle_type &ph, unsigned *reventsp)
 {
-    auto p = reinterpret_cast<handle_type*>(fi.fh);
-    if (p->is_changed() && reventsp)
+    auto p = handle(fi);
+    if (!p) {
+        std::cerr << "poll: invalid handle, name=" << prop_->name()
+                  << std::endl;
+        return -EINVAL;
+    }
+
+    if (p->is_changed() && reventsp) {
         *reventsp |= POLLIN;
+    }
 
     p->poll(ph);
     return 0;
@@ -553,7 +592,7 @@ void DiscretePropFile::notify()
         if (handles_.empty())
             return;
         std::list<handle_ptr> snapshot;
-        for (auto h : handles_)
+        for (auto const &h : handles_)
             snapshot.push_back(h.second);
         l.unlock();
         for (auto h : snapshot)
