@@ -379,14 +379,14 @@ protected:
 
 class PluginNsDir;
 
-class DiscretePropFile : public statefs_slot, public ContinuousPropFile
+class DiscretePropFile : public ContinuousPropFile
 {
 
     /// used as a bridge between C callback and C++ object
     static void slot_on_changed
     (struct statefs_slot *slot, struct statefs_property *)
     {
-        auto self = static_cast<DiscretePropFile*>(slot);
+        auto self = cor::member_container(slot, &DiscretePropFile::slot_);
         self->notify();
     }
 
@@ -407,6 +407,7 @@ public:
 private:
     PluginNsDir *parent_;
     std::atomic_flag is_notify_;
+    statefs_slot slot_;
 };
 
 
@@ -500,8 +501,8 @@ DiscretePropFile::DiscretePropFile
     : ContinuousPropFile(std::move(prop), mode)
     , parent_(parent)
     , is_notify_(ATOMIC_FLAG_INIT)
+    , slot_({&DiscretePropFile::slot_on_changed})
 {
-    on_changed = &DiscretePropFile::slot_on_changed;
 }
 
 DiscretePropFile::~DiscretePropFile()
@@ -511,6 +512,7 @@ DiscretePropFile::~DiscretePropFile()
                 << " was not released?\n";
         prop_->disconnect();
     }
+    slot_.on_changed = nullptr;
 }
 
 int DiscretePropFile::poll(struct fuse_file_info &fi,
@@ -526,8 +528,9 @@ int DiscretePropFile::poll(struct fuse_file_info &fi,
 
 int DiscretePropFile::open(struct fuse_file_info &fi)
 {
-    if (handles_.empty())
-        prop_->connect(this);
+    if (handles_.empty()) {
+        prop_->connect(&slot_);
+    }
 
     return ContinuousPropFile::open(fi);
 }
