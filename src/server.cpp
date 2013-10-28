@@ -556,10 +556,11 @@ void DiscretePropFile::notify()
         for (auto h : snapshot)
             h->notify(*this);
 
-        is_notify_.clear();
+        is_notify_.clear(std::memory_order_release);
     };
-    if (is_notify_.test_and_set())
+    if (!is_notify_.test_and_set(std::memory_order_acquire)) {
         parent_->enqueue(std::packaged_task<void()>{fn});
+    }
 }
 
 
