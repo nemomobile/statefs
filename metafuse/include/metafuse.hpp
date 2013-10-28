@@ -362,7 +362,7 @@ public:
     int open(struct fuse_file_info &fi)
     {
         handle_ptr h(new handle_type());
-        fi.fh = reinterpret_cast<uint64_t>(h.get());
+        fi.fh = reinterpret_cast<decltype(fi.fh)>(h.get());
         handles_[fi.fh] = h;
         return 0;
     }
