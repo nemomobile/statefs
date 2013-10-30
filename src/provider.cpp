@@ -1,3 +1,11 @@
+/**
+ * @file provider.cpp
+ * @brief C++ wrapper for statefs provider API
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
+
 #include <statefs/provider.hpp>
 #include <statefs/util.h>
 #include <cor/util.hpp>

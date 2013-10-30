@@ -1,5 +1,12 @@
 #ifndef _STATEFS_UTIL_H_
 #define _STATEFS_UTIL_H_
+/**
+ * @file util.h
+ * @brief Statefs C API helper functions and macros
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
 
 #include <statefs/provider.h>
 
@@ -29,6 +36,19 @@ static inline void statefs_provider_release(struct statefs_provider *p)
 {
     if (p)
         statefs_ns_release(&p->root);
+}
+
+static inline struct statefs_namespace *
+statefs_node2namespace(struct statefs_node *from)
+{
+    return container_of(from, struct statefs_namespace, node);
+}
+
+static inline struct statefs_provider *
+statefs_node2provider(struct statefs_node *from)
+{
+    return container_of(statefs_node2namespace(from)
+                        , struct statefs_provider, root);
 }
 
 static inline intptr_t statefs_first(struct statefs_branch const* self)

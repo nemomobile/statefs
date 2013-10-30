@@ -1,1 +1,3 @@
 statefs
+libstatefs*.so*
+*.pc

@@ -108,7 +108,7 @@ install -D -p -m644 packaging/macros.statefs %{buildroot}%{_sysconfdir}/rpm/
 
 %{buildroot}%{_libdir}/statefs/install-provider default examples %{_libdir}/statefs/libexample_power.so
 %{buildroot}%{_libdir}/statefs/install-provider default examples %{_libdir}/statefs/libexample_statefspp.so
-
+%{buildroot}%{_libdir}/statefs/install-provider default examples %{_libdir}/statefs/libprovider_basic_example.so
 
 %clean
 rm -rf %{buildroot}

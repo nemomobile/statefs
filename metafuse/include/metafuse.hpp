@@ -1,7 +1,15 @@
 #ifndef _METAFUSE_HPP_
 #define _METAFUSE_HPP_
+/**
+ * @file metafuse.hpp
+ * @brief Overcomplicated fuse C++ library
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
 
 #include <cor/trace.hpp>
+#include <cor/error.hpp>
 #include <metafuse/common.hpp>
 #include <metafuse/entry.hpp>
 
@@ -10,6 +18,7 @@
 #include <sstream>
 #include <memory>
 #include <vector>
+#include <functional>
 #include <string.h>
 #include <unistd.h>
 #include <algorithm>
@@ -257,7 +266,7 @@ public:
         auto ph = poll_;
         l.unlock();
         if (ph)
-            fuse_notify_poll(poll_.get());
+            fuse_notify_poll(ph.get());
     }
 
     void poll(poll_handle_type &ph)
@@ -353,7 +362,7 @@ public:
     int open(struct fuse_file_info &fi)
     {
         handle_ptr h(new handle_type());
-        fi.fh = reinterpret_cast<uint64_t>(h.get());
+        fi.fh = reinterpret_cast<decltype(fi.fh)>(h.get());
         handles_[fi.fh] = h;
         return 0;
     }
@@ -594,7 +603,20 @@ public:
           files(file_f)
     {}
 
-    virtual ~DefaultDir() {}
+    virtual ~DefaultDir()
+    {
+        clear();
+    }
+
+    void clear()
+    {
+        auto l(cor::wlock(*this));
+        cor::error_trace_nothrow([this]() {
+                files.clear();
+                dirs.clear();
+                links.clear();
+            });
+    }
 
     entry_ptr acquire(std::string const &name)
     {
@@ -856,20 +878,25 @@ public:
             argv_vec.push_back("-o");
             argv_vec.push_back(_gid.c_str());
         }
-        return fuse_main(argv_vec.size(),
-                         const_cast<char**>(&argv_vec[0]),
-                         &ops, NULL);
+        auto args = const_cast<char**>(&argv_vec[0]);
+        int rc = main_(argv_vec.size(), args, &ops, sizeof(ops), nullptr);
+        release();
+        return rc;
     }
 
-    static FuseFs &instance();
+    static FuseFs *instance();
 
-    static RootT& impl()
+    static void release();
+
+    static RootT* impl()
     {
-        return instance().root_;
+        auto p = instance();
+        return p ? &(p->root_) : nullptr;
     }
 
 
     FuseFs()
+        : main_(fuse_main_real)
     {
         memset(&ops, 0, sizeof(ops));
         ops.getattr = FuseFs::getattr;
@@ -889,23 +916,28 @@ public:
         ops.access  = FuseFs::access;
         ops.poll = FuseFs::poll;
         ops.readlink = FuseFs::readlink;
+        ops.destroy = FuseFs::destroy;
     }
+
+    std::function<int (int, char *[], const struct fuse_operations *, size_t, void *)> main_;
 
 private:
 
     template <typename OpT, typename ... Args>
     static int invoke(const char* path, OpT op, Args&&... args)
     {
-        int res;
+        int res = -EPERM;
         try {
             trace() << "-" << caller_name() << "\n";
             trace() << "Op for: '" << path << "'\n";
-            res = std::mem_fn(op)(&impl(), mk_path(path)
-                                  , std::forward<Args>(args)...);
-            trace() << "Op res:" << res << std::endl;
+            auto p = impl();
+            if (p) {
+                res = std::mem_fn(op)
+                    (p, mk_path(path), std::forward<Args>(args)...);
+                trace() << "Op res:" << res << std::endl;
+            }
         } catch(std::exception const &e) {
-            std::cerr << "Caught exception: "
-                      << e.what() << std::endl;
+            std::cerr << "Caught: " << e.what() << std::endl;
             res = -ENOMEM;
         } catch(...) {
             std::cerr << "Caught unknown exception" << std::endl;
@@ -1004,6 +1036,13 @@ private:
         return invoke(path, &RootT::readlink, buf, size);
     }
 
+    static void destroy(void *p)
+    {
+        auto root = impl();
+        if (root)
+            root->destroy();
+    }
+
     void update_uid() {
         _uid = "uid=";
         std::ostringstream uid_stream;
@@ -1017,8 +1056,6 @@ private:
         gid_stream << ::getgid();
         _gid += gid_stream.str();
     }
-
-    static FuseFs self;
 
     RootT root_;
     fuse_operations ops;

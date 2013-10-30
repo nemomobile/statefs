@@ -1,5 +1,12 @@
 #ifndef _STATEFS_CONFIG_HPP_
 #define _STATEFS_CONFIG_HPP_
+/**
+ * @file config.hpp
+ * @brief Statefs configuration access
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
 
 #include <cor/sexp.hpp>
 #include <cor/notlisp.hpp>
@@ -7,8 +14,7 @@
 #include <boost/variant.hpp>
 #include <fstream>
 
-namespace config
-{
+namespace statefs { namespace config {
 
 static inline std::string cfg_extension()
 {
@@ -136,7 +142,7 @@ public:
 };
 
 
-}
+}} // namespaces
 
 
 #endif // _STATEFS_CONFIG_HPP_

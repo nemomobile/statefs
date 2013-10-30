@@ -1,3 +1,11 @@
+/**
+ * @file util.cpp
+ * @brief Internal utilities used by statefs server
+ *
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
+
 #include "statefs.hpp"
 #include <statefs/util.h>
 
@@ -22,35 +30,60 @@ bool ensure_dir_exists(std::string const &dir_name)
     return true;
 }
 
+namespace statefs {
+
+ns_handle_type mk_namespace_handle(statefs_namespace *ns)
+{
+    auto ns_release = [](statefs_namespace *p)
+        {
+            if (p)
+                statefs_node_release(&p->node);
+        };
+    return ns_handle_type(ns, ns_release);
+}
+
+property_handle_type mk_property_handle(statefs_property *p)
+{
+    auto release = [](statefs_property *p)
+        {
+            if (p)
+                statefs_node_release(&p->node);
+        };
+    return property_handle_type(p, release);
+}
+
+
+namespace server {
+
 using statefs::provider_ptr;
 
-Loader::Loader(std::string const& path)
+LoaderProxy::LoaderProxy(std::string const& path)
     : lib_(path, RTLD_LAZY)
     , impl_(std::move(create(lib_)))
 {
 }
 
-provider_ptr Loader::load(std::string const& path, statefs_server *server)
+provider_ptr LoaderProxy::load(std::string const& path, statefs_server *server)
 {
     return impl_ ? impl_->load(path, server) : nullptr;
 }
 
-std::string Loader::name() const
+std::string LoaderProxy::name() const
 {
     return impl_ ? impl_->name() : "";
 }
 
-bool Loader::is_reloadable() const
+bool LoaderProxy::is_reloadable() const
 {
     return impl_ ? impl_->is_reloadable() : true;
 }
 
-bool Loader::is_valid() const
+bool LoaderProxy::is_valid() const
 {
     return !!impl_;
 }
 
-Loader::impl_ptr Loader::create(cor::SharedLib &lib)
+LoaderProxy::impl_ptr LoaderProxy::create(cor::SharedLib &lib)
 {
     if (!lib.is_loaded()) {
         std::cerr << "Lib loading error " << ::dlerror() << std::endl;
@@ -77,26 +110,6 @@ Loader::impl_ptr Loader::create(cor::SharedLib &lib)
     return impl_ptr(loader);
 }
 
-ns_handle_type mk_namespace_handle(statefs_namespace *ns)
-{
-    auto ns_release = [](statefs_namespace *p)
-        {
-            if (p)
-                statefs_node_release(&p->node);
-        };
-    return ns_handle_type(ns, ns_release);
-}
-
-property_handle_type mk_property_handle(statefs_property *p)
-{
-    auto release = [](statefs_property *p)
-        {
-            if (p)
-                statefs_node_release(&p->node);
-        };
-    return property_handle_type(p, release);
-}
-
 bool LoadersStorage::loader_register(loader_info_ptr info)
 {
     auto name = info->value();
@@ -115,7 +128,7 @@ bool LoadersStorage::loader_register(loader_info_ptr info)
     return true;
 }
 
-std::shared_ptr<Loader> LoadersStorage::loader_get(std::string const& name)
+std::shared_ptr<LoaderProxy> LoadersStorage::loader_get(std::string const& name)
 {
     auto it = loaders_.find(name);
     if (it == loaders_.end()) {
@@ -124,7 +137,7 @@ std::shared_ptr<Loader> LoadersStorage::loader_get(std::string const& name)
             return nullptr;
 
         auto path = pinfo->second->path;
-        std::shared_ptr<Loader> loader(new Loader(path));
+        auto loader = std::make_shared<LoaderProxy>(path);
         auto added = loaders_.insert(std::make_pair(name, loader));
         return (added.first)->second;
     };
@@ -153,3 +166,5 @@ bool LoadersStorage::loader_rm(std::string const& name)
     }
     return false;
 }
+
+}}

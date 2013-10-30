@@ -1,3 +1,10 @@
+/**
+ * @file server.cpp
+ * @brief Statefs server implementation
+ * @author (C) 2012, 2013 Jolla Ltd. Denis Zalevskiy <denis.zalevskiy@jollamobile.com>
+ * @copyright LGPL 2.1 http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
+ */
+
 #include "statefs.hpp"
 
 #include <statefs/provider.h>
@@ -7,6 +14,7 @@
 #include <metafuse.hpp>
 #include <cor/mt.hpp>
 #include <cor/so.hpp>
+#include <cor/util.hpp>
 #include "config.hpp"
 
 #include <boost/algorithm/string/join.hpp>
@@ -16,21 +24,29 @@
 #include <exception>
 #include <unordered_map>
 #include <set>
+#include <atomic>
 #include <fstream>
+#include <signal.h>
+
+
+#include "fuse_lowlevel.h"
 
 #define STRINGIFY(x) #x
 #define DQUOTESTR(x) STRINGIFY(x)
 
 //static const char *statefs_version = DQUOTESTR(STATEFS_VERSION);
 
+
+namespace statefs { namespace server {
+
 using namespace metafuse;
 using statefs::provider_ptr;
-
+namespace config = statefs::config;
 
 class ProviderBridge : public statefs_server
 {
 public:
-    ProviderBridge(std::shared_ptr<Loader> loader, std::string const &path);
+    ProviderBridge(std::shared_ptr<LoaderProxy> loader, std::string const &path);
 
     ~ProviderBridge() {}
 
@@ -76,7 +92,7 @@ private:
     };
 
     // storing to be sure loader is unloaded only after provider
-    std::shared_ptr<Loader> loader_;
+    std::shared_ptr<LoaderProxy> loader_;
     provider_ptr provider_;
 };
 
@@ -201,7 +217,7 @@ void Property::disconnect()
         io_->disconnect(handle_.get());
 }
 
-ProviderBridge::ProviderBridge(std::shared_ptr<Loader> loader, std::string const &path)
+ProviderBridge::ProviderBridge(std::shared_ptr<LoaderProxy> loader, std::string const &path)
     : loader_(loader)
     , provider_(loader_
                 ? loader_->load(path, ProviderBridge::init_server(this))
@@ -286,27 +302,48 @@ private:
 
 class StateFsHandle : public FileHandle {
 public:
+    StateFsHandle() : h_(0) {}
+    void set(intptr_t h)
+    {
+        h_ = h;
+    }
+    intptr_t get() const
+    {
+        return h_;
+    }
+private:
     intptr_t h_;
 };
 
-class ContinuousPropFile :
-    public DefaultFile<ContinuousPropFile, StateFsHandle, cor::Mutex>
+struct PropertyStorage
+{
+    PropertyStorage(std::unique_ptr<Property> from)
+        : prop_(std::move(from))
+    {}
+
+    std::unique_ptr<Property> prop_;
+};
+
+class ContinuousPropFile
+    : protected PropertyStorage
+    , public DefaultFile<ContinuousPropFile, StateFsHandle, cor::Mutex>
 {
 public:
     typedef DefaultFile<ContinuousPropFile, StateFsHandle,
                         cor::Mutex> base_type;
 
-    ContinuousPropFile(std::unique_ptr<Property> &prop, int mode)
-        : base_type(mode), prop_(std::move(prop))
+    ContinuousPropFile(std::unique_ptr<Property> prop, int mode)
+        : PropertyStorage(std::move(prop))
+        , base_type(mode)
     {}
 
     int open(struct fuse_file_info &fi)
     {
         int rc = base_type::open(fi);
         if (rc >= 0) {
-            intptr_t h = prop_->open(fi.flags);
+            auto h = prop_->open(fi.flags);
             if (h)
-                handles_[fi.fh]->h_ = h;
+                handles_[fi.fh]->set(h);
             else
                 rc = -1;
         }
@@ -315,20 +352,20 @@ public:
 
     int release(struct fuse_file_info &fi)
     {
-        prop_->close(handle(fi));
+        prop_->close(provider_handle(fi));
         return base_type::release(fi);
     }
 
     int read(char* buf, size_t size,
              off_t offset, struct fuse_file_info &fi)
     {
-        return prop_->read(handle(fi), buf, size, offset);
+        return prop_->read(provider_handle(fi), buf, size, offset);
     }
 
     int write(const char* src, size_t size,
               off_t offset, struct fuse_file_info &fi)
     {
-        return prop_->write(handle(fi), src, size, offset);
+        return prop_->write(provider_handle(fi), src, size, offset);
     }
 
     size_t size() const
@@ -352,91 +389,56 @@ public:
 
 protected:
 
-    intptr_t handle(struct fuse_file_info &fi) const
+    handle_type const* handle(struct fuse_file_info &fi) const
     {
-        auto p = reinterpret_cast<StateFsHandle const*>(fi.fh);
-        return p->h_;
+        return reinterpret_cast<handle_type const*>(fi.fh);
     }
 
-    std::unique_ptr<Property> prop_;
+    handle_type* handle(struct fuse_file_info &fi)
+    {
+        return reinterpret_cast<handle_type*>(fi.fh);
+    }
+
+    intptr_t provider_handle(struct fuse_file_info &fi) const
+    {
+        auto h = handle(fi);
+        return h ? h->get() : 0;
+    }
 };
 
+class PluginNsDir;
 
-class DiscretePropFile : public statefs_slot, public ContinuousPropFile
+class DiscretePropFile : public ContinuousPropFile
 {
 
     /// used as a bridge between C callback and C++ object
     static void slot_on_changed
     (struct statefs_slot *slot, struct statefs_property *)
     {
-        auto self = static_cast<DiscretePropFile*>(slot);
+        auto self = cor::member_container(slot, &DiscretePropFile::slot_);
         self->notify();
     }
 
 public:
-    DiscretePropFile(std::unique_ptr<Property> &prop, int mode)
-        : ContinuousPropFile(prop, mode)
-    {
-        on_changed = &DiscretePropFile::slot_on_changed;
-    }
+    DiscretePropFile(PluginNsDir *, std::unique_ptr<Property>, int);
+    virtual ~DiscretePropFile();
 
-    virtual ~DiscretePropFile()
-    {
-        if (!handles_.empty()) {
-            trace() << "DiscretePropFile " << prop_->name()
-                    << " was not released?\n";
-            prop_->disconnect();
-        }
-    }
+	int poll(struct fuse_file_info &, poll_handle_type &, unsigned *);
+    int open(struct fuse_file_info &);
+    int release(struct fuse_file_info &fi);
+    void notify();
 
     int getattr(struct stat *buf)
     {
         return ContinuousPropFile::base_type::getattr(buf);
     }
 
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
-    {
-        auto p = reinterpret_cast<handle_type*>(fi.fh);
-        if (p->is_changed() && reventsp)
-            *reventsp |= POLLIN;
-
-        p->poll(ph);
-        return 0;
-    }
-
-    int open(struct fuse_file_info &fi)
-    {
-        if (handles_.empty())
-            prop_->connect(this);
-
-        return ContinuousPropFile::open(fi);
-    }
-
-    int release(struct fuse_file_info &fi)
-    {
-        int rc = ContinuousPropFile::release(fi);
-        if (handles_.empty())
-            prop_->disconnect();
-
-        return rc;
-    }
-
-    void notify()
-    {
-        // call is originated from provider, so acquire lock
-        auto l(cor::wlock(*this));
-        update_time(modification_time_bit | change_time_bit | access_time_bit);
-        if (!handles_.size())
-            return;
-        std::list<handle_ptr> snapshot;
-        for (auto h : handles_)
-            snapshot.push_back(h.second);
-        l.unlock();
-        for (auto h : snapshot)
-            h->notify(*this);
-    }
+private:
+    PluginNsDir *parent_;
+    std::atomic_flag is_notify_;
+    statefs_slot slot_;
 };
+
 
 template <typename LoadT, typename ... Args>
 std::unique_ptr<PluginLoadFile<LoadT> > mk_loader(LoadT loader, Args&& ... args)
@@ -445,6 +447,8 @@ std::unique_ptr<PluginLoadFile<LoadT> > mk_loader(LoadT loader, Args&& ... args)
         (loader, std::forward<Args>(args)...);
 }
 
+class PluginDir;
+
 class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
     typedef RODir<DirFactory, FileFactory, Mutex> base_type;
@@ -452,81 +456,23 @@ public:
 
     typedef std::shared_ptr<config::Namespace> info_ptr;
 
-    PluginNsDir(info_ptr info, std::function<void()> const& plugin_load);
+    PluginNsDir(PluginDir *, info_ptr, std::function<void()> const&);
 
     void load(std::shared_ptr<ProviderBridge> prov);
     void load_fake();
 
+    bool enqueue(std::packaged_task<void()>);
+
 private:
 
-    void add_prop_file(std::shared_ptr<config::Property> const &prop
+    void add_loader_file(std::shared_ptr<config::Property> const &
                        , std::function<void()> const& plugin_load);
+    void add_prop_file(std::unique_ptr<Property>);
 
+    PluginDir *parent_;
     info_ptr info_;
     std::unique_ptr<Namespace> ns_;
 };
-
-PluginNsDir::PluginNsDir
-(info_ptr info, std::function<void()> const& plugin_load)
-    : info_(info)
-{
-    for (auto prop : info->props_)
-        add_prop_file(prop, plugin_load);
-}
-
-void PluginNsDir::add_prop_file
-(std::shared_ptr<config::Property> const &prop
- , std::function<void()> const& plugin_load)
-{
-    std::string name = prop->value();
-    auto load_get = [this, name, plugin_load]() {
-        trace() << "Loading " << name << std::endl;
-        plugin_load();
-        return acquire(name);
-    };
-
-    // initially adding loader file - it accesses provider
-    // implementation only on first read/write access to the
-    // file itself. Default size is 1Kb
-    add_file(name, mk_file_entry(mk_loader(load_get, prop->mode(), 1024)));
-}
-
-void PluginNsDir::load(std::shared_ptr<ProviderBridge> prov)
-{
-    auto lock(cor::wlock(*this));
-    files.clear();
-    auto ns = make_unique<Namespace>(prov->ns(info_->value()));
-
-    for (auto cfg : info_->props_) {
-        std::string name = cfg->value();
-        auto prop = make_unique<Property>(prov->io(), ns->property(name));
-        if (!prop->exists()) {
-            std::cerr << "PROPERTY " << name << " is absent\n";
-            add_file(name, mk_file_entry
-                     (make_unique<BasicTextFile<> >
-                      (cfg->defval(), cfg->mode())));
-        } else {
-            if (prop->is_discrete())
-                add_file(name, mk_file_entry
-                         (make_unique<DiscretePropFile>(prop, prop->mode())));
-            else
-                add_file(name, mk_file_entry
-                         (make_unique<ContinuousPropFile>(prop, prop->mode())));
-        }
-    }
-    ns_ = std::move(ns);
-}
-
-void PluginNsDir::load_fake()
-{
-    auto lock(cor::wlock(*this));
-    files.clear();
-    for (auto prop : info_->props_) {
-        std::string name = prop->value();
-        add_file(name, mk_file_entry
-                 (make_unique<BasicTextFile<> >(prop->defval(), prop->mode())));
-    }
-}
 
 /// extracted into separate class from PluginDir to initialize later
 /// in the proper order
@@ -534,6 +480,7 @@ class PluginStorage
 {
 protected:
     std::shared_ptr<ProviderBridge> provider_;
+    cor::TaskQueue task_queue_;
 };
 
 class PluginsDir;
@@ -547,6 +494,16 @@ public:
 
     PluginDir(PluginsDir *parent, info_ptr info);
     void load();
+
+    bool enqueue(std::packaged_task<void()> task)
+    {
+        return task_queue_.enqueue(std::move(task));
+    }
+
+    void stop()
+    {
+        task_queue_.stop();
+    }
 
 private:
 
@@ -568,6 +525,165 @@ private:
     PluginsDir *parent_;
 };
 
+DiscretePropFile::DiscretePropFile
+(PluginNsDir *parent, std::unique_ptr<Property> prop, int mode)
+    : ContinuousPropFile(std::move(prop), mode)
+    , parent_(parent)
+    , is_notify_(ATOMIC_FLAG_INIT)
+    , slot_({&DiscretePropFile::slot_on_changed})
+{
+}
+
+DiscretePropFile::~DiscretePropFile()
+{
+    // called not from fuse thread, so should be explicitely protected
+    // by lock
+    auto l(cor::wlock(*this));
+    if (!handles_.empty()) {
+        trace() << "DiscretePropFile " << prop_->name()
+                << " was not released?\n";
+        prop_->disconnect();
+    }
+    slot_.on_changed = nullptr;
+}
+
+int DiscretePropFile::poll(struct fuse_file_info &fi,
+                           poll_handle_type &ph, unsigned *reventsp)
+{
+    auto p = handle(fi);
+    if (!p) {
+        std::cerr << "poll: invalid handle, name=" << prop_->name()
+                  << std::endl;
+        return -EINVAL;
+    }
+
+    if (p->is_changed() && reventsp) {
+        *reventsp |= POLLIN;
+    }
+
+    p->poll(ph);
+    return 0;
+}
+
+int DiscretePropFile::open(struct fuse_file_info &fi)
+{
+    if (handles_.empty()) {
+        prop_->connect(&slot_);
+    }
+
+    return ContinuousPropFile::open(fi);
+}
+
+int DiscretePropFile::release(struct fuse_file_info &fi)
+{
+    int rc = ContinuousPropFile::release(fi);
+    if (handles_.empty())
+        prop_->disconnect();
+
+    return rc;
+}
+
+void DiscretePropFile::notify()
+{
+    auto fn = [this]() {
+        // CALL is originated from provider, so acquire lock
+        auto l(cor::wlock(*this));
+        update_time(modification_time_bit | change_time_bit | access_time_bit);
+        if (handles_.empty())
+            return;
+        std::list<handle_ptr> snapshot;
+        for (auto const &h : handles_)
+            snapshot.push_back(h.second);
+        l.unlock();
+        for (auto h : snapshot)
+            h->notify(*this);
+
+        is_notify_.clear(std::memory_order_release);
+    };
+    if (!is_notify_.test_and_set(std::memory_order_acquire)) {
+        parent_->enqueue(std::packaged_task<void()>{fn});
+    }
+}
+
+
+PluginNsDir::PluginNsDir
+(PluginDir *parent, info_ptr info, std::function<void()> const& plugin_load)
+    : parent_(parent)
+    , info_(info)
+{
+    for (auto prop : info->props_)
+        add_loader_file(prop, plugin_load);
+}
+
+bool PluginNsDir::enqueue(std::packaged_task<void()> task)
+{
+    return parent_->enqueue(std::move(task));
+}
+
+
+void PluginNsDir::add_loader_file
+(std::shared_ptr<config::Property> const &prop
+ , std::function<void()> const& plugin_load)
+{
+    std::string name = prop->value();
+    auto load_get = [this, name, plugin_load]() {
+        trace() << "Loading " << name << std::endl;
+        plugin_load();
+        return acquire(name);
+    };
+
+    // initially adding loader file - it accesses provider
+    // implementation only on first read/write access to the
+    // file itself. Default size is 1Kb
+    add_file(name, mk_file_entry(mk_loader(load_get, prop->mode(), 1024)));
+}
+
+void PluginNsDir::add_prop_file(std::unique_ptr<Property> prop)
+{
+    std::string name = prop->name();
+    auto mode = prop->mode();
+    if (prop->is_discrete()) {
+        auto file = make_unique<DiscretePropFile>
+            (this, std::move(prop), mode);
+        add_file(name, mk_file_entry(std::move(file)));
+    } else {
+        auto file = make_unique<ContinuousPropFile>(std::move(prop), mode);
+        add_file(name, mk_file_entry(std::move(file)));
+    }
+}
+
+void PluginNsDir::load(std::shared_ptr<ProviderBridge> prov)
+{
+    auto lock(cor::wlock(*this));
+    files.clear();
+    auto ns = make_unique<Namespace>(prov->ns(info_->value()));
+
+    for (auto cfg : info_->props_) {
+        std::string name = cfg->value();
+        auto prop = make_unique<Property>(prov->io(), ns->property(name));
+        if (prop->exists()) {
+            add_prop_file(std::move(prop));
+        } else {
+            std::cerr << "PROPERTY " << name << " is absent\n";
+            add_file(name, mk_file_entry
+                     (make_unique<BasicTextFile<> >
+                      (cfg->defval(), cfg->mode())));
+        }
+    }
+    ns_ = std::move(ns);
+}
+
+void PluginNsDir::load_fake()
+{
+    auto lock(cor::wlock(*this));
+    files.clear();
+    for (auto prop : info_->props_) {
+        std::string name = prop->value();
+        add_file(name, mk_file_entry
+                 (make_unique<BasicTextFile<> >(prop->defval(), prop->mode())));
+    }
+}
+
 
 class PluginsDir : private LoadersStorage,
                    public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
@@ -575,39 +691,52 @@ class PluginsDir : private LoadersStorage,
 public:
     PluginsDir() { }
 
-    void plugin_add(PluginDir::info_ptr p)
-    {
-        auto lock(cor::wlock(*this));
-        auto name = p->value();
-        trace() << "Plugin " << name << std::endl;
-        if (dirs.find(name)) {
-            std::cerr << "There is already a plugin " << name << "...skipping\n";
-            return;
-        }
-        auto d = std::make_shared<PluginDir>(this, p);
-        add_dir(p->value(), mk_dir_entry(d));
-    }
+    void plugin_add(PluginDir::info_ptr);
+    void loader_add(loader_info_ptr);
+    void loader_rm(loader_info_ptr);
+    void stop();
 
-    void loader_add(loader_info_ptr p)
-    {
-        auto lock(cor::wlock(*this));
-        trace() << "Loader " << p->value() << std::endl;
-        loader_register(p);
-    }
-
-    void loader_rm(loader_info_ptr p)
-    {
-        auto lock(cor::wlock(*this));
-        if (p)
-            LoadersStorage::loader_rm(p->value());
-    }
-
-    std::shared_ptr<Loader> loader_get(std::string const& name)
-    {
-        auto lock(cor::wlock(*this));
-        return LoadersStorage::loader_get(name);
-    }
+    std::shared_ptr<LoaderProxy> loader_get(std::string const&);
 };
+
+void PluginsDir::stop()
+{
+    for (auto e: dirs)
+        dir_entry_impl<PluginDir>(e.second)->stop();
+}
+
+void PluginsDir::plugin_add(PluginDir::info_ptr p)
+{
+    auto lock(cor::wlock(*this));
+    auto name = p->value();
+    trace() << "Plugin " << name << std::endl;
+    if (dirs.find(name)) {
+        std::cerr << "There is already a plugin " << name << "...skipping\n";
+        return;
+    }
+    auto d = std::make_shared<PluginDir>(this, p);
+    add_dir(p->value(), mk_dir_entry(d));
+}
+
+void PluginsDir::loader_add(loader_info_ptr p)
+{
+    auto lock(cor::wlock(*this));
+    trace() << "Loader " << p->value() << std::endl;
+    loader_register(p);
+}
+
+void PluginsDir::loader_rm(loader_info_ptr p)
+{
+    auto lock(cor::wlock(*this));
+    if (p)
+        LoadersStorage::loader_rm(p->value());
+}
+
+std::shared_ptr<LoaderProxy> PluginsDir::loader_get(std::string const& name)
+{
+    auto lock(cor::wlock(*this));
+    return LoadersStorage::loader_get(name);
+}
 
 
 class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
@@ -624,7 +753,7 @@ PluginDir::info_ptr PluginDir::load_namespaces(info_ptr p)
     auto plugin_load = std::bind(&PluginDir::load, this);
     for (auto ns : p->namespaces_)
         add_dir(ns->value(), mk_dir_entry
-                (make_unique<PluginNsDir>(ns, plugin_load)));
+                (make_unique<PluginNsDir>(this, ns, plugin_load)));
     return p;
 }
 
@@ -721,6 +850,11 @@ public:
         add_dir("namespaces", mk_dir_entry(namespaces));
     }
 
+    void stop()
+    {
+        plugins->stop();
+    }
+
     void init(std::string const &cfg_dir)
     {
         cfg_dir_ = cfg_dir;
@@ -815,7 +949,70 @@ public:
     {
         impl_->init(cfg_dir);
     }
+
+    void destroy()
+    {
+        impl()->clear();
+    }
 };
+
+
+struct Root {
+
+    typedef metafuse::FuseFs<RootDirEntry> impl_type;
+    typedef metafuse::FuseFs<RootDirEntry> & impl_ref;
+    typedef metafuse::FuseFs<RootDirEntry> * impl_ptr;
+
+    void release()
+    {
+        // can be release from signal handler
+        std::lock_guard<std::mutex> lock(release_mutex_);
+        impl.reset();
+    }
+
+    impl_ptr get();
+
+    void stop()
+    {
+        auto entry = impl->impl();
+        dir_entry_impl<RootDir>(entry)->stop();
+    }
+
+    impl_ptr instance()
+    {
+        return impl.get();
+    }
+
+    std::mutex release_mutex_;
+    std::unique_ptr<impl_type> impl;
+};
+
+static Root statefs_root;
+
+}} // namespace
+
+
+namespace metafuse {
+
+// metafuse leaves implementation for FuseFs.instance() and
+// FuseFs.release() to be done by fs implementation
+
+using statefs::server::Root;
+using statefs::server::statefs_root;
+
+template<> Root::impl_ptr Root::impl_type::instance()
+{
+    return statefs_root.instance();
+}
+
+template<> void Root::impl_type::release()
+{
+    statefs_root.release();
+}
+
+} // metafuse
+
+namespace statefs { namespace server {
 
 enum statefs_cmd {
     statefs_cmd_run,
@@ -825,24 +1022,167 @@ enum statefs_cmd {
     statefs_cmd_unregister
 };
 
-namespace metafuse {
 
-typedef FuseFs<RootDirEntry> fuse_root_type;
-static std::unique_ptr<fuse_root_type> fuse_root;
-
-template<> fuse_root_type&
-fuse_root_type::instance()
+class FuseMain
 {
-    return *fuse_root;
-}
+public:
+
+    /*
+      Code in this class mostly was copy/pasted from fuse code. It has
+      statefs cleanup hook to avoid access to fuse when server got
+      signal because it results in unpredictable consequences like
+      segfault etc.
+
+      FUSE: Filesystem in Userspace
+      Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
+
+      This program can be distributed under the terms of the GNU LGPLv2.
+      See the file COPYING.LIB
+    */
+
+    static ::fuse_session *fuse_instance;
+    static ::fuse *fuse;
+    static char *mountpoint;
+    static ::fuse_chan *ch;
+
+    static void exit_handler(int sig)
+    {
+        (void) sig;
+        if (fuse_instance) {
+            statefs_root.stop();
+            fuse_session_exit(fuse_instance);
+        }
+    }
+
+    static int set_one_signal_handler(int sig, void (*handler)(int))
+    {
+        struct sigaction sa;
+        struct sigaction old_sa;
+
+        memset(&sa, 0, sizeof(struct sigaction));
+        sa.sa_handler = handler;
+        sigemptyset(&(sa.sa_mask));
+        sa.sa_flags = 0;
+
+        if (sigaction(sig, NULL, &old_sa) == -1) {
+            perror("fuse: cannot get old signal handler");
+            return -1;
+        }
+
+        if (old_sa.sa_handler == SIG_DFL &&
+            sigaction(sig, &sa, NULL) == -1) {
+            perror("fuse: cannot set signal handler");
+            return -1;
+        }
+        return 0;
+    }
+
+    static int set_signal_handlers(struct fuse_session *se)
+    {
+        if (set_one_signal_handler(SIGHUP, exit_handler) == -1 ||
+            set_one_signal_handler(SIGINT, exit_handler) == -1 ||
+            set_one_signal_handler(SIGTERM, exit_handler) == -1 ||
+            set_one_signal_handler(SIGPIPE, SIG_IGN) == -1)
+            return -1;
+
+        fuse_instance = se;
+        return 0;
+    }
+
+
+    static struct fuse *statefs_setup_common
+    (int argc, char *argv[], ::fuse_operations const *op, size_t op_size
+     , int *multithreaded, int *fd, void *user_data)
+    {
+        ::fuse_args args = FUSE_ARGS_INIT(argc, argv);
+        //::fuse *fuse;
+        int foreground;
+        int res;
+
+        res = ::fuse_parse_cmdline(&args, &mountpoint, multithreaded, &foreground);
+        if (res == -1)
+            return NULL;
+
+        ch = ::fuse_mount(mountpoint, &args);
+        if (!ch) {
+            ::fuse_opt_free_args(&args);
+            goto err_free;
+        }
+
+        fuse = ::fuse_new(ch, &args, op, op_size, user_data);
+        ::fuse_opt_free_args(&args);
+        if (fuse == NULL)
+            goto err_unmount;
+
+        res = ::fuse_daemonize(foreground);
+        if (res == -1)
+            goto err_unmount;
+
+        res = set_signal_handlers(fuse_get_session(fuse));
+        if (res == -1)
+            goto err_unmount;
+
+        if (fd)
+            *fd = ::fuse_chan_fd(ch);
+
+        return fuse;
+
+    err_unmount:
+        ::fuse_unmount(mountpoint, ch);
+        if (fuse)
+            ::fuse_destroy(fuse);
+    err_free:
+        free(mountpoint);
+        return NULL;
+    }
+
+    static int statefs_main_common(int argc, char *argv[],
+                                   const struct fuse_operations *op, size_t op_size,
+                                   void *user_data)
+    {
+        struct fuse *fuse;
+        int multithreaded;
+        int res;
+
+        fuse = statefs_setup_common(argc, argv, op, op_size,
+                                    &multithreaded, NULL, user_data);
+        if (fuse == NULL)
+            return 1;
+
+        if (multithreaded)
+            res = fuse_loop_mt(fuse);
+        else
+            res = fuse_loop(fuse);
+
+        statefs_root.release();
+        fuse_teardown(fuse, mountpoint);
+        if (res == -1)
+            return 1;
+
+        return 0;
+    }
+
+};
+
+::fuse_session *FuseMain::fuse_instance = nullptr;
+::fuse *FuseMain::fuse = nullptr;
+char *FuseMain::mountpoint = nullptr;
+::fuse_chan *FuseMain::ch = nullptr;
+
+//using metafuse::statefs_root_type;
+
+Root::impl_ptr Root::get()
+{
+    if (!impl) {
+        impl = make_unique<impl_type>();
+        impl->main_ = FuseMain::statefs_main_common;
+    }
+    return instance();
 }
 
-static fuse_root_type & fuse()
+static Root::impl_ptr fuse()
 {
-    if (!fuse_root)
-        fuse_root = make_unique<fuse_root_type>();
-    static auto &fuse = fuse_root_type::instance();
-    return fuse;
+    return statefs_root.get();
 }
 
 
@@ -874,6 +1214,8 @@ bool split_pairs(std::string const &src, std::string const &items_sep
     return true;
 }
 
+namespace config = statefs::config;
+
 class Server
 {
     typedef cor::OptParse<std::string> option_parser_type;
@@ -899,10 +1241,10 @@ public:
     }
 
     ~Server() {
-        fuse_root.reset(nullptr);
+        statefs_root.release();
     }
 
-    int operator()()
+    int execute()
     {
         statefs_cmd cmd = statefs_cmd_run;
         int rc = 0;
@@ -1009,7 +1351,7 @@ private:
             auto lib_fname = p->path;
             if (fs::exists(lib_fname))
                 return;
-            
+
             std::cerr << "Library " << lib_fname
             << " doesn't exist, unregistering, removing config: "
             << cfg_path << std::endl;
@@ -1022,7 +1364,8 @@ private:
 
     int fuse_run()
     {
-        return fuse().main(params.size(), &params[0], true);
+        auto root = fuse();
+        return root ? root->main(params.size(), &params[0], true) : -EPERM;
     }
 
     int main()
@@ -1035,8 +1378,13 @@ private:
         if (p != opts.end())
             ::setgid(::atoi(p->second.c_str()));
 
-        fuse().impl().init(cfg_dir);
-        int rc = fuse_run();
+
+        auto root = fuse();
+        int rc = -EPERM;
+        if (root) {
+            root->impl()->init(cfg_dir);
+            rc = fuse_run();
+        }
         return rc;
     }
 
@@ -1062,14 +1410,21 @@ private:
     std::vector<char const*> params;
 };
 
+}}
+
+using statefs::server::Server;
+
+static std::unique_ptr<Server> server;
 
 int main(int argc, char *argv[])
 {
+    int rc = -1;
     try {
-        Server server(argc, argv);
-        return server();
+        server = cor::make_unique<Server>(argc, argv);
+        rc = server->execute();
     } catch (std::exception const &e) {
         std::cerr << "exception: " << e.what() << std::endl;
     }
-    return -1;
+    server.reset();
+    return rc;
 }
