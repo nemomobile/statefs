@@ -140,6 +140,7 @@ rm -rf %{buildroot}
 %{_libdir}/statefs/provider-action
 %{_libdir}/statefs/statefs-start
 %{_libdir}/statefs/statefs-stop
+%{_libdir}/statefs/once
 
 
 %files devel
