@@ -76,23 +76,6 @@ static bool is_config_file(std::string const& fname)
     return is_config_file(path);
 }
 
-static bool is_prefixed_config_file
-(fs::path const& path, std::string const& prefix)
-{
-    return (path.extension() == cfg_extension()
-            && filename_prefix(path.filename().string()) == prefix);
-}
-
-static bool is_provider_config_file(fs::path const& path)
-{
-    return is_prefixed_config_file(path, cfg_provider_prefix());
-}
-
-static bool is_loader_config_file(fs::path const& path)
-{
-    return is_prefixed_config_file(path, cfg_loader_prefix());
-}
-
 bool from_file(std::string const &cfg_src, config_receiver_fn receiver)
 {
     trace() << "Loading config from " << cfg_src << std::endl;
@@ -531,12 +514,7 @@ Monitor::Monitor
                 throw cor::Error("No config dir %s", path.c_str());
             return path;
         }(path))
-    , event_(eventfd(0, 0), cor::only_valid_handle)
     , target_(target)
-    , watch_(new inotify::Watch
-             (inotify_, path, IN_CREATE | IN_DELETE | IN_MODIFY))
-      // run thread before loading config to avoid missing configuration
-    , mon_thread_(std::bind(std::mem_fn(&Monitor::watch_thread), this))
 {
     using namespace std::placeholders;
     config::load(path_, std::bind(std::mem_fn(&Monitor::lib_add),
@@ -545,10 +523,6 @@ Monitor::Monitor
 
 Monitor::~Monitor()
 {
-    uint64_t v = 1;
-    ::write(event_.value(), &v, sizeof(v));
-    trace() << "config monitor: waiting to be stopped\n";
-    mon_thread_.join();
 }
 
 void Monitor::lib_add(std::string const &cfg_path
@@ -564,176 +538,11 @@ void Monitor::lib_add(std::string const &cfg_path
         return;
     }
     auto fname = fs::path(cfg_path).filename().string();
-    files_libs_[fname] = p;
     using namespace std::placeholders;
     process_lib_info
         (p , std::bind(&ConfigReceiver::provider_add, &target_, _1)
          , std::bind(&ConfigReceiver::loader_add, &target_, _1));
 }
-
-void Monitor::lib_rm(std::string const &name)
-{
-    auto p = files_libs_[name];
-    if (!p) {
-        std::cerr << "lib_rm: Unknown lib: " << name << std::endl;
-        return;
-    }
-    auto loader = std::dynamic_pointer_cast<Loader>(p);
-    if (loader) {
-        target_.loader_rm(loader);
-    } else {
-        auto provider = std::dynamic_pointer_cast<Plugin>(p);
-        if (!provider)
-            throw cor::Error("lib_rm: Logic err: %s", name.c_str());
-        target_.provider_rm(provider);
-    }
-}
-
-int Monitor::watch_thread()
-{
-    try {
-        return watch();
-    } catch (std::exception const &e) {
-        std::cerr << "Config watcher caught " << e.what() << std::endl;
-    }
-    return -1;
-}
-
-template <typename AdderT, typename RemoverT>
-static void eval_cfg_changes
-(std::string const& config_dir_path
- , Monitor::config_map_type const& cur_config
- , AdderT add, RemoverT rm)
-{
-    // configuration is changed rarely (only on un/installation of
-    // providers/loader), so it is simplier and more robust just to
-    // iterate through 'em and calculate changes each time anything
-    // changed in the configuration directory.
-
-    fs::path path(config_dir_path);
-    std::unordered_map<std::string, std::string> existing_files;
-
-    auto register_existing_config_file = [&existing_files]
-        (fs::directory_entry const &d) {
-        auto p = d.path();
-        if (is_config_file(p))
-            existing_files[p.filename().string()]
-                = fs::canonical(p).string();
-    };
-    std::for_each(fs::directory_iterator(path)
-                  , fs::directory_iterator()
-                  , register_existing_config_file);
-
-    typedef std::pair<std::string, std::time_t> file_info_type;
-    std::set<file_info_type> cur, prev;
-
-    for (auto &kv : existing_files) {
-        auto const& fname = kv.first;
-        cur.insert({fname, fs::last_write_time(path / fname)});
-    }
-
-    for (auto &kv : cur_config) {
-        auto const& fname = kv.first;
-        auto const& info = kv.second;
-        prev.insert({fname, fs::last_write_time(info->path)});
-    }
-
-    std::list<file_info_type> added, removed;
-    std::set_difference(cur.begin(), cur.end(),
-                        prev.begin(), prev.end(),
-                        std::back_inserter(added));
-    std::set_difference(prev.begin(), prev.end(),
-                        cur.begin(), cur.end(),
-                        std::back_inserter(removed));
-
-    for (auto &nt : removed) {
-        auto const& v = nt.first;
-        if (is_provider_config_file(v)) {
-            std::cerr << "Removed " << v << std::endl;
-            rm(v);
-        }
-    }
-
-    for (auto &nt : added) {
-        auto const& v = nt.first;
-        if (is_provider_config_file(v)
-            || (is_loader_config_file(v) && !prev.count(nt))) {
-            std::cerr << "Added " << v << std::endl;
-            using namespace std::placeholders;
-            check_name_load(existing_files[v], add);
-        } else {
-            std::cerr << "Skipping " << v << std::endl;
-        }
-    }
-
-}
-
-bool Monitor::process_poll()
-{
-    std::cerr << "Maybe config is changed" << std::endl;
-    if (fds_[1].revents) {
-        uint64_t v;
-        ::read(event_.value(), &v, sizeof(v));
-        watch_.reset(nullptr);
-        return false;
-    }
-
-    if (!fds_[0].revents)
-        return true;
-
-    char buf[sizeof(inotify_event) + 256];
-    int rc;
-    // read all events
-    while ((rc = inotify_.read(buf, sizeof(buf))) > (int)sizeof(buf)) {}
-
-    using namespace std::placeholders;
-    eval_cfg_changes(path_, files_libs_
-                     , std::bind(&Monitor::lib_add, this, _1, _2)
-                     , std::bind(&Monitor::lib_rm, this, _1));
-
-    return true;
-}
-
-int Monitor::watch()
-{
-    int rc;
-
-    fds_.fill({-1, POLLIN | POLLPRI, 0});
-    fds_[0].fd = inotify_.fd();
-    fds_[1].fd = event_.value();
-
-    while ((rc = poll(&fds_[0], fds_.size(), -1)) >= 0
-           && process_poll()) {}
-
-    std::cerr << "exiting config watch poll rc=" << rc << std::endl;
-    return rc;
-}
-
-// static std::string statefs_variant_2str(struct statefs_variant const *src)
-// {
-//     std::stringstream ss;
-//     switch (src->tag)
-//     {
-//     case statefs_variant_int:
-//         ss << src->i;
-//         break;
-//     case statefs_variant_uint:
-//         ss << src->u;
-//         break;
-//     case statefs_variant_bool:
-//         ss << (src->b ? "1" : "0");
-//         break;
-//     case statefs_variant_real:
-//         ss << src->r;
-//         break;
-//     case statefs_variant_cstr:
-//         ss << "\"" << src->s << "\"";
-//         break;
-//     default:
-//         return "\"\"";
-//     }
-//     return ss.str();
-// }
 
 static Namespace::prop_type from_api
 (statefs_property const *prop, statefs_io &io)

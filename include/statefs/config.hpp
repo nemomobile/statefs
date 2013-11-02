@@ -136,9 +136,7 @@ class ConfigReceiver
 {
 public:
     virtual void provider_add(std::shared_ptr<Plugin>) =0;
-    virtual void provider_rm(std::shared_ptr<Plugin>) =0;
     virtual void loader_add(std::shared_ptr<Loader>) =0;
-    virtual void loader_rm(std::shared_ptr<Loader>) =0;
 };
 
 

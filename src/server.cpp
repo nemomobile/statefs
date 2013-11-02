@@ -693,7 +693,6 @@ public:
 
     void plugin_add(PluginDir::info_ptr);
     void loader_add(loader_info_ptr);
-    void loader_rm(loader_info_ptr);
     void stop();
 
     std::shared_ptr<LoaderProxy> loader_get(std::string const&);
@@ -725,13 +724,6 @@ void PluginsDir::loader_add(loader_info_ptr p)
     loader_register(p);
 }
 
-void PluginsDir::loader_rm(loader_info_ptr p)
-{
-    auto lock(cor::wlock(*this));
-    if (p)
-        LoadersStorage::loader_rm(p->value());
-}
-
 std::shared_ptr<LoaderProxy> PluginsDir::loader_get(std::string const& name)
 {
     auto lock(cor::wlock(*this));
@@ -744,8 +736,6 @@ class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 public:
     NamespaceDir(PluginDir::info_ptr p,
                  PluginNsDir::info_ptr ns);
-
-    void rm_props(PluginNsDir::info_ptr ns);
 };
 
 PluginDir::info_ptr PluginDir::load_namespaces(info_ptr p)
@@ -794,16 +784,6 @@ NamespaceDir::NamespaceDir
     }
 }
 
-void NamespaceDir::rm_props(PluginNsDir::info_ptr ns)
-{
-    for (auto prop : ns->props_) {
-        auto name = prop->value();
-        int rc = unlink_(name);
-        if (rc < 0)
-            std::cerr << "can't unlink prop " << name << std::endl;
-    }
-}
-
 class NamespacesDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
@@ -812,25 +792,6 @@ public:
         auto lock(cor::wlock(*this));
         for (auto ns : p->namespaces_)
             add_dir(ns->value(), mk_dir_entry(make_unique<NamespaceDir>(p, ns)));
-    }
-
-    void plugin_rm(PluginDir::info_ptr p)
-    {
-        auto lock(cor::wlock(*this));
-        for (auto ns : p->namespaces_) {
-            auto name = ns->value();
-            auto pdir = dirs.find(name);
-            if (!pdir)
-                continue;
-
-            auto dir = dir_entry_impl<NamespaceDir>(pdir);
-            dir->rm_props(ns);
-            if (dir->empty()) {
-                int rc = unlink_(name);
-                if (rc < 0)
-                    std::cerr << "can't unlink ns " << name << std::endl;
-            }
-        }
     }
 };
 
@@ -904,15 +865,7 @@ private:
             namespaces->plugin_add(p);
         }
     }
-    virtual void provider_rm(std::shared_ptr<config::Plugin> p)
-    {
-        auto lock(cor::wlock(*this));
-        if (p) {
-            trace() << "removing " << p->value() << std::endl;
-            namespaces->plugin_rm(p);
-            plugins->unlink(p->value());
-        }
-    }
+
     virtual void loader_add(std::shared_ptr<config::Loader> p)
     {
         auto lock(cor::wlock(*this));
@@ -920,19 +873,11 @@ private:
             plugins->loader_add(p);
     }
 
-    virtual void loader_rm(std::shared_ptr<config::Loader> p)
-    {
-        auto lock(cor::wlock(*this));
-        if (p)
-            plugins->loader_rm(p);
-    }
-
     void dummy() {}
 
     std::shared_ptr<PluginsDir> plugins;
     std::shared_ptr<NamespacesDir> namespaces;
     self_fn_type before_access_;
-    //std::function<void ()> before_access;
     std::unique_ptr<config::Monitor> cfg_mon_;
     std::string cfg_dir_;
 };
