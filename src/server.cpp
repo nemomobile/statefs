@@ -947,12 +947,14 @@ public:
 
     void init(std::string const &cfg_dir)
     {
-        impl_->init(cfg_dir);
+        if (impl_)
+            impl_->init(cfg_dir);
     }
 
     void destroy()
     {
-        impl()->clear();
+        if (impl_)
+            impl_->clear();
     }
 };
 
@@ -960,31 +962,32 @@ public:
 struct Root {
 
     typedef metafuse::FuseFs<RootDirEntry> impl_type;
-    typedef metafuse::FuseFs<RootDirEntry> & impl_ref;
-    typedef metafuse::FuseFs<RootDirEntry> * impl_ptr;
+    typedef std::shared_ptr<impl_type> impl_ptr;
 
     void release()
     {
-        // can be release from signal handler
-        std::lock_guard<std::mutex> lock(release_mutex_);
-        impl.reset();
+        fs.reset();
     }
 
     impl_ptr get();
 
     void stop()
     {
-        auto entry = impl->impl();
-        dir_entry_impl<RootDir>(entry)->stop();
+        auto hold_fs = fs;
+        auto entry = fs->impl();
+        if (entry) {
+            auto entry_impl = dir_entry_impl<RootDir>(entry);
+            if (entry_impl)
+                entry_impl->stop();
+        }
     }
 
     impl_ptr instance()
     {
-        return impl.get();
+        return fs;
     }
 
-    std::mutex release_mutex_;
-    std::unique_ptr<impl_type> impl;
+    impl_ptr fs;
 };
 
 static Root statefs_root;
@@ -1154,7 +1157,7 @@ public:
         else
             res = fuse_loop(fuse);
 
-        statefs_root.release();
+        //statefs_root.release();
         fuse_teardown(fuse, mountpoint);
         if (res == -1)
             return 1;
@@ -1173,9 +1176,9 @@ char *FuseMain::mountpoint = nullptr;
 
 Root::impl_ptr Root::get()
 {
-    if (!impl) {
-        impl = make_unique<impl_type>();
-        impl->main_ = FuseMain::statefs_main_common;
+    if (!fs) {
+        fs = std::make_shared<impl_type>();
+        fs->main_ = FuseMain::statefs_main_common;
     }
     return instance();
 }
@@ -1382,8 +1385,11 @@ private:
         auto root = fuse();
         int rc = -EPERM;
         if (root) {
-            root->impl()->init(cfg_dir);
-            rc = fuse_run();
+            auto impl = root->impl();
+            if (impl) {
+                impl->init(cfg_dir);
+                rc = fuse_run();
+            }
         }
         return rc;
     }
