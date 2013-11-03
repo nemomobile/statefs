@@ -1,9 +1,9 @@
 #!/bin/sh
 if [ $# -lt 2 ]; then
-    echo "Usage: $0 cmd path system|user"
+    echo "Usage: $0 cmd group system|user"
     exit 1
 fi
 
 cmd=$1
-provider_path=$2
-@prefix@/@DST_LIB@/statefs/provider-do $cmd default $provider_path
+group=$2
+@prefix@/@DST_LIB@/statefs/provider-do $cmd loader $group

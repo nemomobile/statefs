@@ -35,7 +35,7 @@
 %{nil}
 
 %statefs_loader_install() \
-%{_statefs_libdir}/install-provider %{*} \
+%{_statefs_libdir}/install-provider loader %{*} \
 %{nil}
 
 %statefs_provider_unregister() \
@@ -50,10 +50,10 @@ fi \
 
 %statefs_loader_unregister() \
 if [ $1 -eq 0 ]; then \
-%{_statefs_libdir}/provider-do unregister loader %{*} || : \
+%{_statefs_libdir}/loader-do unregister %{*} || : \
 fi \
 %{nil}
 
 %statefs_loader_register() \
-%{_statefs_libdir}/provider-do register loader %{*} || : \
+%{_statefs_libdir}/loader-do register %{*} || : \
 %{nil}

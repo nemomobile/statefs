@@ -18,6 +18,10 @@ BuildRequires: pkgconfig(cor) >= %{cor_version}
 BuildRequires: systemd
 Requires: fuse >= 2.9.0-1.4
 %{?_with_usersession:Requires: systemd-user-session-targets}
+BuildRequires: oneshot
+Requires: oneshot
+%_oneshot_requires_pre
+%_oneshot_requires_post
 %description
 StateFS is the syntetic filesystem to expose current system state
 provided by StateFS plugins as properties wrapped into namespaces.
@@ -186,27 +190,17 @@ rm -rf %{buildroot}
 
 %post
 /sbin/ldconfig
-%if 0%{?_with_usersession:1}
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so
-%endif
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-default.so system
-%{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so system
+%{_libdir}/statefs/loader-do register default || :
 if [ $1 -eq 1 ]; then
-    systemctl daemon-reload
+    systemctl daemon-reload || :
 %if 0%{?_with_usersession:1}
-    systemctl-user daemon-reload
+    systemctl-user daemon-reload || :
 %endif
 fi
 
 %preun
 if [ $1 -eq 0 ]; then
-%if 0%{?_with_usersession:1}
-%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so || :
-%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so || :
-%endif
-%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so system || :
-%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so system || :
+%{_libdir}/statefs/loader-do unregister default || :
 fi
 
 %postun -p /sbin/ldconfig

@@ -28,7 +28,9 @@ if ! [ -f $script_file ]; then
     chmod +x $script_file
 fi
 
+order=03
 if [ "$provider_type" == "loader" ]; then
+    order=02
     action_script=$lib_dir/loader-action
     echo "$action_script \$1 $provider_path \${@:2}" \
         >> $script_file
@@ -38,10 +40,22 @@ else
         >> $script_file
 fi
 
-    files=${group_name}.files
-    if [ ! -f ${files} ]; then
-        echo $script_name >> ${files}
-    elif ! grep $script_name ${files}; then
-        echo $script_name >> ${files}
-    fi
-    echo $provider_path >> ${files}
+files=${group_name}.files
+echo $script_name >> ${files}
+echo $provider_path >> ${files}
+
+# registration call goes to oneshot
+reg_fname=@prefix@/@DST_LIB@/oneshot.d/statefs-$order-register-$group_name
+reg_file=$RPM_BUILD_ROOT/$reg_fname
+if ! [ -f $reg_file ]; then
+    mkdir -p $RPM_BUILD_ROOT/@prefix@/@DST_LIB@/oneshot.d
+    echo "#!/bin/sh" > $reg_file
+    echo "$script_name register" >> $reg_file
+    chmod +x $reg_file
+fi
+
+if ! [ -f ${files} ]; then
+    echo $reg_fname > $files
+elif ! grep $reg_fname ${files}; then
+    echo $reg_fname >> $files
+fi
