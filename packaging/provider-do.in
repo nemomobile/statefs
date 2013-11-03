@@ -18,37 +18,34 @@ fi
 lib_dir=@prefix@/@DST_LIB@/statefs
 scripts_dir=$lib_dir/scripts
 
-if [ "$provider_type" == "loader" ]; then
-    exit 1
-else
-    loader_dir=$scripts_dir/$provider_type
-    mkdir -p $loader_dir
-    script_name=$loader_dir/on-$group_name
-    cmd_line="$script_name $cmd $params"
-    # registration is postponed until statefs is started, other
-    # operations are executed instantly
-    if [ "$cmd" == "register" ]; then
-        state_dir=/var/lib/statefs
-        if [ "$stype" == "system" ]; then
-            state_dir=/var/lib/statefs/system
-        fi
-
-        hooks_dir=$state_dir/hooks
-        once_dir=$hooks_dir/once
-        mkdir -p $once_dir
-
-        cmd_file=$once_dir/once-$group_name
-        if ! [ -f "$cmd_file" ]; then
-            echo "#!/bin/sh" > $cmd_file
-            chmod u+s,a+x "$cmd_file"
-        fi
-        echo "$cmd_line || exit 1" >> $cmd_file
-
-        once_ln=$hooks_dir/prestart-once
-        if ! [ -L "$once_ln" ]; then
-            ln -s "$lib_dir/once" "$once_ln"
-        fi
-    else
-        $cmd_line
+loader_dir=$scripts_dir/$provider_type
+mkdir -p $loader_dir
+script_name=$loader_dir/on-$group_name
+cmd_line="$script_name $cmd $params"
+# registration is postponed until statefs is started, other
+# operations are executed instantly
+if [ "$cmd" == "register" ]; then
+    if ! $cmd_line; then
+        exit 0
     fi
+    state_dir=/var/lib/statefs
+    if [ "$stype" == "system" ]; then
+        state_dir=/var/lib/statefs/system
+    fi
+
+    hooks_dir=$state_dir/hooks
+    once_dir=$hooks_dir/once
+    mkdir -p $once_dir
+
+    cmd_file=$once_dir/once-$group_name
+    echo "#!/bin/sh" > $cmd_file
+    chmod u+s,a+x "$cmd_file"
+    echo "$cmd_line" >> $cmd_file
+
+    once_ln=$hooks_dir/prestart-once
+    if ! [ -L "$once_ln" ]; then
+        ln -s "$lib_dir/once" "$once_ln"
+    fi
+else
+    $cmd_line
 fi

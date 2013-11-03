@@ -19,16 +19,25 @@ lib_dir=@prefix@/@DST_LIB@/statefs
 scripts_dir=$lib_dir/scripts
 scripts_install_dir=$RPM_BUILD_ROOT/${scripts_dir}
 
+loader_dir=$scripts_dir/$provider_type
+mkdir -p $RPM_BUILD_ROOT/$loader_dir
+script_name=$loader_dir/on-$group_name
+script_file=$RPM_BUILD_ROOT/$script_name
+if ! [ -f $script_file ]; then
+    echo "#!/bin/sh" > $script_file
+    chmod +x $script_file
+fi
+
 if [ "$provider_type" == "loader" ]; then
-    exit 1
+    action_script=$lib_dir/loader-action
+    echo "$action_script \$1 $provider_path \${@:2}" \
+        >> $script_file
 else
-    loader_dir=$scripts_dir/$provider_type
-    mkdir -p $RPM_BUILD_ROOT/$loader_dir
-    script_name=$loader_dir/on-$group_name
     action_script=$lib_dir/provider-action
     echo "$action_script \$1 $provider_path $provider_type $params \${@:2}" \
-        >> $RPM_BUILD_ROOT/$script_name
-    chmod a+x $RPM_BUILD_ROOT/$script_name
+        >> $script_file
+fi
+
     files=${group_name}.files
     if [ ! -f ${files} ]; then
         echo $script_name >> ${files}
@@ -36,4 +45,3 @@ else
         echo $script_name >> ${files}
     fi
     echo $provider_path >> ${files}
-fi

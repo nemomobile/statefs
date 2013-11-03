@@ -106,14 +106,19 @@ install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/doc/statefs/html
 install -d -D -p -m755 %{buildroot}%{_sysconfdir}/rpm/
 install -D -p -m644 packaging/macros.statefs %{buildroot}%{_sysconfdir}/rpm/
 
-%{buildroot}%{_libdir}/statefs/install-provider default examples %{_libdir}/statefs/libexample_power.so
-%{buildroot}%{_libdir}/statefs/install-provider default examples %{_libdir}/statefs/libexample_statefspp.so
-%{buildroot}%{_libdir}/statefs/install-provider default examples %{_libdir}/statefs/libprovider_basic_example.so
+%define pinstall %{buildroot}%{_libdir}/statefs/install-provider
+
+%{pinstall} loader default %{_libdir}/statefs/libloader-default.so
+%{pinstall} loader default %{_libdir}/statefs/libloader-inout.so
+
+%{pinstall} default examples %{_libdir}/statefs/libexample_power.so
+%{pinstall} default examples %{_libdir}/statefs/libexample_statefspp.so
+%{pinstall} default examples %{_libdir}/statefs/libprovider_basic_example.so
 
 %clean
 rm -rf %{buildroot}
 
-%files
+%files -f default.files
 %defattr(-,root,root,-)
 %doc COPYING
 %{_bindir}/statefs
@@ -132,12 +137,11 @@ rm -rf %{buildroot}
 %{_libdir}/libstatefs-util.so.0
 %{_libdir}/libstatefs-config.so.%{version}
 %{_libdir}/libstatefs-util.so.%{version}
-%{_libdir}/statefs/libloader-default.so
-%{_libdir}/statefs/libloader-inout.so
 %{_libdir}/statefs/install-provider
 %{_libdir}/statefs/loader-do
 %{_libdir}/statefs/provider-do
 %{_libdir}/statefs/provider-action
+%{_libdir}/statefs/loader-action
 %{_libdir}/statefs/statefs-start
 %{_libdir}/statefs/statefs-stop
 %{_libdir}/statefs/once
@@ -180,22 +184,6 @@ rm -rf %{buildroot}
 /opt/tests/statefs/*
 
 
-%pre
-if [ $1 -gt 1 ]; then
-%if 0%{?_with_usersession:1}
-    if [ -x /bin/systemctl-user ]; then
-       /bin/systemctl-user stop statefs.service || :
-    fi
-%endif
-    systemctl stop statefs.service || :
-%if 0%{?_with_usersession:1}
-%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so || :
-%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so || :
-%endif
-%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so system || :
-%{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so system || :
-fi
-
 %post
 /sbin/ldconfig
 %if 0%{?_with_usersession:1}
@@ -206,23 +194,13 @@ fi
 %{_libdir}/statefs/loader-do register %{_libdir}/statefs/libloader-inout.so system
 if [ $1 -eq 1 ]; then
     systemctl daemon-reload
-    systemctl start statefs.service || :
 %if 0%{?_with_usersession:1}
     systemctl-user daemon-reload
-    systemctl-user start statefs.service || :
 %endif
 fi
 
 %preun
 if [ $1 -eq 0 ]; then
-%if 0%{?_with_usersession:1}
-    if [ -x /bin/systemctl-user ]; then
-       /bin/systemctl-user stop statefs.service || :
-    fi
-    statefs cleanup || :
-%endif
-    systemctl stop statefs.service || :
-    statefs cleanup --system || :
 %if 0%{?_with_usersession:1}
 %{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-default.so || :
 %{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so || :
@@ -231,18 +209,7 @@ if [ $1 -eq 0 ]; then
 %{_libdir}/statefs/loader-do unregister %{_libdir}/statefs/libloader-inout.so system || :
 fi
 
-%postun
-/sbin/ldconfig
-%if 0%{?_with_usersession:1}
-%endif
-if [ $1 -eq 0 ]; then
-    systemctl daemon-reload
-    systemctl start statefs.service || :
-%if 0%{?_with_usersession:1}
-    systemctl-user daemon-reload
-    systemctl-user start statefs.service || :
-%endif
-fi
+%postun -p /sbin/ldconfig
 
 %post pp
 /sbin/ldconfig
@@ -251,26 +218,16 @@ fi
 /sbin/ldconfig
 
 %pre examples
-if [ $1 -gt 1 ]; then
-%if 0%{?_with_usersession:1}
-%{_libdir}/statefs/provider-do unregister default examples >/dev/null 2>&1 || :
-%else
-%{_libdir}/statefs/provider-do unregister default examples system >/dev/null 2>&1 || :
-%endif
-fi
+%statefs_pre
 
 %post examples
-%if 0%{?_with_usersession:1}
-%{_libdir}/statefs/provider-do register default examples || :
-%else
-%{_libdir}/statefs/provider-do register default examples system || :
-%endif
+%statefs_provider_register default examples system
+%statefs_post
 
 %preun examples
-if [ $1 -eq 0 ]; then
-%if 0%{?_with_usersession:1}
-%{_libdir}/statefs/provider-do unregister default examples || :
-%else
-%{_libdir}/statefs/provider-do unregister default examples system || :
-%endif
-fi
+%statefs_preun
+
+%postun examples
+%statefs_provider_unregister default examples system
+%statefs_postun
+
