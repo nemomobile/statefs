@@ -797,9 +797,9 @@ public:
 
 
 class RootDir : private config::ConfigReceiver
-              , public RODir<DirFactory, FileFactory, cor::NoLock>
+              , public RODir<DirFactory, FileFactory, cor::Mutex>
 {
-    typedef RODir<DirFactory, FileFactory, cor::NoLock> base_type;
+    typedef RODir<DirFactory, FileFactory, cor::Mutex> base_type;
     typedef void (RootDir::*self_fn_type)();
 public:
     RootDir()
@@ -859,7 +859,6 @@ private:
 
     virtual void provider_add(std::shared_ptr<config::Plugin> p)
     {
-        auto lock(cor::wlock(*this));
         if (p) {
             plugins->plugin_add(p);
             namespaces->plugin_add(p);
@@ -868,7 +867,6 @@ private:
 
     virtual void loader_add(std::shared_ptr<config::Loader> p)
     {
-        auto lock(cor::wlock(*this));
         if (p)
             plugins->loader_add(p);
     }
