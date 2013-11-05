@@ -115,7 +115,7 @@ void from_dir(std::string const &cfg_src, ReceiverT receiver)
 }
 
 template <typename ReceiverT>
-void load(std::string const &cfg_src, ReceiverT receiver)
+void load_from(std::string const &cfg_src, ReceiverT receiver)
 {
     if (cfg_src.empty())
         return;
@@ -130,7 +130,7 @@ void load(std::string const &cfg_src, ReceiverT receiver)
 
 void visit(std::string const &path, config_receiver_fn fn)
 {
-    load(path, fn);
+    load_from(path, fn);
 }
 
 class Loaders : public LoadersStorage
@@ -148,7 +148,7 @@ Loaders::Loaders(std::string const &src)
         process_lib_info
         (p, dummy, std::bind(&LoadersStorage::loader_register, this, _1));
     };
-    load(src, lib_add);
+    load_from(src, lib_add);
 }
 
 
@@ -517,16 +517,15 @@ Monitor::Monitor
     , target_(target)
 {
     using namespace std::placeholders;
-    config::load(path_, std::bind(std::mem_fn(&Monitor::lib_add),
-                                  this, _1, _2));
+    auto add = std::bind(&Monitor::lib_add, this, _1, _2);
+    config::load_from(path_, add);
 }
 
 Monitor::~Monitor()
 {
 }
 
-void Monitor::lib_add(std::string const &cfg_path
-                      , Monitor::lib_ptr p)
+void Monitor::lib_add(std::string const &cfg_path, Monitor::lib_ptr p)
 {
     if (!p)
         return;
@@ -539,9 +538,9 @@ void Monitor::lib_add(std::string const &cfg_path
     }
     auto fname = fs::path(cfg_path).filename().string();
     using namespace std::placeholders;
-    process_lib_info
-        (p , std::bind(&ConfigReceiver::provider_add, &target_, _1)
-         , std::bind(&ConfigReceiver::loader_add, &target_, _1));
+    auto provider_add = std::bind(&ConfigReceiver::provider_add, &target_, _1);
+    auto loader_add = std::bind(&ConfigReceiver::loader_add, &target_, _1);
+    process_lib_info(p , provider_add, loader_add);
 }
 
 static Namespace::prop_type from_api

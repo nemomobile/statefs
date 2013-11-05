@@ -451,7 +451,7 @@ class PluginDir;
 
 class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
-    typedef RODir<DirFactory, FileFactory, Mutex> base_type;
+    typedef RODir<DirFactory, FileFactory, cor::Mutex> base_type;
 public:
 
     typedef std::shared_ptr<config::Namespace> info_ptr;
@@ -689,7 +689,9 @@ class PluginsDir : private LoadersStorage,
                    public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    PluginsDir() { }
+    PluginsDir();
+    PluginsDir(PluginsDir const&) = delete;
+    PluginsDir& operator = (PluginsDir const&) = delete;
 
     void plugin_add(PluginDir::info_ptr);
     void loader_add(loader_info_ptr);
@@ -697,6 +699,10 @@ public:
 
     std::shared_ptr<LoaderProxy> loader_get(std::string const&);
 };
+
+PluginsDir::PluginsDir()
+{
+}
 
 void PluginsDir::stop()
 {
@@ -811,6 +817,9 @@ public:
         add_dir("namespaces", mk_dir_entry(namespaces));
     }
 
+    RootDir(RootDir const&) = delete;
+    RootDir& operator = (RootDir const&) = delete;
+
     void stop()
     {
         plugins->stop();
@@ -854,6 +863,9 @@ private:
     void load_monitor()
     {
         auto receiver = static_cast<ConfigReceiver*>(this);
+        if (cfg_mon_)
+            throw cor::Error("There is a monitor already");
+
         cfg_mon_ = make_unique<config::Monitor>(cfg_dir_, *receiver);
     }
 
