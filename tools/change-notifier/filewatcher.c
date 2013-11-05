@@ -1,108 +1,100 @@
 #include "filewatcher.h"
-#include <stdlib.h>
-#include <sys/inotify.h>
-#include <limits.h>
+
+#include <poll.h>
+#include <fcntl.h>
 #include <stdio.h>
-#include <unistd.h>
-#include "filecontents.h"
+#include <string.h>
+#include <errno.h>
+#include <stdlib.h>
 
-#define INOTIFY_EVENT_SIZE (sizeof(struct inotify_event) + FILENAME_MAX + 1)
-#define INOTIFY_READ_BUFFER_LENGTH (10 * INOTIFY_EVENT_SIZE)
-
-typedef struct {
-    int watchDescriptor;
-    char* filepath;
-    FileContents contents;
-} WatchedFile;
-
-typedef struct {
-    WatchedFile *files;
-    int count;
-    int inotifyFd;
-} FilesWatcher;
-
-WatchedFile _createWatchedFilename(FilesWatcher* this, char *filepath);
-WatchedFile* _getWatcherFile(FilesWatcher* this, int watchDescriptor);
+int openFile(char const *filepath);
+struct pollfd initPollerFd(int fileFd);
 
 
-WATCHER createFileWatcher(char* filePaths[], int count) {
-    int i;
-    FilesWatcher* this = (FilesWatcher*) malloc(sizeof(FilesWatcher));
-    this->inotifyFd = inotify_init1(IN_CLOEXEC);
-    this->files = malloc(sizeof(WatchedFile) * count);
-    this->count = count;
-
-    for (i = 0; i < count; i++) {
-        char *filepath = filePaths[i];
-        this->files[i] = _createWatchedFilename(this, filepath);
-    }
-
-    return this;
+Watcher createFileWatcher(char* filepaths[], int count) {
+    Watcher watcher;
+    watcher.filepaths = filepaths;
+    watcher.count = count;
+    watcher.fds = malloc(sizeof(watcher.fds[0]) * count);
+    watcher.pfds = malloc(sizeof(watcher.pfds[0]) * count);
+    watcher.filepaths = malloc(sizeof(char*) * count);
+    memcpy(watcher.filepaths, filepaths, sizeof(char*) * count);
+    return watcher;
 }
 
-WatchedFile _createWatchedFilename(FilesWatcher* this, char *filepath) {
-    WatchedFile wf;
-    wf.watchDescriptor = inotify_add_watch(this->inotifyFd, filepath, IN_CLOSE_WRITE);
-    if (wf.watchDescriptor < 0) {
-        fprintf(stderr, "Can't open %s\n", filepath);
+bool openWatcher(Watcher* watcher) {
+    int i, j;
+    for (i = 0; i < watcher->count; i++) {
+        watcher->fds[i] = openFile(watcher->filepaths[i]);
+        if (watcher->fds[i] < 0) {
+            // remove invalid filepath from 'filepaths'
+            for (j = i + 1; j < watcher->count; j++) {
+                watcher->filepaths[j - 1] = watcher->filepaths[j];
+            }
+            watcher->count--;
+            i--;
+            continue;
+        }
+        watcher->pfds[i] = initPollerFd(watcher->fds[i]);
     }
-    wf.filepath = filepath;
-    wf.contents = readFileContents(filepath);
-    return wf;
+    return watcher->count > 0;
 }
 
-void deleteFileWatcher(WATCHER watcher) {
-    FilesWatcher* this = (FilesWatcher*)watcher;
+void listenFileChanges(Watcher* watcher, void (*callback)(char*)) {
+    int rc;
     int i;
 
-    for (i = 0; i < this->count; i++) {
-        inotify_rm_watch(this->inotifyFd, this->files[i].watchDescriptor);
-    }
-
-    free(this->files);
-    free(this);
-}
-
-void listenFileChanges(WATCHER watcher, void (*listener)(char *)) {
-    FilesWatcher* this = (FilesWatcher*)watcher;
-    struct inotify_event* event;
-    int readCount;
-    char buf[INOTIFY_READ_BUFFER_LENGTH];
-    char *p;
-    WatchedFile *wf;
-    FileContents newContents;
+    // ignore initial state of the files
+    poll(watcher->pfds, watcher->count, 0);
 
     while (true) {
-        readCount = read(this->inotifyFd, buf, INOTIFY_READ_BUFFER_LENGTH);
-        for (p = buf; p < buf + readCount;) {
-            event = (struct inotify_event *) p;
-            wf = _getWatcherFile(this, event->wd);
+        rc = poll(watcher->pfds, watcher->count, -1);
+        if (rc < 0) {
+            fprintf(stderr, "poll returned %d: %s\n", rc, strerror(errno));
+            return;
+        }
 
-            if (wf) {
-                newContents = readFileContents(wf->filepath);
+        if (!rc) {
+            fprintf(stderr, "No events... timeout?");
+            continue;
+        }
 
-                if (!isFileContentsEqual(wf->contents, newContents)) {
-                    freeFileContents(wf->contents);
-                    wf->contents = newContents;
-                    listener(wf->filepath);
-                } else {
-                    freeFileContents(newContents);
-                }
+        for (i = 0; i < watcher->count; ++i) {
+            if (watcher->pfds[i].revents == 0)
+                continue;
+
+            if (watcher->pfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+                fprintf(stderr, "Poll error(E H N)=(%d %d %d)\n"
+                       , watcher->pfds[i].revents & (POLLERR)
+                       , watcher->pfds[i].revents & (POLLHUP)
+                       , watcher->pfds[i].revents & (POLLNVAL)
+                    );
+                return;
             }
 
-            p += sizeof(struct inotify_event) + event->len;
+            callback(watcher->filepaths[i]);
         }
     }
 }
 
-WatchedFile* _getWatcherFile(FilesWatcher* this, int watchDescriptor) {
-    int i;
-    for (i = 0; i < this->count; i++) {
-        if (this->files[i].watchDescriptor == watchDescriptor) {
-            return &this->files[i];
-        }
+int openFile(char const *filepath) {
+    int fd = open(filepath, O_RDONLY);
+    if (fd < 0) {
+        fprintf(stderr, "Can't open %s\n", filepath);
     }
-    return 0;
+    return fd;
 }
 
+struct pollfd initPollerFd(int fileFd) {
+    struct pollfd pfd;
+    memset(&pfd, 0, sizeof(pfd));
+    pfd.fd = fileFd;
+    pfd.events = POLLIN | POLLPRI;
+    return pfd;
+}
 
+void deleteFileWatcher(Watcher* watcher) {
+    free(watcher->pfds);
+    free(watcher->fds);
+    free(watcher->filepaths);
+}

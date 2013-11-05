@@ -1,10 +1,18 @@
 #ifndef FILEWATCHER_H
 #define FILEWATCHER_H
 
-#define WATCHER void*
+#include <stdbool.h>
 
-WATCHER createFileWatcher(char* filePaths[], int count);
-void deleteFileWatcher(WATCHER watcher);
-void listenFileChanges(WATCHER watcher, void (*listener)(char *));
+typedef struct {
+    char** filepaths;
+    int count;
+    int* fds;
+    struct pollfd* pfds;
+} Watcher;
+
+Watcher createFileWatcher(char* filepaths[], int count);
+bool openWatcher(Watcher* watcher);
+void listenFileChanges(Watcher* watcher, void (*callback)(char*));
+void deleteFileWatcher(Watcher* watcher);
 
 #endif
