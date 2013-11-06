@@ -15,36 +15,27 @@
 %statefs_cleanup_system() statefs cleanup --system || :
 
 %statefs_pre() \
-%{_statefs_libdir}/statefs-stop || : \
 %{nil}
 
 %statefs_post() \
-if [ $1 -eq 1 ]; then \
-%{_statefs_libdir}/statefs-start || : \
-fi \
 %{nil}
 
 %statefs_preun() \
-if [ $1 -eq 0 ]; then \
-%{_statefs_libdir}/statefs-stop || : \
-fi \
 %{nil}
 
 %statefs_postun() \
-statefs cleanup || : \
-statefs cleanup --system || : \
-%{_statefs_libdir}/statefs-start || :\
 %{nil}
 
 
 %statefs_posttrans() \
-if [ $1 -eq 0 ]; then \
-%{_statefs_libdir}/statefs-start || : \
-fi \
 %{nil}
 
 %statefs_provider_install() \
 %{_statefs_libdir}/install-provider %{*} \
+%{nil}
+
+%statefs_loader_install() \
+%{_statefs_libdir}/install-provider loader %{*} \
 %{nil}
 
 %statefs_provider_unregister() \
@@ -54,9 +45,6 @@ fi \
 %{nil}
 
 %statefs_provider_register() \
-if [ $1 -gt 1 ]; then \
-%{_statefs_libdir}/provider-do unregister %{*} || : \
-fi \
 %{_statefs_libdir}/provider-do register %{*} || : \
 %{nil}
 
@@ -67,8 +55,5 @@ fi \
 %{nil}
 
 %statefs_loader_register() \
-if [ $1 -gt 1 ]; then \
-%{_statefs_libdir}/loader-do unregister %{*} || : \
-fi \
 %{_statefs_libdir}/loader-do register %{*} || : \
 %{nil}

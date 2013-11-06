@@ -884,7 +884,7 @@ public:
         return rc;
     }
 
-    static FuseFs *instance();
+    static std::shared_ptr<FuseFs> instance();
 
     static void release();
 

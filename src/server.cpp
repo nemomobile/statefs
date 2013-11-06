@@ -451,7 +451,7 @@ class PluginDir;
 
 class PluginNsDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
-    typedef RODir<DirFactory, FileFactory, Mutex> base_type;
+    typedef RODir<DirFactory, FileFactory, cor::Mutex> base_type;
 public:
 
     typedef std::shared_ptr<config::Namespace> info_ptr;
@@ -689,15 +689,20 @@ class PluginsDir : private LoadersStorage,
                    public ReadRmDir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
-    PluginsDir() { }
+    PluginsDir();
+    PluginsDir(PluginsDir const&) = delete;
+    PluginsDir& operator = (PluginsDir const&) = delete;
 
     void plugin_add(PluginDir::info_ptr);
     void loader_add(loader_info_ptr);
-    void loader_rm(loader_info_ptr);
     void stop();
 
     std::shared_ptr<LoaderProxy> loader_get(std::string const&);
 };
+
+PluginsDir::PluginsDir()
+{
+}
 
 void PluginsDir::stop()
 {
@@ -725,13 +730,6 @@ void PluginsDir::loader_add(loader_info_ptr p)
     loader_register(p);
 }
 
-void PluginsDir::loader_rm(loader_info_ptr p)
-{
-    auto lock(cor::wlock(*this));
-    if (p)
-        LoadersStorage::loader_rm(p->value());
-}
-
 std::shared_ptr<LoaderProxy> PluginsDir::loader_get(std::string const& name)
 {
     auto lock(cor::wlock(*this));
@@ -744,8 +742,6 @@ class NamespaceDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 public:
     NamespaceDir(PluginDir::info_ptr p,
                  PluginNsDir::info_ptr ns);
-
-    void rm_props(PluginNsDir::info_ptr ns);
 };
 
 PluginDir::info_ptr PluginDir::load_namespaces(info_ptr p)
@@ -794,16 +790,6 @@ NamespaceDir::NamespaceDir
     }
 }
 
-void NamespaceDir::rm_props(PluginNsDir::info_ptr ns)
-{
-    for (auto prop : ns->props_) {
-        auto name = prop->value();
-        int rc = unlink_(name);
-        if (rc < 0)
-            std::cerr << "can't unlink prop " << name << std::endl;
-    }
-}
-
 class NamespacesDir : public RODir<DirFactory, FileFactory, cor::Mutex>
 {
 public:
@@ -813,32 +799,13 @@ public:
         for (auto ns : p->namespaces_)
             add_dir(ns->value(), mk_dir_entry(make_unique<NamespaceDir>(p, ns)));
     }
-
-    void plugin_rm(PluginDir::info_ptr p)
-    {
-        auto lock(cor::wlock(*this));
-        for (auto ns : p->namespaces_) {
-            auto name = ns->value();
-            auto pdir = dirs.find(name);
-            if (!pdir)
-                continue;
-
-            auto dir = dir_entry_impl<NamespaceDir>(pdir);
-            dir->rm_props(ns);
-            if (dir->empty()) {
-                int rc = unlink_(name);
-                if (rc < 0)
-                    std::cerr << "can't unlink ns " << name << std::endl;
-            }
-        }
-    }
 };
 
 
 class RootDir : private config::ConfigReceiver
-              , public RODir<DirFactory, FileFactory, cor::NoLock>
+              , public RODir<DirFactory, FileFactory, cor::Mutex>
 {
-    typedef RODir<DirFactory, FileFactory, cor::NoLock> base_type;
+    typedef RODir<DirFactory, FileFactory, cor::Mutex> base_type;
     typedef void (RootDir::*self_fn_type)();
 public:
     RootDir()
@@ -849,6 +816,9 @@ public:
         add_dir("providers", mk_dir_entry(plugins));
         add_dir("namespaces", mk_dir_entry(namespaces));
     }
+
+    RootDir(RootDir const&) = delete;
+    RootDir& operator = (RootDir const&) = delete;
 
     void stop()
     {
@@ -893,38 +863,24 @@ private:
     void load_monitor()
     {
         auto receiver = static_cast<ConfigReceiver*>(this);
+        if (cfg_mon_)
+            throw cor::Error("There is a monitor already");
+
         cfg_mon_ = make_unique<config::Monitor>(cfg_dir_, *receiver);
     }
 
     virtual void provider_add(std::shared_ptr<config::Plugin> p)
     {
-        auto lock(cor::wlock(*this));
         if (p) {
             plugins->plugin_add(p);
             namespaces->plugin_add(p);
         }
     }
-    virtual void provider_rm(std::shared_ptr<config::Plugin> p)
-    {
-        auto lock(cor::wlock(*this));
-        if (p) {
-            trace() << "removing " << p->value() << std::endl;
-            namespaces->plugin_rm(p);
-            plugins->unlink(p->value());
-        }
-    }
+
     virtual void loader_add(std::shared_ptr<config::Loader> p)
     {
-        auto lock(cor::wlock(*this));
         if (p)
             plugins->loader_add(p);
-    }
-
-    virtual void loader_rm(std::shared_ptr<config::Loader> p)
-    {
-        auto lock(cor::wlock(*this));
-        if (p)
-            plugins->loader_rm(p);
     }
 
     void dummy() {}
@@ -932,7 +888,6 @@ private:
     std::shared_ptr<PluginsDir> plugins;
     std::shared_ptr<NamespacesDir> namespaces;
     self_fn_type before_access_;
-    //std::function<void ()> before_access;
     std::unique_ptr<config::Monitor> cfg_mon_;
     std::string cfg_dir_;
 };
@@ -947,12 +902,14 @@ public:
 
     void init(std::string const &cfg_dir)
     {
-        impl_->init(cfg_dir);
+        if (impl_)
+            impl_->init(cfg_dir);
     }
 
     void destroy()
     {
-        impl()->clear();
+        if (impl_)
+            impl_->clear();
     }
 };
 
@@ -960,31 +917,32 @@ public:
 struct Root {
 
     typedef metafuse::FuseFs<RootDirEntry> impl_type;
-    typedef metafuse::FuseFs<RootDirEntry> & impl_ref;
-    typedef metafuse::FuseFs<RootDirEntry> * impl_ptr;
+    typedef std::shared_ptr<impl_type> impl_ptr;
 
     void release()
     {
-        // can be release from signal handler
-        std::lock_guard<std::mutex> lock(release_mutex_);
-        impl.reset();
+        fs.reset();
     }
 
     impl_ptr get();
 
     void stop()
     {
-        auto entry = impl->impl();
-        dir_entry_impl<RootDir>(entry)->stop();
+        auto hold_fs = fs;
+        auto entry = fs->impl();
+        if (entry) {
+            auto entry_impl = dir_entry_impl<RootDir>(entry);
+            if (entry_impl)
+                entry_impl->stop();
+        }
     }
 
     impl_ptr instance()
     {
-        return impl.get();
+        return fs;
     }
 
-    std::mutex release_mutex_;
-    std::unique_ptr<impl_type> impl;
+    impl_ptr fs;
 };
 
 static Root statefs_root;
@@ -1154,7 +1112,7 @@ public:
         else
             res = fuse_loop(fuse);
 
-        statefs_root.release();
+        //statefs_root.release();
         fuse_teardown(fuse, mountpoint);
         if (res == -1)
             return 1;
@@ -1173,9 +1131,9 @@ char *FuseMain::mountpoint = nullptr;
 
 Root::impl_ptr Root::get()
 {
-    if (!impl) {
-        impl = make_unique<impl_type>();
-        impl->main_ = FuseMain::statefs_main_common;
+    if (!fs) {
+        fs = std::make_shared<impl_type>();
+        fs->main_ = FuseMain::statefs_main_common;
     }
     return instance();
 }
@@ -1382,8 +1340,11 @@ private:
         auto root = fuse();
         int rc = -EPERM;
         if (root) {
-            root->impl()->init(cfg_dir);
-            rc = fuse_run();
+            auto impl = root->impl();
+            if (impl) {
+                impl->init(cfg_dir);
+                rc = fuse_run();
+            }
         }
         return rc;
     }

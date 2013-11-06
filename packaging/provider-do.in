@@ -15,13 +15,17 @@ if [ "$stype" == "system" ]; then
     params="--system";
 fi
 
-scripts_dir=@prefix@/@DST_LIB@/statefs/scripts
+lib_dir=@prefix@/@DST_LIB@/statefs
+scripts_dir=$lib_dir/scripts
+loader_dir=$scripts_dir/$provider_type
+script_name=$loader_dir/on-$group_name
 
-if [ "$provider_type" == "loader" ]; then
-    exit 1
+if [ "$cmd" == "register" ]; then
+    order=03
+    if [ "$provider_type" == "loader" ]; then
+        order=02
+    fi
+    add-oneshot --now statefs-$order-register-$group_name
 else
-    loader_dir=$scripts_dir/$provider_type
-    mkdir -p $loader_dir
-    script_name=$loader_dir/on-$group_name
-    sh $script_name $cmd $params
+    $script_name $cmd $params
 fi

@@ -1,0 +1,24 @@
+#!/bin/sh
+if [ $# -lt 2 ]; then
+    echo "Usage: $0 action loader_path <params>"
+    exit 1
+fi
+
+action=$1
+loader_path=$2
+
+loader_type=$(statefs $action $loader_path --statefs-type=loader ${@:2} | cut -d '-' -f 2)
+if [ "x$loader_type" == "x" ]; then
+    echo "Loader ($loader_path) should return its type"
+    exit 1
+fi
+
+loader_type=$(statefs $action $loader_path --statefs-type=loader --system ${@:2} | cut -d '-' -f 2)
+if [ "x$loader_type" == "x" ]; then
+    echo "Loader ($loader_path) should return its type"
+    exit 1
+fi
+scripts_dir=@prefix@/@DST_LIB@/statefs/scripts/$loader_type
+if [ -d $scripts_dir ]; then
+    find $scripts_dir -name "on-*" -exec sh -c "sh {} register" \;
+fi
