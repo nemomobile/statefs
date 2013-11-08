@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 2.8)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Werror -Wall")
 set(SRC main.c filewatcher.c)
 add_executable(statefs-change-notifier ${SRC})
+install(TARGETS statefs-change-notifier DESTINATION bin)
