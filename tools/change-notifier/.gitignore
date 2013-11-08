@@ -1,0 +1,4 @@
+RPMS
+documentation.list
+*.spec
+statefs-change-notifier
