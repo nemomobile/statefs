@@ -1,0 +1,37 @@
+StateFS Change Notifier
+=======================
+The StateFS Change Notifier is command-line utility which notifies when a
+StateFS property changes.
+
+Usage
+=====
+Execute the utility like this:
+$ statefs-change-notifier filenames...
+
+e.g:
+$ statefs-change-notifier \
+   /run/state/namespaces/Battery/ChargePercentage \
+   /run/state/namespaces/Battery/IsCharging \
+   /run/state/namespaces/Internet/SignalStrength
+
+When one of the property files change the utility prints its path to stdout.
+
+Compiling and building RPM package
+==================================
+Prerequisites:
+   * Jolla SailfishOS SDK
+   * SSH client
+   * Git client
+   
+1. Clone this repository to somewhere in your home folder.
+2. Start MerSDK build machine and connect to it via SSH
+3. Register the build machine's scratchbox (if using internal SDK)
+4. In the cloned repository's folder, execute:
+      $ mb2 -t SailfishOS-i486-x86 build
+5. If all went well, the builted RPM will be within RPMS subfolder.
+
+Installing
+==========
+1. Transfer the RPM package file to your emulator with e.g. a SFTP client.
+2. Install it with command (in emulator):
+   $ sudo rpm --install <path to the rpm file>

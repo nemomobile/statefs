@@ -1,0 +1,18 @@
+Name: statefs-change-notifier
+Summary: StateFS property change notifier
+Version: 0.0.0
+Release: 0.0.0
+Group: System/Packages
+License: LGPLv2
+Description:
+  Detects changes made to StateFS's properties.
+URL: https://github.com/nemomobile/statefs
+Builder: cmake
+Requires: 
+- statefs
+Macros:
+# added for compatibility with mb2
+- qtc_qmake; %qmake
+
+Files:
+- "%{_bindir}/statefs-change-notifier"
