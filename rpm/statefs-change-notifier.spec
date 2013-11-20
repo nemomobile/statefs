@@ -7,7 +7,7 @@ License:    LGPLv2
 URL:        https://github.com/nemomobile/statefs
 Source0:    %{name}-%{version}.tar.bz2
 Requires:   statefs
-BuildRequires: cmake
+BuildRequires: cmake >= 2.8
 
 %description
 Detects changes made to StateFS's properties.
