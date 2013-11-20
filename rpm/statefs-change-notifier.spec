@@ -14,6 +14,10 @@ BuildRequires: cmake
 %description
 Detects changes made to StateFS's properties.
 
+%prep
+
+%setup -q
+
 %build
 %cmake tools/change-notifier/
 make %{?_smp_mflags}
