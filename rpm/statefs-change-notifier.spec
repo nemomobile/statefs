@@ -1,6 +1,4 @@
 Name:       statefs-change-notifier
-%define qtc_qmake %qmake
-
 Summary:    StateFS property change notifier
 Version:    0.0.0
 Release:    1
