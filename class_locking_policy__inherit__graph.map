@@ -1,0 +1,13 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; BasicTextFile\&lt; HandleT,\l LockingPolicy \&gt;, HandleT,\l LockingPolicy \&gt;" alt="" coords="163,5,343,75"/>
+<area shape="rect" id="node7" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; FixedSizeFile\&lt; Size,\l HandleT, LockingPolicy\l \&gt;, HandleT, LockingPolicy \&gt;" alt="" coords="157,99,349,170"/>
+<area shape="rect" id="node11" href="$classmetafuse_1_1_default_dir.html" title="metafuse::DefaultDir\l\&lt; DirFactoryT, FileFactoryT,\l LockingPolicy \&gt;" alt="" coords="159,195,347,251"/>
+<area shape="rect" id="node19" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; DerivedT, HandleT,\l LockingPolicy \&gt;" alt="" coords="179,275,327,331"/>
+<area shape="rect" id="node21" href="$classmetafuse_1_1_empty_file.html" title="metafuse::EmptyFile\l\&lt; LockingPolicy \&gt;" alt="" coords="182,354,325,395"/>
+<area shape="rect" id="node23" href="$classmetafuse_1_1_symlink.html" title="metafuse::Symlink\&lt;\l LockingPolicy \&gt;" alt="" coords="184,419,323,461"/>
+<area shape="rect" id="node5" href="$classmetafuse_1_1_basic_text_file.html" title="metafuse::BasicTextFile\l\&lt; HandleT, LockingPolicy \&gt;" alt="" coords="415,19,599,61"/>
+<area shape="rect" id="node9" href="$classmetafuse_1_1_fixed_size_file.html" title="metafuse::FixedSizeFile\l\&lt; Size, HandleT, LockingPolicy \&gt;" alt="" coords="397,99,616,141"/>
+<area shape="rect" id="node13" href="$classmetafuse_1_1_read_rm_dir.html" title="metafuse::ReadRmDir\l\&lt; DirFactoryT, FileFactory\lT, LockingPolicy \&gt;" alt="" coords="419,164,595,220"/>
+<area shape="rect" id="node15" href="$classmetafuse_1_1_r_o_dir.html" title="metafuse::RODir\&lt; DirFactory\lT, FileFactoryT, LockingPolicy \&gt;" alt="" coords="401,243,613,285"/>
+<area shape="rect" id="node17" href="$classmetafuse_1_1_r_w_dir.html" title="metafuse::RWDir\&lt; DirFactory\lT, FileFactoryT, LockingPolicy \&gt;" alt="" coords="401,309,613,350"/>
+</map>

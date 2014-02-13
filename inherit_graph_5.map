@@ -1,0 +1,9 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classconfig_1_1_config_receiver.html" title="config::ConfigReceiver" alt="" coords="5,5,160,32"/>
+<area shape="rect" id="node2" href="$class_root_dir.html" title="RootDir" alt="" coords="233,5,300,32"/>
+<area shape="rect" id="node3" href="$class_plugin_storage.html" title="PluginStorage" alt="" coords="31,208,134,235"/>
+<area shape="rect" id="node4" href="$class_plugin_dir.html" title="PluginDir" alt="" coords="229,208,304,235"/>
+<area shape="rect" id="node6" href="$class_namespace_dir.html" title="NamespaceDir" alt="" coords="212,56,321,83"/>
+<area shape="rect" id="node7" href="$class_namespaces_dir.html" title="NamespacesDir" alt="" coords="209,107,325,133"/>
+<area shape="rect" id="node8" href="$class_plugin_ns_dir.html" title="PluginNsDir" alt="" coords="221,157,313,184"/>
+</map>

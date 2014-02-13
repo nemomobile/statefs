@@ -1,0 +1,31 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node2" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; BranchT \&gt;" alt="" coords="194,42,345,83"/>
+<area shape="rect" id="node3" href="$classstatefs_1_1_branch_wrapper.html" title="statefs::BranchWrapper\l\&lt; BranchT \&gt;" alt="" coords="401,39,561,81"/>
+<area shape="rect" id="node4" href="$classstatefs_1_1_branch.html" title="statefs::Branch\&lt; BranchT \&gt;" alt="" coords="613,51,797,77"/>
+<area shape="rect" id="node6" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; NodeT \&gt;" alt="" coords="194,350,345,391"/>
+<area shape="rect" id="node7" href="$classstatefs_1_1_a_node.html" title="statefs::ANode" alt="" coords="18,184,129,211"/>
+<area shape="rect" id="node8" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; statefs_namespace \&gt;" alt="" coords="189,122,349,163"/>
+<area shape="rect" id="node16" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; statefs_property \&gt;" alt="" coords="194,285,345,326"/>
+<area shape="rect" id="node21" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; statefs_provider \&gt;" alt="" coords="194,219,345,261"/>
+<area shape="rect" id="node9" href="$classstatefs_1_1_branch_wrapper.html" title="statefs::BranchWrapper\l\&lt; statefs_namespace \&gt;" alt="" coords="401,105,561,146"/>
+<area shape="rect" id="node10" href="$classstatefs_1_1_branch.html" title="statefs::Branch\&lt; statefs\l_namespace \&gt;" alt="" coords="624,105,787,146"/>
+<area shape="rect" id="node11" href="$classstatefs_1_1_namespace.html" title="statefs::Namespace" alt="" coords="875,107,1015,133"/>
+<area shape="rect" id="node12" href="$class_ns_child.html" title="Basic namespace example, it contains single property." alt="" coords="1155,56,1224,83"/>
+<area shape="rect" id="node13" href="$class_ns_time.html" title="NsTime" alt="" coords="1155,107,1223,133"/>
+<area shape="rect" id="node14" href="$classstatefs_1_1inout_1_1_dst.html" title="statefs::inout::Dst" alt="" coords="1126,157,1253,184"/>
+<area shape="rect" id="node15" href="$classstatefs_1_1inout_1_1_src.html" title="statefs::inout::Src" alt="" coords="1126,5,1253,32"/>
+<area shape="rect" id="node17" href="$classstatefs_1_1_property_wrapper.html" title="statefs::PropertyWrapper" alt="" coords="397,300,565,327"/>
+<area shape="rect" id="node18" href="$classstatefs_1_1_a_property.html" title="statefs::AProperty" alt="" coords="641,311,769,337"/>
+<area shape="rect" id="node19" href="$classstatefs_1_1_a_property_owner.html" title="statefs::APropertyOwner\&lt; T \&gt;" alt="" coords="846,313,1045,340"/>
+<area shape="rect" id="node20" href="$classstatefs_1_1_basic_property_owner.html" title="statefs::BasicPropertyOwner\l\&lt; T, HandleT \&gt;" alt="" coords="1094,310,1285,351"/>
+<area shape="rect" id="node22" href="$classstatefs_1_1_branch_wrapper.html" title="statefs::BranchWrapper\l\&lt; statefs_provider \&gt;" alt="" coords="401,222,561,263"/>
+<area shape="rect" id="node23" href="$classstatefs_1_1_branch.html" title="statefs::Branch\&lt; statefs\l_provider \&gt;" alt="" coords="624,201,787,242"/>
+<area shape="rect" id="node24" href="$classstatefs_1_1_a_provider.html" title="statefs::AProvider" alt="" coords="882,208,1009,235"/>
+<area shape="rect" id="node25" href="$class_provider.html" title="Provider" alt="" coords="1154,259,1225,285"/>
+<area shape="rect" id="node26" href="$classstatefs_1_1inout_1_1_provider.html" title="statefs::inout::Provider" alt="" coords="1112,208,1267,235"/>
+<area shape="rect" id="node27" href="$classstatefs_1_1_branch_storage.html" title="statefs::BranchStorage" alt="" coords="403,171,559,197"/>
+<area shape="rect" id="node28" href="$structstatefs__namespace.html" title="statefs_namespace" alt="" coords="5,129,141,156"/>
+<area shape="rect" id="node29" href="$structstatefs__property.html" title="statefs_property" alt="" coords="15,292,131,319"/>
+<area shape="rect" id="node30" href="$structstatefs__provider.html" title="statefs_provider" alt="" coords="16,235,131,261"/>
+<area shape="rect" id="node31" href="$structstatefs__server.html" title="statefs_server" alt="" coords="893,259,998,285"/>
+</map>

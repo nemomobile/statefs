@@ -1,0 +1,10 @@
+<map id="statefs_namespace" name="statefs_namespace">
+<area shape="rect" id="node2" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; statefs_namespace \&gt;" alt="" coords="113,81,273,122"/>
+<area shape="rect" id="node3" href="$classstatefs_1_1_branch_wrapper.html" title="statefs::BranchWrapper\l\&lt; statefs_namespace \&gt;" alt="" coords="113,171,273,213"/>
+<area shape="rect" id="node4" href="$classstatefs_1_1_branch.html" title="statefs::Branch\&lt; statefs\l_namespace \&gt;" alt="" coords="112,262,275,303"/>
+<area shape="rect" id="node5" href="$classstatefs_1_1_namespace.html" title="statefs::Namespace" alt="" coords="123,352,263,379"/>
+<area shape="rect" id="node6" href="$class_ns_child.html" title="Basic namespace example, it contains single property." alt="" coords="5,427,75,453"/>
+<area shape="rect" id="node7" href="$class_ns_time.html" title="NsTime" alt="" coords="99,427,167,453"/>
+<area shape="rect" id="node8" href="$classstatefs_1_1inout_1_1_dst.html" title="statefs::inout::Dst" alt="" coords="191,427,317,453"/>
+<area shape="rect" id="node9" href="$classstatefs_1_1inout_1_1_src.html" title="statefs::inout::Src" alt="" coords="342,427,468,453"/>
+</map>

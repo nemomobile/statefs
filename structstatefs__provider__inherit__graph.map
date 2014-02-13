@@ -1,0 +1,8 @@
+<map id="statefs_provider" name="statefs_provider">
+<area shape="rect" id="node2" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; statefs_provider \&gt;" alt="" coords="33,81,183,122"/>
+<area shape="rect" id="node3" href="$classstatefs_1_1_branch_wrapper.html" title="statefs::BranchWrapper\l\&lt; statefs_provider \&gt;" alt="" coords="28,171,188,213"/>
+<area shape="rect" id="node4" href="$classstatefs_1_1_branch.html" title="statefs::Branch\&lt; statefs\l_provider \&gt;" alt="" coords="27,262,189,303"/>
+<area shape="rect" id="node5" href="$classstatefs_1_1_a_provider.html" title="statefs::AProvider" alt="" coords="45,352,171,379"/>
+<area shape="rect" id="node6" href="$class_provider.html" title="Provider" alt="" coords="5,427,75,453"/>
+<area shape="rect" id="node7" href="$classstatefs_1_1inout_1_1_provider.html" title="statefs::inout::Provider" alt="" coords="100,427,255,453"/>
+</map>

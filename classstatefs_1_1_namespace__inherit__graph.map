@@ -1,0 +1,12 @@
+<map id="statefs::Namespace" name="statefs::Namespace">
+<area shape="rect" id="node8" href="$class_ns_child.html" title="Basic namespace example, it contains single property." alt="" coords="49,427,119,453"/>
+<area shape="rect" id="node9" href="$class_ns_time.html" title="NsTime" alt="" coords="143,427,211,453"/>
+<area shape="rect" id="node10" href="$classstatefs_1_1inout_1_1_dst.html" title="statefs::inout::Dst" alt="" coords="235,427,361,453"/>
+<area shape="rect" id="node11" href="$classstatefs_1_1inout_1_1_src.html" title="statefs::inout::Src" alt="" coords="386,427,512,453"/>
+<area shape="rect" id="node2" href="$classstatefs_1_1_branch.html" title="statefs::Branch\&lt; statefs\l_namespace \&gt;" alt="" coords="156,262,319,303"/>
+<area shape="rect" id="node3" href="$classstatefs_1_1_branch_wrapper.html" title="statefs::BranchWrapper\l\&lt; statefs_namespace \&gt;" alt="" coords="67,171,227,213"/>
+<area shape="rect" id="node4" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; statefs_namespace \&gt;" alt="" coords="67,81,227,122"/>
+<area shape="rect" id="node5" href="$structstatefs__namespace.html" title="statefs_namespace" alt="" coords="5,5,141,32"/>
+<area shape="rect" id="node6" href="$classstatefs_1_1_a_node.html" title="statefs::ANode" alt="" coords="166,5,276,32"/>
+<area shape="rect" id="node7" href="$classstatefs_1_1_branch_storage.html" title="statefs::BranchStorage" alt="" coords="251,179,407,205"/>
+</map>

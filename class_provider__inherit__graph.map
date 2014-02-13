@@ -1,0 +1,10 @@
+<map id="Provider" name="Provider">
+<area shape="rect" id="node2" href="$classstatefs_1_1_a_provider.html" title="statefs::AProvider" alt="" coords="158,352,284,379"/>
+<area shape="rect" id="node3" href="$classstatefs_1_1_branch.html" title="statefs::Branch\&lt; statefs\l_provider \&gt;" alt="" coords="140,262,303,303"/>
+<area shape="rect" id="node4" href="$classstatefs_1_1_branch_wrapper.html" title="statefs::BranchWrapper\l\&lt; statefs_provider \&gt;" alt="" coords="51,171,211,213"/>
+<area shape="rect" id="node5" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; statefs_provider \&gt;" alt="" coords="55,81,205,122"/>
+<area shape="rect" id="node6" href="$structstatefs__provider.html" title="statefs_provider" alt="" coords="5,5,120,32"/>
+<area shape="rect" id="node7" href="$classstatefs_1_1_a_node.html" title="statefs::ANode" alt="" coords="145,5,255,32"/>
+<area shape="rect" id="node8" href="$classstatefs_1_1_branch_storage.html" title="statefs::BranchStorage" alt="" coords="235,179,391,205"/>
+<area shape="rect" id="node9" href="$structstatefs__server.html" title="statefs_server" alt="" coords="309,352,413,379"/>
+</map>

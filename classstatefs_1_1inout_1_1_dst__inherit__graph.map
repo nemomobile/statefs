@@ -1,0 +1,9 @@
+<map id="statefs::inout::Dst" name="statefs::inout::Dst">
+<area shape="rect" id="node2" href="$classstatefs_1_1_namespace.html" title="statefs::Namespace" alt="" coords="167,352,307,379"/>
+<area shape="rect" id="node3" href="$classstatefs_1_1_branch.html" title="statefs::Branch\&lt; statefs\l_namespace \&gt;" alt="" coords="156,262,319,303"/>
+<area shape="rect" id="node4" href="$classstatefs_1_1_branch_wrapper.html" title="statefs::BranchWrapper\l\&lt; statefs_namespace \&gt;" alt="" coords="67,171,227,213"/>
+<area shape="rect" id="node5" href="$classstatefs_1_1_node_wrapper.html" title="statefs::NodeWrapper\l\&lt; statefs_namespace \&gt;" alt="" coords="67,81,227,122"/>
+<area shape="rect" id="node6" href="$structstatefs__namespace.html" title="statefs_namespace" alt="" coords="5,5,141,32"/>
+<area shape="rect" id="node7" href="$classstatefs_1_1_a_node.html" title="statefs::ANode" alt="" coords="166,5,276,32"/>
+<area shape="rect" id="node8" href="$classstatefs_1_1_branch_storage.html" title="statefs::BranchStorage" alt="" coords="251,179,407,205"/>
+</map>

@@ -1,0 +1,6 @@
+<map id="G" name="G">
+<area shape="rect" id="node2" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; FixedSizeFile\&lt; Size,\l HandleT, LockingPolicy\l \&gt;, HandleT, LockingPolicy \&gt;" alt="" coords="261,57,453,127"/>
+<area shape="rect" id="node4" href="$classmetafuse_1_1_default_time.html" title="metafuse::DefaultTime" alt="" coords="32,5,187,32"/>
+<area shape="rect" id="node6" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultFile\&lt; FixedSizeFile\l\&lt; Size, HandleT, LockingPolicy\l \&gt;, LockingPolicy \&gt; \&gt;" alt="" coords="6,57,213,127"/>
+<area shape="rect" id="node8" href="$class_locking_policy.html" title="LockingPolicy" alt="" coords="58,152,161,179"/>
+</map>

@@ -1,0 +1,7 @@
+<map id="G" name="G">
+<area shape="rect" id="node3" href="$classmetafuse_1_1_default_dir.html" title="metafuse::DefaultDir\l\&lt; DirFactory, FileFactory,\l cor::NoLock \&gt;" alt="" coords="157,4,329,60"/>
+<area shape="rect" id="node9" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; PluginLoadFile\&lt; LoadT \&gt; \&gt;" alt="" coords="147,83,338,125"/>
+<area shape="rect" id="node5" href="$classmetafuse_1_1_r_o_dir.html" title="metafuse::RODir\&lt; DirFactory,\l FileFactory, cor::NoLock \&gt;" alt="" coords="387,11,586,53"/>
+<area shape="rect" id="node7" href="$class_root_dir.html" title="RootDir" alt="" coords="635,19,701,45"/>
+<area shape="rect" id="node11" href="$class_plugin_load_file.html" title="PluginLoadFile\&lt; LoadT \&gt;" alt="" coords="403,91,570,117"/>
+</map>

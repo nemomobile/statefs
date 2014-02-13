@@ -1,0 +1,46 @@
+<map id="G" name="G">
+<area shape="rect" id="node1" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultDir\&lt; DirFactory,\l FileFactory, cor::Mutex \&gt; \&gt;" alt="" coords="19,153,218,209"/>
+<area shape="rect" id="node3" href="$classmetafuse_1_1_default_dir.html" title="metafuse::DefaultDir\l\&lt; DirFactory, FileFactory,\l cor::Mutex \&gt;" alt="" coords="291,203,463,259"/>
+<area shape="rect" id="node5" href="$classmetafuse_1_1_read_rm_dir.html" title="metafuse::ReadRmDir\l\&lt; DirFactory, FileFactory,\l cor::Mutex \&gt;" alt="" coords="546,244,718,300"/>
+<area shape="rect" id="node9" href="$classmetafuse_1_1_r_o_dir.html" title="metafuse::RODir\&lt; DirFactory,\l FileFactory, cor::Mutex \&gt;" alt="" coords="533,179,731,221"/>
+<area shape="rect" id="node7" href="$class_plugins_dir.html" title="PluginsDir" alt="" coords="808,299,891,325"/>
+<area shape="rect" id="node11" href="$class_namespace_dir.html" title="NamespaceDir" alt="" coords="795,197,904,224"/>
+<area shape="rect" id="node13" href="$class_namespaces_dir.html" title="NamespacesDir" alt="" coords="791,248,907,275"/>
+<area shape="rect" id="node15" href="$class_plugin_dir.html" title="PluginDir" alt="" coords="812,96,887,123"/>
+<area shape="rect" id="node17" href="$class_plugin_ns_dir.html" title="PluginNsDir" alt="" coords="803,147,895,173"/>
+<area shape="rect" id="node18" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultDir\&lt; DirFactory,\l FileFactory, cor::NoLock \&gt; \&gt;" alt="" coords="19,364,218,420"/>
+<area shape="rect" id="node20" href="$classmetafuse_1_1_default_dir.html" title="metafuse::DefaultDir\l\&lt; DirFactory, FileFactory,\l cor::NoLock \&gt;" alt="" coords="291,377,463,433"/>
+<area shape="rect" id="node22" href="$classmetafuse_1_1_r_o_dir.html" title="metafuse::RODir\&lt; DirFactory,\l FileFactory, cor::NoLock \&gt;" alt="" coords="533,385,731,426"/>
+<area shape="rect" id="node24" href="$class_root_dir.html" title="RootDir" alt="" coords="816,392,883,419"/>
+<area shape="rect" id="node25" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultDir\&lt; DirFactoryT,\l FileFactoryT, LockingPolicy \&gt; \&gt;" alt="" coords="13,495,225,551"/>
+<area shape="rect" id="node27" href="$classmetafuse_1_1_default_dir.html" title="metafuse::DefaultDir\l\&lt; DirFactoryT, FileFactoryT,\l LockingPolicy \&gt;" alt="" coords="283,521,471,577"/>
+<area shape="rect" id="node29" href="$classmetafuse_1_1_read_rm_dir.html" title="metafuse::ReadRmDir\l\&lt; DirFactoryT, FileFactory\lT, LockingPolicy \&gt;" alt="" coords="544,449,720,505"/>
+<area shape="rect" id="node31" href="$classmetafuse_1_1_r_o_dir.html" title="metafuse::RODir\&lt; DirFactory\lT, FileFactoryT, LockingPolicy \&gt;" alt="" coords="526,529,738,570"/>
+<area shape="rect" id="node33" href="$classmetafuse_1_1_r_w_dir.html" title="metafuse::RWDir\&lt; DirFactory\lT, FileFactoryT, LockingPolicy \&gt;" alt="" coords="526,594,738,635"/>
+<area shape="rect" id="node34" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultFile\&lt; BasicTextFile\l\&lt; HandleT, LockingPolicy \&gt;,\l LockingPolicy \&gt; \&gt;" alt="" coords="19,691,218,762"/>
+<area shape="rect" id="node36" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; BasicTextFile\&lt; HandleT,\l LockingPolicy \&gt;, HandleT,\l LockingPolicy \&gt;" alt="" coords="287,670,467,741"/>
+<area shape="rect" id="node38" href="$classmetafuse_1_1_basic_text_file.html" title="metafuse::BasicTextFile\l\&lt; HandleT, LockingPolicy \&gt;" alt="" coords="540,685,724,726"/>
+<area shape="rect" id="node39" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultFile\&lt; ContinuousPropFile,\l cor::Mutex \&gt; \&gt;" alt="" coords="5,23,232,79"/>
+<area shape="rect" id="node41" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; ContinuousPropFile,\l StateFsHandle, cor::Mutex \&gt;" alt="" coords="280,57,475,113"/>
+<area shape="rect" id="node43" href="$class_continuous_prop_file.html" title="ContinuousPropFile" alt="" coords="564,5,700,32"/>
+<area shape="rect" id="node45" href="$class_discrete_prop_file.html" title="DiscretePropFile" alt="" coords="790,20,909,47"/>
+<area shape="rect" id="node46" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultFile\&lt; DerivedT,\l LockingPolicy \&gt; \&gt;" alt="" coords="19,933,218,989"/>
+<area shape="rect" id="node48" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; DerivedT, HandleT,\l LockingPolicy \&gt;" alt="" coords="303,860,451,916"/>
+<area shape="rect" id="node49" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultFile\&lt; FixedSizeFile\l\&lt; Size, HandleT, LockingPolicy\l \&gt;, LockingPolicy \&gt; \&gt;" alt="" coords="15,838,222,909"/>
+<area shape="rect" id="node51" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; FixedSizeFile\&lt; Size,\l HandleT, LockingPolicy\l \&gt;, HandleT, LockingPolicy \&gt;" alt="" coords="281,765,473,835"/>
+<area shape="rect" id="node53" href="$classmetafuse_1_1_fixed_size_file.html" title="metafuse::FixedSizeFile\l\&lt; Size, HandleT, LockingPolicy \&gt;" alt="" coords="523,779,741,821"/>
+<area shape="rect" id="node54" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; DefaultFile\&lt; PluginLoadFile\l\&lt; LoadT \&gt;, cor::NoLock \&gt; \&gt;" alt="" coords="19,233,218,289"/>
+<area shape="rect" id="node56" href="$classmetafuse_1_1_default_file.html" title="metafuse::DefaultFile\l\&lt; PluginLoadFile\&lt; LoadT \&gt; \&gt;" alt="" coords="282,307,473,349"/>
+<area shape="rect" id="node58" href="$class_plugin_load_file.html" title="PluginLoadFile\&lt; LoadT \&gt;" alt="" coords="549,324,715,351"/>
+<area shape="rect" id="node59" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; EmptyFile\&lt; LockingPolicy \&gt; \&gt;" alt="" coords="13,1013,224,1054"/>
+<area shape="rect" id="node61" href="$classmetafuse_1_1_empty_file.html" title="metafuse::EmptyFile\l\&lt; LockingPolicy \&gt;" alt="" coords="306,939,449,981"/>
+<area shape="rect" id="node62" href="$classmetafuse_1_1_default_permissions.html" title="metafuse::DefaultPermissions\l\&lt; Symlink\&lt; LockingPolicy \&gt; \&gt;" alt="" coords="19,626,218,667"/>
+<area shape="rect" id="node64" href="$classmetafuse_1_1_symlink.html" title="metafuse::Symlink\&lt;\l LockingPolicy \&gt;" alt="" coords="308,603,447,645"/>
+<area shape="rect" id="node65" href="$classmetafuse_1_1_default_time.html" title="metafuse::DefaultTime" alt="" coords="41,575,196,601"/>
+<area shape="rect" id="node76" href="$class_locking_policy.html" title="LockingPolicy" alt="" coords="67,787,170,813"/>
+<area shape="rect" id="node83" href="$classcor_1_1_mutex.html" title="cor::Mutex" alt="" coords="77,103,161,129"/>
+<area shape="rect" id="node86" href="$structcor_1_1_no_lock.html" title="cor::NoLock" alt="" coords="72,313,165,340"/>
+<area shape="rect" id="node89" href="$classmetafuse_1_1_not_file.html" title="metafuse::NotFile" alt="" coords="55,444,182,471"/>
+<area shape="rect" id="node94" href="$class_plugin_storage.html" title="PluginStorage" alt="" coords="581,107,683,133"/>
+<area shape="rect" id="node96" href="$structstatefs__slot.html" title="statefs_slot" alt="" coords="587,56,677,83"/>
+</map>
