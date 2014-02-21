@@ -1,4 +1,5 @@
 %{!?_with_usersession: %{!?_without_usersession: %define _with_usersession --with-usersession}}
+%{!?_with_oneshot: %{!?_without_oneshot: %define _with_oneshot --with-oneshot}}
 %define cor_version 0.1.11
 
 Summary: Syntetic filesystem to expose system state
@@ -18,10 +19,14 @@ BuildRequires: pkgconfig(cor) >= %{cor_version}
 BuildRequires: systemd
 Requires: fuse >= 2.9.0
 %{?_with_usersession:Requires: systemd-user-session-targets}
+
+%if 0%{?_with_oneshot:1}
 BuildRequires: oneshot
 Requires: oneshot
 %_oneshot_requires_pre
 %_oneshot_requires_post
+%endif
+
 %description
 StateFS is the syntetic filesystem to expose current system state
 provided by StateFS plugins as properties wrapped into namespaces.
