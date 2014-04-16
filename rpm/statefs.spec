@@ -1,6 +1,6 @@
 %{!?_with_usersession: %{!?_without_usersession: %define _with_usersession --with-usersession}}
 %{!?_with_oneshot: %{!?_without_oneshot: %define _with_oneshot --with-oneshot}}
-%define cor_version 0.1.11
+%define cor_version 0.1.14
 
 Summary: Syntetic filesystem to expose system state
 Name: statefs
