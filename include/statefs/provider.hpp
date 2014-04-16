@@ -471,39 +471,6 @@ private:
     statefs_server *server_;
 };
 
-// class Namespace : public ABranch
-// {
-//     static statefs_node node_template;
-// protected:
-//     typedef statefs::BranchWrapper<statefs_namespace> data_type;
-// public:
-//     static Namespace *self_cast(statefs_branch*);
-//     static Namespace const* self_cast(statefs_branch const*);
-
-//     Namespace(char const* name)
-//         : prop_(name, node_template)
-//     {
-//     }
-
-//     virtual statefs_node *get_node()
-//     {
-//         return &prop_.node;
-//     }
-//     virtual statefs_node const* get_node() const
-//     {
-//         return &prop_.node;
-//     }
-
-//     virtual statefs_node_type get_type() const
-//     {
-//         return prop_.node.type;
-//     }
-
-// protected:
-//     data_type data_;
-//     static data_type Namespace::* data_offset_;
-// };
-
 extern template class NodeWrapper<statefs_property>;
 extern template class NodeWrapper<statefs_namespace>;
 extern template class NodeWrapper<statefs_provider>;
