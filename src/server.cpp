@@ -1329,13 +1329,20 @@ private:
     int main()
     {
         auto p = opts.find("uid");
-        if (p != opts.end())
-            ::setuid(::atoi(p->second.c_str()));
+        if (p != opts.end()) {
+            if (::setuid(::atoi(p->second.c_str()))) {
+                std::cerr << "setuid is failed: " << ::strerror(errno);
+                return -1;
+            }
+        }
 
         p = opts.find("gid");
-        if (p != opts.end())
-            ::setgid(::atoi(p->second.c_str()));
-
+        if (p != opts.end()) {
+            if (::setgid(::atoi(p->second.c_str()))) {
+                std::cerr << "setgid is failed: " << ::strerror(errno);
+                return -1;
+            }
+        }
 
         auto root = fuse();
         int rc = -EPERM;
