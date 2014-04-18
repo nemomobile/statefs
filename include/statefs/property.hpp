@@ -12,9 +12,9 @@
 
 #include <string>
 #include <mutex>
+#include <array>
 
 namespace statefs {
-
 
 
 enum PropertyStatus {
@@ -54,6 +54,7 @@ public:
     virtual std::string read() const =0;
 };
 
+/// constant string value source
 class DefaultSource : public PropertySource
 {
 public:
@@ -248,6 +249,124 @@ inline int BasicWriter::read
 {
     return -1;
 }
+
+// -----------------------------------------------------------------------------
+
+
+enum class PropType { Analog, Discrete };
+
+template <typename T>
+T attr(char const *v);
+
+template <>
+inline std::string attr<std::string>(char const *v)
+{
+    return cor::str(v, "");
+}
+
+template <>
+inline long attr<long>(char const *v)
+{
+    return atoi(cor::str(v, "0").c_str());
+}
+
+template <>
+inline bool attr<bool>(char const *v)
+{
+    return attr<long>(v);
+}
+
+template <typename T>
+static inline std::string statefs_attr(T const &v)
+{
+    return std::to_string(v);
+}
+
+static inline std::string statefs_attr(bool v)
+{
+    return std::to_string(v ? 1 : 0);
+}
+
+/// Using functor returning std::string as the source
+class FunctionSource : public PropertySource
+{
+public:
+    typedef std::function<std::string()> source_type;
+
+    FunctionSource(source_type const &src) : src_(src) {}
+
+    virtual statefs_ssize_t size() const
+    {
+        return src_().size();
+    }
+
+    virtual std::string read() const
+    {
+        return src_();
+    }
+
+private:
+    source_type src_;
+};
+
+
+static inline PropertyStatus analog_throw_on_set(std::string const &v)
+{
+    throw cor::Error("Analog property can't be set");
+    return statefs::PropertyUnchanged;
+}
+
+
+// -----------------------------------------------------------------------------
+
+/// <name, default value, property type>
+typedef std::tuple<char const*, char const*, PropType> property_info_type;
+
+/**
+ * Universal implementation of namespace. Properties are enumerated in
+ * enum class PropId should end with EOE item. Also user should
+ * instantiate static const BasicNamespace<PropId>::property_info
+ */
+template <typename PropId>
+class BasicNamespace : public Namespace
+{
+public:
+    BasicNamespace(char const *name)
+        : Namespace(name)
+    {
+        for (size_t i = 0; i < prop_count; ++i) {
+            char const *name;
+            char const *defval;
+            PropType ptype;
+            std::tie(name, defval, ptype) = property_info[i];
+            if (ptype == PropType::Discrete) {
+                auto prop = create(Discrete{name, defval});
+                setters_[i] = setter(prop);
+                *this << prop;
+            } else {
+                auto const &info = analog_info_[static_cast<PropId>(i)];
+                auto src = cor::make_unique<FunctionSource>(info);
+                setters_[i] = analog_throw_on_set;
+                *this << create(std::move(Analog{name, defval}), std::move(src));
+            }
+        }
+    }
+
+    void set(PropId id, std::string const &v)
+    {
+        setters_[static_cast<size_t>(id)](v);
+    }
+
+protected:
+    static const size_t prop_count = static_cast<size_t>(PropId::EOE);
+    typedef std::array<property_info_type, prop_count> info_type;
+    typedef std::map<PropId, FunctionSource::source_type> analog_info_type;
+
+    static const info_type property_info;
+
+    analog_info_type analog_info_;
+    std::array<setter_type, prop_count> setters_;
+};
 
 }
 

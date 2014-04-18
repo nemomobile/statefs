@@ -41,9 +41,12 @@ def shell(cwd, cmd, *args):
     out, err = p.communicate()
     return out, err, p.returncode
 
-
 def mkdir(name):
     os.path.exists(name) or os.makedirs(name)
+
+def execute_rc(cmd):
+    print "Execute", cmd
+    return subprocess.call(cmd)
 
 class StateFS(Suite):
 
@@ -53,6 +56,7 @@ class StateFS(Suite):
         self.provider_path = os.path.join(tests_path, "libtest.so")
         self.rootdir = "/tmp/statefs-test"
         self.default_loader = default_loader
+        self.file_paths = {}
 
     def create_tree(self):
         mkdir(self.rootdir)
@@ -65,8 +69,9 @@ class StateFS(Suite):
         self.__cmd = lambda *params: cmd + [x for x in params]
 
     def run_fuse_server(self):
-        self.server = Popen(self.__cmd("-f", self.mntdir),
-                            stdout=PIPE, stderr=PIPE)
+        cmd = self.__cmd("-f", self.mntdir)
+        print "Run server:", cmd
+        self.server = Popen(cmd, stdout=PIPE, stderr=PIPE)
         self.suite_teardown.append(self.terminate_server)
         timeout = 50
         while timeout:
@@ -78,8 +83,11 @@ class StateFS(Suite):
             timeout -= 1
 
     def terminate_server(self):
-        self.server.terminate()
-        self.server.wait()
+        try:
+            self.server.terminate()
+            self.server.wait()
+        except Exception as e:
+            print("Can't stop fuse server")
 
     suite_setup = [init_paths, create_tree, run_fuse_server]
 
@@ -92,7 +100,7 @@ class StateFS(Suite):
 
     @test
     def default_loader_registration(self):
-        rc = subprocess.call(self.__cmd("register", self.default_loader))
+        rc = execute_rc(self.__cmd("register", self.default_loader))
         self.ensure_eq(rc, 0, "loader registration")
         self.ensure_eq(set(os.listdir(self.cfgdir)),
                        set(('loader-default.conf',)),
@@ -100,13 +108,19 @@ class StateFS(Suite):
 
     @test
     def provider_registration(self):
-        rc = subprocess.call(self.__cmd("register", self.provider_path))
+        rc = execute_rc(self.__cmd("register", self.provider_path))
         self.ensure_eq(rc, 0, "provider registration")
         self.ensure_eq(set(os.listdir(self.cfgdir)),
                        set(('provider-test.conf','loader-default.conf')),
                        "config file should appear in the config dir")
         self.providers_dir = os.path.join(self.mntdir, "providers")
         self.namespaces_dir = os.path.join(self.mntdir, "namespaces")
+        # restart server
+        self.terminate_server()
+        self.run_fuse_server()
+
+    @test
+    def provider_registered(self):
         timeout = 50
         while timeout:
             providers = os.listdir(self.providers_dir)
@@ -116,6 +130,7 @@ class StateFS(Suite):
             sleep(0.1)
         self.ensure_eq(set(providers), set(('test',)),
                        "test provider should be loaded")
+
 
     @test
     def provider_introspection(self):

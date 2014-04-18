@@ -365,6 +365,10 @@ class Report(object):
     def results(self):
         return [x.result for x in self.__results]
 
+    @property
+    def failed_count(self):
+        return len([x for x in self.results if not x.ok])
+
     def _is_relevant_tb_level(self, tb):
         return '__unittest' in tb.tb_frame.f_globals
 
@@ -415,11 +419,14 @@ def default_main(*classes):
     log.addHandler(logging.StreamHandler())
     log.setLevel(logging.CRITICAL)
     log.always = log.warning
+    rc = 0
     for cls in classes:
         report = Report(sys.stderr, log)
         Runner(cls()).run(report)
         log.setLevel(logging.WARNING)
         report.format_results()
+        rc += report.failed_count
+    exit(rc)
 
 class Tests(Suite):
     @test
