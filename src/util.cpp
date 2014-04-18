@@ -65,6 +65,7 @@ LoaderProxy::LoaderProxy(std::string const& path)
 
 provider_ptr LoaderProxy::load(std::string const& path, statefs_server *server)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
     return impl_ ? impl_->load(path, server) : nullptr;
 }
 

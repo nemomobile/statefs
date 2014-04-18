@@ -21,6 +21,7 @@
 #include <tuple>
 #include <memory>
 #include <map>
+#include <mutex>
 
 bool ensure_dir_exists(std::string const &);
 
@@ -59,6 +60,8 @@ private:
 
     static std::string loader_path(std::string const&);
     static impl_ptr create(cor::SharedLib &);
+
+    std::mutex mutex_;
     cor::SharedLib lib_;
     impl_ptr impl_;
 };
