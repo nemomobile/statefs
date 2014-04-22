@@ -278,25 +278,19 @@ struct AnyToString : public boost::static_visitor<>
 {
     std::string &dst;
 
-    AnyToString(std::string &res);
+    AnyToString(std::string &res) : dst(res) {}
 
-    void operator () (std::string const &v) const;
+    void operator () (std::string const &v) const
+    {
+        dst = v;
+    }
 
     template <typename T>
-    void operator () (T &v) const
+    void operator () (T const &v) const
     {
-        std::stringstream ss;
-        ss << v;
-        dst = ss.str();
+        dst = std::to_string(v);
     }
 };
-
-AnyToString::AnyToString(std::string &res) : dst(res) {}
-
-void AnyToString::operator () (std::string const &v) const
-{
-    dst = v;
-}
 
 std::string to_string(property_type const &p)
 {
@@ -315,11 +309,9 @@ struct AnyToOutString : public boost::static_visitor<>
     void operator () (std::string const &v) const;
 
     template <typename T>
-    void operator () (T &v) const
+    void operator () (T const &v) const
     {
-        std::stringstream ss;
-        ss << v;
-        dst = ss.str();
+        dst = std::to_string(v);
     }
 };
 
@@ -407,6 +399,19 @@ int Property::mode(int umask) const
     return res & ~umask;
 }
 
+static bool set_property(property_map_type &dst
+                         , std::string const &name
+                         , nl::expr_ptr const &v)
+{
+    auto it = dst.find(name);
+    if (it != dst.end()) {
+        to_property(v, it->second);
+        return true;
+    }
+    std::cerr << "Unknown property " << name << std::endl;
+    return false;
+};
+
 nl::env_ptr mk_parse_env()
 {
     using nl::env_ptr;
@@ -426,17 +431,16 @@ nl::env_ptr mk_parse_env()
             // default option values
             {"type", "default"}
         };
-        nl::rest(src
-                 , [&namespaces](expr_ptr &v) {
-                     auto ns = std::dynamic_pointer_cast<Namespace>(v);
-                     if (!ns)
-                         throw cor::Error("Can't be casted to Namespace");
-                     namespaces.push_back(ns);
-                 }
-                 , [&options](expr_ptr &k, expr_ptr &v) {
-                     auto &p = options[k->value()];
-                     to_property(v, p);
-                 });
+        auto add_ns = [&namespaces](expr_ptr &v) {
+            auto ns = std::dynamic_pointer_cast<Namespace>(v);
+            if (!ns)
+                throw cor::Error("Can't be casted to Namespace");
+            namespaces.push_back(ns);
+        };
+        auto set_option = [&options](expr_ptr const &k, expr_ptr const &v) {
+            set_property(options, k->value(), v);
+        };
+        nl::rest(src, add_ns, set_option);
         return nl::expr_ptr(new Plugin(name, path
                                        , std::move(options)
                                        , std::move(namespaces)));
@@ -453,11 +457,10 @@ nl::env_ptr mk_parse_env()
             {"behavior", "discrete"},
             {"access", (long)Property::Read}
         };
-        nl::rest(src, [](expr_ptr &) {},
-                 [&options](expr_ptr &k, expr_ptr &v) {
-                     auto &p = options[k->value()];
-                     to_property(v, p);
-             });
+        auto add_option = [&options](expr_ptr const &k, expr_ptr const &v) {
+            set_property(options, k->value(), v);
+        };
+        nl::rest(src, [](expr_ptr &) {}, add_option);
         unsigned access = to_integer(options["access"]);
         if (config::to_string(options["behavior"]) == "discrete")
                 access |= Property::Subscribe;
@@ -662,7 +665,7 @@ static inline std::string dump_provider_cfg_file
         return "";
 }
 
-static inline std::string dump_loader
+static std::string dump_loader
 (std::string const& cfg_dir, std::ostream &dst, fs::path const &path)
 {
     auto loader = std::make_shared<LoaderProxy>(path.native());
@@ -676,7 +679,7 @@ static inline std::string dump_loader
     return cfg_loader_prefix() + "-" + loader_info->value();
 }
 
-static inline std::string dump_provider
+static std::string dump_provider
 (std::string const& cfg_dir, std::ostream &dst
  , fs::path const &path, std::string const& provider_type)
 {
