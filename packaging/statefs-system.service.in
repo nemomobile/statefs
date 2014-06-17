@@ -5,6 +5,12 @@ Description=StateFS FUSE filesystem, system-wide
 # this dependency conditional
 Requires=dbus.socket
 
+# Lets make statefs start as early as possible.
+DefaultDependencies=no
+After=local-fs.target dbus.socket
+Before=basic.target
+Conflicts=shutdown.target
+
 [Service]
 ExecStartPre=@prefix@/bin/statefs-prerun
 ExecStart=@prefix@/bin/statefs /run/state -f --system -o allow_other,gid=@USERS_GID@
