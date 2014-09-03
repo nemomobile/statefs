@@ -1,0 +1,6 @@
+#ifndef _STATEFS_PRIVATE_MISC_HPP_
+#define _STATEFS_PRIVATE_MISC_HPP_
+
+#define TRACE() std::cerr << __FILE__ << ":" << __LINE__ << ":"
+
+#endif // _STATEFS_PRIVATE_MISC_HPP_

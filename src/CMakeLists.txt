@@ -1,3 +1,5 @@
+configure_file(misc.hpp.in misc.hpp @ONLY)
+
 add_library(statefs-config SHARED
   config.cpp
   util.cpp
@@ -7,7 +9,7 @@ SET_TARGET_PROPERTIES(
   statefs-config
   PROPERTIES
   SOVERSION 0
-  VERSION ${STATEFS_VERSION}
+  VERSION ${VERSION}
   )
 
 target_link_libraries(statefs-config
@@ -37,7 +39,7 @@ SET_TARGET_PROPERTIES(
   statefs-pp
   PROPERTIES
   SOVERSION 0
-  VERSION ${STATEFS_VERSION}
+  VERSION ${VERSION}
   )
 
 target_link_libraries(statefs-pp
@@ -52,7 +54,7 @@ SET_TARGET_PROPERTIES(
   statefs-util
   PROPERTIES
   SOVERSION 0
-  VERSION ${STATEFS_VERSION}
+  VERSION ${VERSION}
   )
 
 add_library(loader-default

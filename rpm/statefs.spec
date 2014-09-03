@@ -86,7 +86,7 @@ Requires:   python >= 2.7
 %setup -q
 
 %build
-%cmake -DSTATEFS_VERSION=%{version} %{?_with_multiarch:-DENABLE_MULTIARCH=ON}
+%cmake -DVERSION=%{version} %{?_with_multiarch:-DENABLE_MULTIARCH=ON}
 make %{?jobs:-j%jobs}
 make statefs-doc
 
