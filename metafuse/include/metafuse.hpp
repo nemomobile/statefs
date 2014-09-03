@@ -17,6 +17,7 @@
 #include <string>
 #include <sstream>
 #include <memory>
+#include <errno.h>
 #include <vector>
 #include <functional>
 #include <string.h>
@@ -25,6 +26,12 @@
 #include <sys/types.h>
 #include <unordered_map>
 #include <poll.h>
+
+// move to cpp with xatrr
+#ifdef USE_XATTR
+#include <sys/types.h>
+#include <sys/xattr.h>
+#endif
 
 namespace metafuse
 {
@@ -98,6 +105,73 @@ private:
     time_t modification_time_;
     time_t access_time_;
 };
+
+#ifdef USE_XATTR
+class BasicXAttrStorage
+{
+public:
+
+    int setxattr(const char *name, const char *value, size_t size, int flags)
+    {
+        xattrs_[name] = std::string{value, size};
+        return 0;
+    }
+
+    int getxattr(const char *name, char *value, size_t out_size) const
+    {
+        auto it = xattrs_.find(name);
+        if (it == xattrs_.end())
+            return -ENODATA;
+
+        auto const &v = it->second;
+        auto size = v.size();
+        if (!out_size)
+            return size;
+        if (out_size < size)
+            return -ERANGE;
+
+        std::copy(v.cbegin(), v.cend(), value);
+        return size;
+    }
+
+    int listxattr(char *list, size_t out_size) const
+    {
+        auto size = 0u;
+        for (auto const &kv : xattrs_)
+            size += (kv.first.size() + 1);
+
+        if (!out_size)
+            return size;
+
+        if (out_size < size)
+            return -ERANGE;
+
+        auto pos = list;
+        for (auto const &kv : xattrs_) {
+            auto const &k = kv.first;
+            std::copy(k.cbegin(), k.cend(), pos);
+            pos += k.size();
+            (*pos++) = '\0';
+        }
+        return size;
+    }
+
+    int removexattr(const char *name)
+    {
+        auto it = xattrs_.find(name);
+        if (it == xattrs_.end())
+            return -ENODATA;
+
+        xattrs_.erase(it);
+        return 0;
+    }
+
+protected:
+    std::map<std::string, std::string> xattrs_;
+};
+#else // USE_XATTR
+class BasicXAttrStorage {};
+#endif
 
 template <typename DerivedT>
 class DefaultPermissions
@@ -290,7 +364,8 @@ template <typename LockingPolicy = cor::NoLock>
 class EmptyFile :
     public DefaultTime,
     public DefaultPermissions<EmptyFile<LockingPolicy> >,
-    public LockingPolicy
+    public LockingPolicy,
+    public BasicXAttrStorage
 {
     static const int type_flag = S_IFREG;
 
@@ -345,7 +420,8 @@ template <typename DerivedT, typename HandleT = FileHandle,
 class DefaultFile :
     public DefaultTime,
     public DefaultPermissions<DefaultFile<DerivedT, LockingPolicy> >,
-    public LockingPolicy
+    public LockingPolicy,
+    public BasicXAttrStorage
 {
     static const int type_flag = S_IFREG;
 
@@ -489,7 +565,7 @@ private:
     bool is_accessed_;
 };
 
-class NotFile
+class NotFile : public BasicXAttrStorage
 {
 public:
 
@@ -917,6 +993,7 @@ public:
         ops.poll = FuseFs::poll;
         ops.readlink = FuseFs::readlink;
         ops.destroy = FuseFs::destroy;
+        init_xattr();
     }
 
     std::function<int (int, char *[], const struct fuse_operations *, size_t, void *)> main_;
@@ -1056,6 +1133,42 @@ private:
         gid_stream << ::getgid();
         _gid += gid_stream.str();
     }
+
+
+#ifdef USE_XATTR
+    void init_xattr()
+    {
+        ops.setxattr = FuseFs::setxattr;
+        ops.getxattr = FuseFs::getxattr;
+        ops.listxattr = FuseFs::listxattr;
+        ops.removexattr = FuseFs::removexattr;
+    }
+
+    static int setxattr(const char *path, const char *name, const char *value
+                        , size_t size, int flags)
+    {
+        return invoke(path, &RootT::setxattr, name, value, size, flags);
+    }
+
+    static int getxattr(const char *path, const char *name, char *value
+                        , size_t size)
+    {
+        return invoke(path, &RootT::getxattr, name, value, size);
+    }
+
+    static int listxattr(const char *path, char *list, size_t size)
+    {
+        return invoke(path, &RootT::listxattr, list, size);
+    }
+
+    static int removexattr(const char *path, const char *name)
+    {
+        return invoke(path, &RootT::removexattr, name);
+    }
+
+#else
+    void init_xattr() {}
+#endif
 
     RootT root_;
     fuse_operations ops;

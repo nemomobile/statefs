@@ -34,14 +34,13 @@ set(CMAKE_CXX_FLAGS
 set(STATEFS_LIB_DIR ${prefix}/${DST_LIB}/statefs)
 
 set(CMAKE_CXX_FLAGS
-  "${CMAKE_CXX_FLAGS} -DSTATEFS_VERSION=${STATEFS_VERSION} -DSTATEFS_LIB_DIR=${STATEFS_LIB_DIR}")
+  "${CMAKE_CXX_FLAGS} -DSTATEFS_VERSION=${VERSION} -DSTATEFS_LIB_DIR=${STATEFS_LIB_DIR} -DUSE_XATTR")
 
 add_definitions(${FUSE_CFLAGS})
 
 set(CMAKE_C_FLAGS
   "${CMAKE_C_FLAGS} -Wall -O2 -feliminate-unused-debug-types"
   )
-
 # fix for gcc 4.6 specific compiling/linking issues, no dwarf-4
 set(CMAKE_CXX_FLAGS
   "${CMAKE_CXX_FLAGS} -gdwarf-3"

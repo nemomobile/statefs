@@ -123,6 +123,33 @@ public:
     {
         return -ENOTSUP;
     }
+
+#ifdef USE_XATTR
+
+    virtual int setxattr(path_ptr path, const char *name, const char *value
+                        , size_t size, int flags)
+    {
+        return -ENOTSUP;
+    }
+
+    virtual int getxattr(path_ptr path, const char *name, char *value
+                        , size_t size)
+    {
+        return -ENOTSUP;
+    }
+
+    virtual int listxattr(path_ptr path, char *list, size_t size)
+    {
+        return -ENOTSUP;
+    }
+
+    virtual int removexattr(path_ptr path, const char *name)
+    {
+        return -ENOTSUP;
+    }
+
+#endif // USE_XATTR
+
 };
 
 typedef std::shared_ptr<Entry> entry_ptr;
@@ -188,6 +215,32 @@ public:
         return node_op(W(), &impl_type::getattr, buf);
     }
 
+#ifdef USE_XATTR
+
+    virtual int setxattr(path_ptr path, const char *name, const char *value
+                        , size_t size, int flags)
+    {
+        return node_op(W(), &impl_type::setxattr, name, value, size, flags);
+    }
+
+    virtual int getxattr(path_ptr path, const char *name, char *value
+                        , size_t size)
+    {
+        return node_op(R(), &impl_type::getxattr, name, value, size);
+    }
+
+    virtual int listxattr(path_ptr path, char *list, size_t size)
+    {
+        return node_op(R(), &impl_type::listxattr, list, size);
+    }
+
+    virtual int removexattr(path_ptr path, const char *name)
+    {
+        return node_op(W(), &impl_type::removexattr, name);
+    }
+
+#endif // USE_XATTR
+
     // ImplT const* impl() const
     // {
     //     return impl_.get();
@@ -245,6 +298,32 @@ public:
     {
         return node_op(R(), &impl_type::readlink, buf, size);
     }
+
+#ifdef USE_XATTR
+
+    virtual int setxattr(path_ptr path, const char *name, const char *value
+                        , size_t size, int flags)
+    {
+        return node_op(W(), &impl_type::setxattr, name, value, size, flags);
+    }
+
+    virtual int getxattr(path_ptr path, const char *name, char *value
+                        , size_t size)
+    {
+        return node_op(R(), &impl_type::getxattr, name, value, size);
+    }
+
+    virtual int listxattr(path_ptr path, char *list, size_t size)
+    {
+        return node_op(R(), &impl_type::listxattr, list, size);
+    }
+
+    virtual int removexattr(path_ptr path, const char *name)
+    {
+        return node_op(W(), &impl_type::removexattr, name);
+    }
+
+#endif // USE_XATTR
 
     // ImplT const* impl() const
     // {
@@ -416,6 +495,36 @@ public:
             (R(), &impl_type::readlink, &Entry::readlink,
              std::move(path), buf, size);
     }
+
+#ifdef USE_XATTR
+
+    virtual int setxattr(path_ptr path, const char *name, const char *value
+                        , size_t size, int flags)
+    {
+        return node_op(R(), &impl_type::setxattr, &Entry::setxattr,
+                       std::move(path), name, value, size, flags);
+    }
+
+    virtual int getxattr(path_ptr path, const char *name, char *value
+                        , size_t size)
+    {
+        return node_op(R(), &impl_type::getxattr, &Entry::getxattr,
+                       std::move(path), name, value, size);
+    }
+
+    virtual int listxattr(path_ptr path, char *list, size_t size)
+    {
+        return node_op(R(), &impl_type::listxattr, &Entry::listxattr,
+                       std::move(path), list, size);
+    }
+
+    virtual int removexattr(path_ptr path, const char *name)
+    {
+        return node_op(R(), &impl_type::removexattr, &Entry::removexattr,
+                       std::move(path), name);
+    }
+
+#endif // USE_XATTR
 
 protected:
 
