@@ -88,14 +88,14 @@ PropertyStatus DiscreteProperty::update(std::string const &v)
 {
     std::unique_lock<std::mutex> lock(m_);
     if (v_ == v)
-        return PropertyUnchanged;
+        return PropertyStatus::Unchanged;
 
     v_ = v;
     if (slot_)
         slot_->on_changed(slot_, parent_);
     lock.unlock();
 
-    return PropertyUpdated;
+    return PropertyStatus::Updated;
 }
 
 BasicWriterImpl::BasicWriterImpl(setter_type update)

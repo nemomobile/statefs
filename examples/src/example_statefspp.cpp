@@ -112,7 +112,7 @@ public:
         auto update = [this](std::string const &v) {
             std::cout << "You set property value to " << v << std::endl;
             set_custom_(v);
-            return PropertyUpdated;
+            return PropertyStatus::Updated;
         };
         // adding property "custom" which can be changed by user
         auto custom = create(DiscreteWritable("custom", "0"), update);

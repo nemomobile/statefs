@@ -17,9 +17,9 @@
 namespace statefs {
 
 
-enum PropertyStatus {
-    PropertyUpdated,
-    PropertyUnchanged
+enum class PropertyStatus {
+    Updated,
+    Unchanged
 };
 
 typedef std::function<PropertyStatus (std::string const&)> setter_type;
@@ -417,7 +417,7 @@ private:
 static inline PropertyStatus analog_throw_on_set(std::string const &v)
 {
     throw cor::Error("Analog property can't be set");
-    return statefs::PropertyUnchanged;
+    return statefs::PropertyStatus::Unchanged;
 }
 
 

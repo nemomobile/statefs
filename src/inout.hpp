@@ -89,10 +89,10 @@ public:
     {
         auto lock = cor::wlock(*cache_);
          if (cache_->value_ == v)
-            return PropertyUnchanged;
+             return PropertyStatus::Unchanged;
 
         cache_->value_ = v;
-        return PropertyUpdated;
+        return PropertyStatus::Updated;
     }
 private:
     std::shared_ptr<Cache> cache_;
