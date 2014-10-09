@@ -1,5 +1,6 @@
 #include <iostream>
 #include <statefs/provider.hpp>
+#include <statefs/property.hpp>
 #include <chrono>
 #include <future>
 
@@ -95,12 +96,28 @@ class NsChild : public statefs::Namespace
 public:
     NsChild(char const *name) : Namespace(name)
     {
-        insert(new statefs::BasicPropertyOwner
+        using namespace statefs;
+
+        insert(new BasicPropertyOwner
                <Stream, std::string>("amount"));
+
+        auto update = [this](std::string const &v) {
+            std::cout << "You set property value to " << v << std::endl;
+            set_custom_(v);
+            return PropertyUpdated;
+        };
+        // adding property "custom" which can be changed by user
+        auto custom = create(DiscreteWritable("custom", "0"), update);
+        set_custom_ = setter(custom);
+        insert(custom);
     }
 
     virtual ~NsChild() {}
     virtual void release() {}
+
+private:
+
+    statefs::setter_type set_custom_;
 };
 
 /// Discrete (pollable) property implementation example
