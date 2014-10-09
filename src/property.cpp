@@ -98,12 +98,12 @@ PropertyStatus DiscreteProperty::update(std::string const &v)
     return PropertyUpdated;
 }
 
-BasicWriter::BasicWriter(statefs::AProperty *parent, setter_type update)
-    : parent_(parent), update_(update), size_(128)
+BasicWriterImpl::BasicWriterImpl(setter_type update)
+    : update_(update), size_(128)
 {}
 
-int BasicWriter::write(std::string *h, char const *src
-                       , statefs_size_t len, statefs_off_t off)
+int BasicWriterImpl::write
+(std::string *h, char const *src, statefs_size_t len, statefs_off_t off)
 {
     if (len) {
         auto max_sz = len + off;
@@ -117,7 +117,8 @@ int BasicWriter::write(std::string *h, char const *src
         *h = "";
     }
 
-    return update_(*h);
+    update_(*h);
+    return len;
 }
 
 }

@@ -143,6 +143,19 @@ private:
     ::statefs_slot *slot_;
 };
 
+class BasicWriterImpl
+{
+public:
+    BasicWriterImpl(setter_type update);
+
+    int write(std::string *h, char const *src
+              , statefs_size_t len, statefs_off_t off);
+
+protected:
+    setter_type update_;
+    size_t size_;
+};
+
 template <typename T>
 struct PropTraits
 {
@@ -196,10 +209,12 @@ Namespace& operator <<
     return ns;
 }
 
-class BasicWriter
+class BasicWriter : public BasicWriterImpl
 {
 public:
-    BasicWriter(statefs::AProperty *parent, setter_type update);
+    BasicWriter(statefs::AProperty *parent, setter_type update)
+        : BasicWriterImpl(update), parent_(parent)
+    {}
 
     int getattr() const;
     statefs_ssize_t size() const;
@@ -217,12 +232,16 @@ public:
 
 protected:
     statefs::AProperty *parent_;
-    setter_type update_;
-    size_t size_;
 };
 
 
 // -----------------------------------------------------------------------------
+
+inline int BasicWriter::write
+(std::string *h, char const *src, statefs_size_t len, statefs_off_t off)
+{
+    return BasicWriterImpl::write(h, src, len, off);
+}
 
 inline int DiscreteProperty::getattr() const
 {
