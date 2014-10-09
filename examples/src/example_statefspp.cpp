@@ -90,11 +90,19 @@ private:
     ::statefs_slot *slot_;
 };
 
-/// Basic namespace example, it contains single property
-class NsChild : public statefs::Namespace
+ /**
+  * Basic namespace example
+  *
+  * It contains analog/continious property "amount" implemented in the
+  * Stream class and also discrete property "custom" reusing higher
+  * level RWProperty wrapper
+  *
+  *
+  */
+class Drink : public statefs::Namespace
 {
 public:
-    NsChild(char const *name) : Namespace(name)
+    Drink(char const *name) : Namespace(name)
     {
         using namespace statefs;
 
@@ -112,7 +120,7 @@ public:
         insert(custom);
     }
 
-    virtual ~NsChild() {}
+    virtual ~Drink() {}
     virtual void release() {}
 
 private:
@@ -120,7 +128,11 @@ private:
     statefs::setter_type set_custom_;
 };
 
-/// Discrete (pollable) property implementation example
+/**
+ * Discrete (pollable) property implementation example
+ *
+ * Implements full property interface
+ */
 class Seconds
 {
 public:
@@ -203,18 +215,23 @@ private:
     ::statefs_slot *slot_;
 };
 
-/// Another basic namespace example, representing namespace for
-/// "seconds" property, implemented in Seconds class
-class NsTime : public statefs::Namespace
+/**
+ * Another basic namespace example
+ *
+ * Namespace represents namespace for "seconds" property, implemented
+ * in the Seconds class
+ *
+ */
+class Time : public statefs::Namespace
 {
 public:
-    NsTime() : Namespace("Time")
+    Time() : Namespace("Time")
     {
         insert(new statefs::BasicPropertyOwner
                <Seconds, std::string>("seconds"));
     }
 
-    virtual ~NsTime() {}
+    virtual ~Time() {}
     virtual void release() {}
 };
 
@@ -228,14 +245,14 @@ public:
     Provider(statefs_server *server)
         : AProvider("Drink", server)
     {
-        insert(new NsChild("Water"));
-        insert(new NsChild("Beer"));
-        insert(new NsTime());
+        insert(new Drink("Water"));
+        insert(new Drink("Beer"));
+        insert(new Time());
     }
     virtual ~Provider() {
         std::cerr << "~Provider " << get_name() << std::endl; }
 
-    /** 
+    /**
      * corresponds to statefs_node.release of the
      * statefs_provider.root
      */
