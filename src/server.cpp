@@ -39,6 +39,8 @@
 
 namespace statefs { namespace server {
 
+static int global_umask = 0022;
+
 using namespace metafuse;
 using statefs::provider_ptr;
 namespace config = statefs::config;
@@ -141,9 +143,10 @@ public:
         int res = 0;
         auto attr = getattr();
         if (attr & STATEFS_ATTR_WRITE)
-            res |= 0200;
+            res |= 0222;
         if (attr & STATEFS_ATTR_READ)
-            res |= 0440;
+            res |= 0444;
+        res &= (~global_umask);
         return res;
     }
 
@@ -635,7 +638,9 @@ void PluginNsDir::add_loader_file
     // initially adding loader file - it accesses provider
     // implementation only on first read/write access to the
     // file itself. Default size is 1Kb
-    add_file(name, mk_file_entry(mk_loader(load_get, prop->mode(), 1024)));
+    add_file
+        (name, mk_file_entry
+         (mk_loader(load_get, prop->mode(global_umask), 1024)));
 }
 
 void PluginNsDir::add_prop_file(std::unique_ptr<Property> prop)
@@ -1371,6 +1376,12 @@ private:
                 std::cerr << "setgid is failed: " << ::strerror(errno);
                 return -1;
             }
+        }
+        p = fs_opts.find("file_umask");
+        if (p != fs_opts.end()) {
+            statefs::server::global_umask = to_long<8>(p->second);
+            // fuse std parser does not understand unknown options
+            fs_opts.erase(p);
         }
 
         auto root = fuse();
