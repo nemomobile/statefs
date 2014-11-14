@@ -1174,6 +1174,21 @@ bool split_pairs(std::string const &src, std::string const &items_sep
 
 namespace config = statefs::config;
 
+template <int Base>
+long to_long(std::string const &s)
+{
+    auto on_err = [&s]() {
+        throw cor::Error("Wrong value to convert: %s", s.c_str());
+    };
+    if (!s.size())
+        on_err();
+    char *endptr = nullptr;
+    auto l = strtol(&s[0], &endptr, Base);
+    if ((endptr && *endptr != '\0') || l == LONG_MAX || l == LONG_MIN)
+        on_err();
+    return l;
+}
+
 class Server
 {
     typedef cor::OptParse<std::string> option_parser_type;
@@ -1187,7 +1202,7 @@ public:
                       , {"system", "system"}
                       , {"help", "help"}},
                   {"config", "type", "options"},
-                  {"help", "options"})
+                  {"help"})
         , commands({
                 {"dump", statefs_cmd_dump}
                 , {"register", statefs_cmd_register}
@@ -1195,6 +1210,7 @@ public:
                 , {"cleanup", statefs_cmd_cleanup}
             })
     {
+        // TODO it is better to use fuse options parser
         options.parse(argc, argv, opts, params);
     }
 
@@ -1255,7 +1271,7 @@ private:
     void parse_fuse_opts()
     {
         if (!split_pairs(opts["options"], ",", "="
-                         , std::inserter(opts, opts.begin())))
+                         , std::inserter(fs_opts, fs_opts.begin())))
             throw cor::Error("Invalid fuse options");
     }
 
@@ -1322,23 +1338,36 @@ private:
 
     int fuse_run()
     {
+        // repacking -o options separately because some options can be
+        // extracted from -o to avoid error from fuse_parse_cmdline
+        auto argv = std::move(params);
+        auto join_options = [this]() {
+            std::vector<std::string> parts;
+            for (auto const &kv : fs_opts) {
+                auto const &v = kv.second;
+                parts.push_back(v.size() ? kv.first + "=" + v : kv.first);
+            }
+            return "-o" + boost::algorithm::join(parts, ",");
+        };
+        auto dash_o = join_options();
+        argv.push_back(dash_o.c_str());
         auto root = fuse();
-        return root ? root->main(params.size(), &params[0], true) : -EPERM;
+        return root ? root->main(argv.size(), &argv[0], true) : -EPERM;
     }
 
     int main()
     {
-        auto p = opts.find("uid");
-        if (p != opts.end()) {
-            if (::setuid(::atoi(p->second.c_str()))) {
+        auto p = fs_opts.find("uid");
+        if (p != fs_opts.end()) {
+            if (::setuid(to_long<10>(p->second))) {
                 std::cerr << "setuid is failed: " << ::strerror(errno);
                 return -1;
             }
         }
 
-        p = opts.find("gid");
-        if (p != opts.end()) {
-            if (::setgid(::atoi(p->second.c_str()))) {
+        p = fs_opts.find("gid");
+        if (p != fs_opts.end()) {
+            if (::setgid(to_long<10>(p->second))) {
                 std::cerr << "setgid is failed: " << ::strerror(errno);
                 return -1;
             }
@@ -1375,6 +1404,7 @@ private:
     option_parser_type options;
     std::unordered_map<std::string, statefs_cmd> commands;
     option_parser_type::map_type opts;
+    option_parser_type::map_type fs_opts;
     std::vector<char const*> params;
 };
 
