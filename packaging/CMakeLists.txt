@@ -6,12 +6,6 @@ configure_file(loader-do.in loader-do @ONLY)
 configure_file(provider-action.in provider-action @ONLY)
 configure_file(loader-action.in loader-action @ONLY)
 
-set(get_users "grep '^users:' /etc/group | cut -d ':' -f 3")
-execute_process(
-  COMMAND sh -c ${get_users}
-  OUTPUT_VARIABLE USERS_GID)
-message(STATUS "System statefs group will be ${USERS_GID}")
-
 configure_file(statefs.service.in statefs.service @ONLY)
 configure_file(statefs-system.service.in statefs-system.service @ONLY)
 

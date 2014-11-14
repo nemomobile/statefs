@@ -2,6 +2,11 @@
 %{!?_with_oneshot: %{!?_without_oneshot: %define _with_oneshot --with-oneshot}}
 %define cor_version 0.1.14
 
+%{!?statefs_group:%define statefs_group privileged}
+%{!?statefs_umask:%define statefs_umask 0002}
+
+%define my_env_dir %{_sharedstatedir}/environment/statefs
+
 Summary: Syntetic filesystem to expose system state
 Name: statefs
 Version: 0.0.0
@@ -86,7 +91,7 @@ Requires:   python >= 2.7
 %setup -q
 
 %build
-%cmake -DVERSION=%{version} %{?_with_multiarch:-DENABLE_MULTIARCH=ON}
+%cmake -DVERSION=%{version} -DSTATEFS_GROUP=%{statefs_group} -DSTATEFS_UMASK=%{statefs_umask} %{?_with_multiarch:-DENABLE_MULTIARCH=ON}
 make %{?jobs:-j%jobs}
 make statefs-doc
 
@@ -192,9 +197,30 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 /opt/tests/statefs/*
 
-
 %post
 /sbin/ldconfig
+STATEFS_GID=$(grep '^%{statefs_group}:' /etc/group | cut -d ':' -f 3 | tr -d '\n')
+SYS_ENV_FILE=%{my_env_dir}/system.conf
+SES_ENV_FILE=%{my_env_dir}/session.conf
+function update_var() {
+    DST=$1
+    sed -i -e "s/$2/$3/" $DST
+    if ! grep "$2" $DST; then
+        echo "$3" >> $DST
+    fi
+}
+function update_env() {
+    DST=$1
+    touch $DST
+    update_var $DST 'STATEFS_GID=.*$' "STATEFS_GID=$STATEFS_GID"
+    update_var $DST 'STATEFS_UMASK=.*$' "STATEFS_UMASK=%{statefs_umask}"
+}
+test -d %{my_env_dir} || mkdir -p %{my_env_dir}
+update_env $SYS_ENV_FILE
+%if 0%{?_with_usersession:1}
+update_env $SES_ENV_FILE
+%endif
+
 %{_libdir}/statefs/loader-do register default || :
 if [ $1 -eq 1 ]; then
     systemctl daemon-reload || :
@@ -229,4 +255,3 @@ fi
 %postun examples
 %statefs_provider_unregister default examples system
 %statefs_postun
-
