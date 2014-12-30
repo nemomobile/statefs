@@ -181,11 +181,40 @@ public:
         return handle_ ? statefs_prop_name(handle_.get()) : "";
     }
 
+    ::statefs_variant meta(std::string const &) const;
+
 private:
 
     statefs_io *io_;
     property_handle_type handle_;
+    mutable std::map<std::string, ::statefs_variant> meta_;
 };
+
+static inline ::statefs_variant invalid_variant()
+{
+    ::statefs_variant v;
+    v.tag = statefs_variant_tags_end;
+    v.s = nullptr;
+    return v;
+};
+
+
+::statefs_variant Property::meta(std::string const &name) const
+{
+    static const ::statefs_variant invalid = invalid_variant();
+    if (!handle_)
+        return invalid;
+
+    if (meta_.empty()) {
+        auto meta = handle_->node.info;
+        if (meta) {
+            for (auto n = meta->name; meta->name; ++meta)
+                meta_[n] = meta->value;
+        }
+    }
+    auto it = meta_.find(name);
+    return it != meta_.cend() ? it->second : invalid;
+}
 
 int Property::read(intptr_t h, char *dst, size_t len, off_t off) const
 {
