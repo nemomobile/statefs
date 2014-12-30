@@ -299,8 +299,7 @@ public:
 
     int open(struct fuse_file_info &fi)
     {
-        auto loaded = load_();
-        return loaded->open(empty_path(), fi);
+        return load_call(&metafuse::Entry::open, fi);
     }
 
     int read(char* buf, size_t size,
@@ -327,7 +326,39 @@ public:
         return 0;
     }
 
+#ifdef USE_XATTR
+
+    int setxattr(const char *name, const char *value, size_t size, int flags)
+    {
+        return load_call(&metafuse::Entry::setxattr, name, value, size, flags);
+    }
+
+    int getxattr(const char *name, char *value, size_t out_size) const
+    {
+        return load_call(&metafuse::Entry::getxattr, name, value, out_size);
+    }
+
+    int listxattr(char *list, size_t out_size) const
+    {
+        return load_call(&metafuse::Entry::listxattr, list, out_size);
+    }
+
+    int removexattr(const char *name)
+    {
+        return load_call(&metafuse::Entry::removexattr, name);
+    }
+
+#endif // USE_XATTR
+
 private:
+
+    template <typename FnT, typename ... Args>
+    int load_call(FnT fn, Args&& ... args) const
+    {
+        auto loaded = load_();
+        return ((loaded.get())->*fn)(empty_path(), std::forward<Args>(args)...);
+    }
+
     LoadT load_;
     size_t size_;
 };
