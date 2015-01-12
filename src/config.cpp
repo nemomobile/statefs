@@ -379,7 +379,7 @@ struct PropertyInt : public boost::static_visitor<>
 
 long to_integer(property_type const &src)
 {
-    long res;
+    long res = 0;
     boost::apply_visitor(PropertyInt(res), src);
     return res;
 }

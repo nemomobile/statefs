@@ -111,9 +111,15 @@ class BasicXAttrStorage
 {
 public:
 
+    // not setxattr to avoid function overloading clashing
+    void xattr(std::string const &name, std::string const &value)
+    {
+        xattrs_[name] = value;
+    }
+
     int setxattr(const char *name, const char *value, size_t size, int flags)
     {
-        xattrs_[name] = std::string{value, size};
+        xattr(name, std::string{value, size});
         return 0;
     }
 

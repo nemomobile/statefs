@@ -36,6 +36,46 @@
 
 //static const char *statefs_version = DQUOTESTR(STATEFS_VERSION);
 
+static inline bool variant_is_invalid(::statefs_variant const &v)
+{
+    return v.tag == statefs_variant_tags_end;
+}
+
+static std::string str(::statefs_variant const &v)
+{
+    using std::to_string;
+    std::string res;
+    switch (v.tag) {
+    case statefs_variant_int:
+        res = to_string(v.i);
+        break;
+    case statefs_variant_uint:
+        res = to_string(v.u);
+        break;
+    case statefs_variant_bool:
+        res = v.b ? "1" : "0";
+        break;
+    case statefs_variant_real:
+        res = to_string(v.r);
+        break;
+    case statefs_variant_cstr:
+        if (v.s)
+            res = std::string(v.s);
+        break;
+    default:
+        break;
+    }
+    return res;
+}
+
+static inline ::statefs_variant invalid_variant()
+{
+    ::statefs_variant v;
+    v.tag = statefs_variant_tags_end;
+    v.s = nullptr;
+    return v;
+};
+
 
 namespace statefs { namespace server {
 
@@ -181,40 +221,24 @@ public:
         return handle_ ? statefs_prop_name(handle_.get()) : "";
     }
 
-    ::statefs_variant meta(std::string const &) const;
+    template <typename FnT>
+    void metadata_foreach(FnT fn) const
+    {
+        if (!handle_)
+            return;
+
+        auto meta = handle_->node.info;
+        if (meta) {
+            for (auto name = meta->name; meta->name; ++meta)
+                fn(name, meta->value);
+        }
+    }
 
 private:
 
     statefs_io *io_;
     property_handle_type handle_;
-    mutable std::map<std::string, ::statefs_variant> meta_;
 };
-
-static inline ::statefs_variant invalid_variant()
-{
-    ::statefs_variant v;
-    v.tag = statefs_variant_tags_end;
-    v.s = nullptr;
-    return v;
-};
-
-
-::statefs_variant Property::meta(std::string const &name) const
-{
-    static const ::statefs_variant invalid = invalid_variant();
-    if (!handle_)
-        return invalid;
-
-    if (meta_.empty()) {
-        auto meta = handle_->node.info;
-        if (meta) {
-            for (auto n = meta->name; meta->name; ++meta)
-                meta_[n] = meta->value;
-        }
-    }
-    auto it = meta_.find(name);
-    return it != meta_.cend() ? it->second : invalid;
-}
 
 int Property::read(intptr_t h, char *dst, size_t len, off_t off) const
 {
@@ -398,6 +422,7 @@ public:
     ContinuousPropFile(std::unique_ptr<Property> prop, int mode)
         : PropertyStorage(std::move(prop))
         , base_type(mode)
+        , got_metadata_(false)
     {}
 
     int open(struct fuse_file_info &fi)
@@ -450,6 +475,51 @@ public:
         return base_type::getattr(buf);
     }
 
+#ifdef USE_XATTR
+
+    int setxattr(const char *name, const char *value, size_t size, int flags)
+    {
+        metadata_fetch();
+        return base_type::setxattr(name, value, size, flags);
+    }
+
+    int getxattr(const char *name, char *value, size_t out_size) const
+    {
+        metadata_fetch();
+        return base_type::getxattr(name, value, out_size);
+    }
+
+    int listxattr(char *list, size_t out_size) const
+    {
+        metadata_fetch();
+        return base_type::listxattr(list, out_size);
+    }
+
+    int removexattr(const char *name)
+    {
+        metadata_fetch();
+        return base_type::removexattr(name);
+    }
+
+private:
+    void metadata_fetch() const
+    {
+        auto self = const_cast<ContinuousPropFile*>(this);
+        self->metadata_fetch();
+    }
+    void metadata_fetch()
+    {
+        auto set_fn = [this] (std::string const &name, ::statefs_variant const &v) {
+            this->xattr("user.statefs." + name, str(v));
+        };
+        if (!got_metadata_) {
+            prop_->metadata_foreach(set_fn);
+            got_metadata_ = true;
+        }
+    }
+
+#endif // USE_XATTR
+
 protected:
 
     handle_type const* handle(struct fuse_file_info &fi) const
@@ -467,6 +537,9 @@ protected:
         auto h = handle(fi);
         return h ? h->get() : 0;
     }
+
+private:
+    mutable bool got_metadata_;
 };
 
 class PluginNsDir;
