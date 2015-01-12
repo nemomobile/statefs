@@ -12,7 +12,7 @@ Before=basic.target
 Conflicts=shutdown.target
 
 [Service]
-EnvironmentFile=/var/lib/environment/statefs/system.conf
+EnvironmentFile=@SYS_CONFIG_DIR@/system.conf
 ExecStartPre=@prefix@/bin/statefs-prerun
 ExecStart=@prefix@/bin/statefs /run/state -f --system -o allow_other,default_permissions,gid=${STATEFS_GID},file_umask=${STATEFS_UMASK}
 Restart=always

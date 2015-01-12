@@ -45,10 +45,10 @@ echo $script_name >> ${files}
 echo $provider_path >> ${files}
 
 # registration call goes to oneshot
-reg_fname=@prefix@/@DST_LIB@/oneshot.d/statefs-$order-register-$group_name
+reg_fname=@ONESHOT_DIR@/statefs-$order-register-$group_name
 reg_file=$RPM_BUILD_ROOT/$reg_fname
 if ! [ -f $reg_file ]; then
-    mkdir -p $RPM_BUILD_ROOT/@prefix@/@DST_LIB@/oneshot.d
+    mkdir -p $RPM_BUILD_ROOT/@ONESHOT_DIR@
     echo "#!/bin/sh" > $reg_file
     echo "$script_name register" >> $reg_file
     chmod +x $reg_file

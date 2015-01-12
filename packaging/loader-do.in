@@ -6,4 +6,5 @@ fi
 
 cmd=$1
 group=$2
+echo "Loader $cmd $group"
 @prefix@/@DST_LIB@/statefs/provider-do $cmd loader $group

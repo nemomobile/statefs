@@ -1,11 +1,8 @@
-%{!?_with_usersession: %{!?_without_usersession: %define _with_usersession --with-usersession}}
-%{!?_with_oneshot: %{!?_without_oneshot: %define _with_oneshot --with-oneshot}}
-%define cor_version 0.1.14
+%{!?_with_usersession: %{!?_without_usersession: %global _with_usersession --with-usersession}}
+%{!?_with_oneshot: %{!?_without_oneshot: %global _with_oneshot --with-oneshot}}
+%{!?cmake_install: %global cmake_install make install DESTDIR=%{buildroot}}
 
-%{!?statefs_group:%define statefs_group privileged}
-%{!?statefs_umask:%define statefs_umask 0002}
-
-%define my_env_dir %{_sharedstatedir}/environment/statefs
+%define cor_version 0.1.17
 
 Summary: Syntetic filesystem to expose system state
 Name: statefs
@@ -16,7 +13,9 @@ Group: System Environment/Tools
 URL: http://github.com/nemomobile/statefs
 Source0: %{name}-%{version}.tar.bz2
 BuildRequires: pkgconfig(fuse)
+%if %{undefined suse_version}
 BuildRequires: boost-filesystem
+%endif
 BuildRequires: boost-devel
 BuildRequires: cmake >= 2.8
 BuildRequires: doxygen
@@ -35,8 +34,6 @@ Requires: oneshot
 %description
 StateFS is the syntetic filesystem to expose current system state
 provided by StateFS plugins as properties wrapped into namespaces.
-
-%{?_with_usersession:%define _userunitdir %{_libdir}/systemd/user/}
 
 %package pp
 Summary: Statefs framework for C++ providers
@@ -87,22 +84,32 @@ Requires:   python >= 2.7
 %description tests
 %summary
 
+%{!?statefs_group:%global statefs_group privileged}
+%{!?statefs_umask:%global statefs_umask 0002}
+
+%define my_env_dir %{_sysconfdir}/sysconfig/statefs
+%define statefs_state_dir /var/lib/statefs
+%define _statefs_libdir %{_libdir}/statefs
+%{?_with_usersession:%global _userunitdir %{_libdir}/systemd/user/}
+
 %prep
 %setup -q
 
 %build
-%cmake -DVERSION=%{version} -DSTATEFS_GROUP=%{statefs_group} -DSTATEFS_UMASK=%{statefs_umask} %{?_with_multiarch:-DENABLE_MULTIARCH=ON}
+%if 0%{?_with_usersession:1}
+%define user_session_cmake -DENABLE_USER_SESSION=ON -DSYSTEMD_USER_UNIT_DIR=%{_userunitdir}
+%else
+%define user_session_cmake -DENABLE_USER_SESSION=OFF
+%endif
+%cmake -DVERSION=%{version} -DSTATEFS_GROUP=%{statefs_group} -DSTATEFS_UMASK=%{statefs_umask} %{?_with_multiarch:-DENABLE_MULTIARCH=ON} -DSYSTEMD_UNIT_DIR=%{_unitdir} %{user_session_cmake} -DSYS_CONFIG_DIR=%{my_env_dir} %{?_with_oneshot:-DENABLE_ONESHOT=ON}
 make %{?jobs:-j%jobs}
 make statefs-doc
 
 %install
 rm -rf %{buildroot}
-make install DESTDIR=%{buildroot}
+%cmake_install
 
-%if 0%{?_with_usersession:1}
-install -D -p -m644 packaging/statefs.service %{buildroot}%{_userunitdir}/statefs.service
-%endif
-install -D -p -m644 packaging/statefs-system.service %{buildroot}%{_unitdir}/statefs.service
+mv %{buildroot}%{_unitdir}/statefs-system.service %{buildroot}%{_unitdir}/statefs.service
 
 %if 0%{?_with_usersession:1}
 mkdir -p %{buildroot}%{_userunitdir}/pre-user-session.target.wants
@@ -113,21 +120,21 @@ ln -sf ../statefs.service %{buildroot}%{_unitdir}/multi-user.target.wants/
 mkdir -p %{buildroot}%{_unitdir}/actdead-pre.target.wants
 ln -sf ../statefs.service %{buildroot}%{_unitdir}/actdead-pre.target.wants/
 
-install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/statefs
-install -d -D -p -m755 %{buildroot}%{_datarootdir}/doc/statefs/html
-cp -R doc/html/ %{buildroot}%{_datarootdir}/doc/statefs/
-install -d -D -p -m755 %{buildroot}%{_sharedstatedir}/doc/statefs/html
 install -d -D -p -m755 %{buildroot}%{_sysconfdir}/rpm/
 install -D -p -m644 packaging/macros.statefs %{buildroot}%{_sysconfdir}/rpm/
 
-%define pinstall %{buildroot}%{_libdir}/statefs/install-provider
+install -d -D -p -m755 %{buildroot}%{statefs_state_dir}
 
-%{pinstall} loader default %{_libdir}/statefs/libloader-default.so
-%{pinstall} loader default %{_libdir}/statefs/libloader-inout.so
+%define pinstall %{buildroot}%{_statefs_libdir}/install-provider
 
-%{pinstall} default examples %{_libdir}/statefs/libexample_power.so
-%{pinstall} default examples %{_libdir}/statefs/libexample_statefspp.so
-%{pinstall} default examples %{_libdir}/statefs/libprovider_basic_example.so
+%{pinstall} loader default %{_statefs_libdir}/libloader-default.so
+%{pinstall} loader default %{_statefs_libdir}/libloader-inout.so
+
+%{pinstall} default examples %{_statefs_libdir}/libexample_power.so system
+%{pinstall} default examples %{_statefs_libdir}/libexample_statefspp.so system
+%{pinstall} default examples %{_statefs_libdir}/libprovider_basic_example.so system
+
+mkdir -p %{buildroot}%{my_env_dir}
 
 %clean
 rm -rf %{buildroot}
@@ -137,7 +144,7 @@ rm -rf %{buildroot}
 %doc COPYING
 %{_bindir}/statefs
 %{_bindir}/statefs-prerun
-%{_sharedstatedir}/statefs
+%{statefs_state_dir}
 %if 0%{?_with_usersession:1}
 %{_userunitdir}/statefs.service
 %{_userunitdir}/pre-user-session.target.wants/statefs.service
@@ -151,15 +158,16 @@ rm -rf %{buildroot}
 %{_libdir}/libstatefs-util.so.0
 %{_libdir}/libstatefs-config.so.%{version}
 %{_libdir}/libstatefs-util.so.%{version}
-%{_libdir}/statefs/install-provider
-%{_libdir}/statefs/loader-do
-%{_libdir}/statefs/provider-do
-%{_libdir}/statefs/provider-action
-%{_libdir}/statefs/loader-action
-%{_libdir}/statefs/statefs-start
-%{_libdir}/statefs/statefs-stop
-%{_libdir}/statefs/once
-
+%{_statefs_libdir}
+%{_statefs_libdir}/install-provider
+%{_statefs_libdir}/loader-do
+%{_statefs_libdir}/provider-do
+%{_statefs_libdir}/provider-action
+%{_statefs_libdir}/loader-action
+%{_statefs_libdir}/statefs-start
+%{_statefs_libdir}/statefs-stop
+%{_statefs_libdir}/once
+%{my_env_dir}
 
 %files devel
 %defattr(-,root,root,-)
@@ -167,7 +175,6 @@ rm -rf %{buildroot}
 %{_includedir}/statefs/util.hpp
 %{_includedir}/statefs/consumer.hpp
 %{_libdir}/pkgconfig/statefs-util.pc
-%{_sysconfdir}/rpm/macros.statefs
 
 %files provider-devel
 %defattr(-,root,root,-)
@@ -200,6 +207,10 @@ rm -rf %{buildroot}
 %post
 /sbin/ldconfig
 STATEFS_GID=$(grep '^%{statefs_group}:' /etc/group | cut -d ':' -f 3 | tr -d '\n')
+if [ "x${STATEFS_GID}" == "x" ]; then
+   echo "WARNING: there is no %{statefs_group} group, failed"
+   exit 0
+fi
 SYS_ENV_FILE=%{my_env_dir}/system.conf
 SES_ENV_FILE=%{my_env_dir}/session.conf
 function update_var() {
@@ -221,7 +232,7 @@ update_env $SYS_ENV_FILE
 update_env $SES_ENV_FILE
 %endif
 
-%{_libdir}/statefs/loader-do register default || :
+%{_statefs_libdir}/loader-do register default || :
 if [ $1 -eq 1 ]; then
     systemctl daemon-reload || :
 %if 0%{?_with_usersession:1}
@@ -231,7 +242,7 @@ fi
 
 %preun
 if [ $1 -eq 0 ]; then
-%{_libdir}/statefs/loader-do unregister default || :
+%{_statefs_libdir}/loader-do unregister default || :
 fi
 
 %postun -p /sbin/ldconfig
@@ -242,16 +253,8 @@ fi
 %postun pp
 /sbin/ldconfig
 
-%pre examples
-%statefs_pre
-
 %post examples
-%statefs_provider_register default examples system
-%statefs_post
-
-%preun examples
-%statefs_preun
+%{_statefs_libdir}/provider-do register default examples system || :
 
 %postun examples
-%statefs_provider_unregister default examples system
-%statefs_postun
+%{_statefs_libdir}/provider-do unregister default examples system || :
