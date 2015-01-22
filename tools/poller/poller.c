@@ -10,9 +10,12 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#define LOG(...) fprintf(stderr, __VA_ARGS__)
+
 int main(int argc, char * argv[])
 {
     const int count = argc - 1;
+    const int mode = O_RDONLY | O_DIRECT;
     int i;
     int *fds;
     struct pollfd *pfds;
@@ -20,7 +23,7 @@ int main(int argc, char * argv[])
     char buf[1024];
 
     if (count < 1) {
-        printf("Usage: %s filenames...\n", argv[0]);
+        LOG("Usage: %s filenames...\n", argv[0]);
         exit(-1);
     }
 
@@ -29,10 +32,10 @@ int main(int argc, char * argv[])
 
     for (i = 0; i < count; ++i) {
         char const *name = argv[i + 1];
-        fds[i] = open(name, O_RDONLY);
-        printf("Subscribe to %s: %d\n", name, fds[i]);
+        fds[i] = open(name, mode);
+        LOG("Subscribe to %s: %d\n", name, fds[i]);
         if (fds[i] < 0) {
-            printf("Can't open %s\n", name);
+            LOG("Can't open %s\n", name);
             goto out;
         }
     }
@@ -44,15 +47,15 @@ int main(int argc, char * argv[])
             pfds[i].events = POLLIN | POLLPRI;
         }
 
-        printf("Polling...\n");
+        LOG("Polling...\n");
         rc = poll(pfds, count, -1);
         if (rc < 0) {
-            printf("poll returned %d: %s\n", rc, strerror(errno));
+            LOG("poll returned %d: %s\n", rc, strerror(errno));
             goto out;
         }
 
         if (!rc) {
-            printf("No events... timeout?");
+            LOG("No events... timeout?");
             continue;
         }
 
@@ -61,33 +64,30 @@ int main(int argc, char * argv[])
             if (pfd->revents == 0)
                 continue;
 
-            int fd = fds[i]; 
+            int fd = fds[i];
             char const *fname = argv[i + 1];
 
-            printf("file %s: %d\n", fname, fd);
-            printf("rc %i, ev %x, rev %x\n", rc, pfd->events, pfd->revents);
+            LOG("file %s: %d\n", fname, fd);
+            LOG("rc %i, ev %x, rev %x\n", rc, pfd->events, pfd->revents);
             if (pfd->revents & (POLLERR | POLLHUP | POLLNVAL)) {
-                printf("Poll error(E H N)=(%d %d %d)\n"
+                LOG("Poll error(E H N)=(%d %d %d)\n"
                        , pfd->revents & (POLLERR)
                        , pfd->revents & (POLLHUP)
                        , pfd->revents & (POLLNVAL)
                     );
-                goto out;
             }
-            int tmp = open(fname, O_RDONLY);
             memset(buf, 0, sizeof(buf));
             int rc = read(fd, buf, sizeof(buf) - 1);
-            printf("read %i\n", rc);
+            LOG("read %i\n", rc);
             if (rc < 0) {
-                printf("Error %d (%s) reading %s\n", rc, strerror(errno)
+                LOG("Error %d (%s) reading %s\n", rc, strerror(errno)
                        , fname);
                 goto out;
             }
-            if (tmp >= 0) close(tmp);
             lseek(fd, 0, SEEK_SET);
             if (rc) {
                 buf[rc] = 0;
-                printf("%s\n", buf);
+                printf("%s=%s\n", argv[i + 1], buf);
             }
         }
     }
