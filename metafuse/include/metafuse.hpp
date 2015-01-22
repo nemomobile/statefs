@@ -13,6 +13,8 @@
 #include <metafuse/common.hpp>
 #include <metafuse/entry.hpp>
 
+#include <boost/algorithm/string/join.hpp>
+
 #include <list>
 #include <string>
 #include <sstream>
@@ -946,22 +948,36 @@ class FuseFs
 {
 public:
 
-    int main(int argc, char const* argv[], bool default_options = true)
+    template <typename ArgsT, typename OptionsT>
+    int main(ArgsT const &args
+             , OptionsT &&options
+             , bool default_options = true)
     {
-        std::vector<char const*> argv_vec(argv, argv+argc);
+        argv_.clear();
+        std::copy(args.cbegin(), args.cend(), std::back_inserter(argv_));
+        auto join_options = [](OptionsT const &options) {
+            std::vector<std::string> parts;
+            for (auto const &kv : options) {
+                auto const &v = kv.second;
+                parts.push_back(v.size() ? kv.first + "=" + v : kv.first);
+            }
+            return "-o" + boost::algorithm::join(parts, ",");
+        };
         if(default_options) {
             update_uid();
             update_gid();
-            //argv_vec.push_back("-s");
-            argv_vec.push_back("-o");
-            argv_vec.push_back("default_permissions");
-            argv_vec.push_back("-o");
-            argv_vec.push_back(_uid.c_str());
-            argv_vec.push_back("-o");
-            argv_vec.push_back(_gid.c_str());
+            options["uid"] = std::to_string(::getuid());
+            options["gid"] = std::to_string(::getgid());
         }
-        auto args = const_cast<char**>(&argv_vec[0]);
-        int rc = main_(argv_vec.size(), args, &ops, sizeof(ops), nullptr);
+        auto dash_o = join_options(options);
+        argv_.push_back(dash_o);
+
+        std::vector<char const*> cstr_for_main;
+        std::transform(argv_.cbegin(), argv_.cend()
+                       , std::back_inserter(cstr_for_main)
+                       , [](std::string const &v) { return v.c_str(); });
+        int rc = main_(cstr_for_main.size(), const_cast<char**>(&cstr_for_main[0])
+                       , &ops, sizeof(ops), nullptr);
         release();
         return rc;
     }
@@ -1180,6 +1196,7 @@ private:
     fuse_operations ops;
     std::string _uid;
     std::string _gid;
+    std::vector<std::string> argv_;
 };
 
 } // metafuse

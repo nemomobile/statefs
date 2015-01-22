@@ -1408,6 +1408,9 @@ private:
 
     void parse_fuse_opts()
     {
+        // later -o options will be repacked separately because some
+        // options can be extracted from (or added to) -o to avoid
+        // error from fuse_parse_cmdline
         if (!split_pairs(opts["options"], ",", "="
                          , std::inserter(fs_opts, fs_opts.begin())))
             throw cor::Error("Invalid fuse options");
@@ -1476,21 +1479,8 @@ private:
 
     int fuse_run()
     {
-        // repacking -o options separately because some options can be
-        // extracted from -o to avoid error from fuse_parse_cmdline
-        auto argv = std::move(params);
-        auto join_options = [this]() {
-            std::vector<std::string> parts;
-            for (auto const &kv : fs_opts) {
-                auto const &v = kv.second;
-                parts.push_back(v.size() ? kv.first + "=" + v : kv.first);
-            }
-            return "-o" + boost::algorithm::join(parts, ",");
-        };
-        auto dash_o = join_options();
-        argv.push_back(dash_o.c_str());
         auto root = fuse();
-        return root ? root->main(argv.size(), &argv[0], true) : -EPERM;
+        return root ? root->main(std::move(params), std::move(fs_opts), true) : -EPERM;
     }
 
     int main()
