@@ -77,7 +77,14 @@ std::string property_path_default(std::string const& name)
 
     parts.push_front("namespaces");
     parts.push_front("state");
-    parts.push_front(::getenv("XDG_RUNTIME_DIR")); // TODO hardcoded source!
+    auto tmp_dir = ::getenv("XDG_RUNTIME_DIR"); // TODO hardcoded source!
+    if (!tmp_dir) {
+        tmp_dir = ::getenv("TMPDIR");
+        if (!tmp_dir) {
+            return "";
+        }
+    }
+    parts.push_front(tmp_dir);
     return join(parts, "/");
 }
 
