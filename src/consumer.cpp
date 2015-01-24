@@ -20,7 +20,7 @@ cor::FdHandle try_open_in_property(std::string const &name, Prefer prefer)
     auto try_open = [&res](std::string const &path) {
         if (path == "")
             return false;
-        res = cor::FdHandle{::open(path.c_str(), O_RDONLY)};
+        res = cor::FdHandle{::open(path.c_str(), O_RDONLY | O_DIRECT)};
         return res.is_valid();
     };
     switch (prefer) {
