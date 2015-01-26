@@ -61,13 +61,10 @@ link_directories(
   ${COR_LIBRARY_DIRS}
 )
 
-add_custom_target(statefs-doc
-  COMMAND doxygen ${CMAKE_CURRENT_SOURCE_DIR}/doc/statefs.Doxyfile)
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/html DESTINATION share/doc/statefs)
-
 add_subdirectory(src)
 add_subdirectory(examples/src)
 add_subdirectory(packaging)
 add_subdirectory(tests)
 add_subdirectory(include/statefs)
 add_subdirectory(tools/poller)
+add_subdirectory(doc)

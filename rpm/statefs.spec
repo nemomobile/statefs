@@ -103,7 +103,7 @@ Requires:   python >= 2.7
 %endif
 %cmake -DVERSION=%{version} -DSTATEFS_GROUP=%{statefs_group} -DSTATEFS_UMASK=%{statefs_umask} %{?_with_multiarch:-DENABLE_MULTIARCH=ON} -DSYSTEMD_UNIT_DIR=%{_unitdir} %{user_session_cmake} -DSYS_CONFIG_DIR=%{my_env_dir} %{?_with_oneshot:-DENABLE_ONESHOT=ON}
 make %{?jobs:-j%jobs}
-make statefs-doc
+make doc
 
 %install
 rm -rf %{buildroot}
