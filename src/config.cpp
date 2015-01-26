@@ -142,7 +142,7 @@ public:
 Loaders::Loaders(std::string const &src)
 {
     using namespace std::placeholders;
-    auto lib_add = [this](std::string const &cfg_path
+    auto lib_add = [this](std::string const &
                           , std::shared_ptr<Library> p) {
         auto dummy = [](std::shared_ptr<Plugin>) { return; };
         process_lib_info
@@ -371,7 +371,7 @@ struct PropertyInt : public boost::static_visitor<>
     }
 
     template <typename OtherT>
-    void operator () (OtherT &v) const
+    void operator () (OtherT &) const
     {
         throw cor::Error("Wrong property type");
     }
@@ -666,7 +666,7 @@ static inline std::string dump_provider_cfg_file
 }
 
 static std::string dump_loader
-(std::string const& cfg_dir, std::ostream &dst, fs::path const &path)
+(std::string const&, std::ostream &dst, fs::path const &path)
 {
     auto loader = std::make_shared<LoaderProxy>(path.native());
     if (!loader->is_valid()) {
@@ -776,7 +776,7 @@ void save(std::string const &cfg_dir
 
 void rm(std::string const &cfg_dir
         , std::string const &fname
-        , std::string const& provider_type)
+        , std::string const&)
 {
     auto full_path = mk_provider_path(fname);
     auto rm_config = [full_path](std::string const &cfg_path

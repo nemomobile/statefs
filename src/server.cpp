@@ -104,7 +104,7 @@ public:
         return loaded() ? &(provider_->io) : nullptr;
     }
 
-    void on_provider_event(statefs_provider *p, statefs_event e)
+    void on_provider_event(statefs_provider *, statefs_event e)
     {
         if (e == statefs_event_reload) {
             std::cerr << "Reloading required, exiting" << std::endl;
@@ -326,14 +326,12 @@ public:
         return load_call(&metafuse::Entry::open, fi);
     }
 
-    int read(char* buf, size_t size,
-             off_t offset, struct fuse_file_info &fi)
+    int read(char*, size_t, off_t, struct fuse_file_info &)
     {
         return -ENOTSUP;
     }
 
-    int write(const char* src, size_t size,
-              off_t offset, struct fuse_file_info &fi)
+    int write(const char*, size_t, off_t, struct fuse_file_info &)
     {
         return -ENOTSUP;
     }
@@ -343,8 +341,7 @@ public:
         return size_;
     }
 
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
+	int poll(struct fuse_file_info &, poll_handle_type &, unsigned *)
     {
         std::cerr << "Loader file can't be polled\n";
         return 0;
@@ -461,8 +458,7 @@ public:
         return prop_->size();
     }
 
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
+	int poll(struct fuse_file_info &, poll_handle_type &, unsigned *)
     {
         std::cerr << "User wants to poll unpollable file "
                   << prop_->name() << std::endl;

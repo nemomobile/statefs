@@ -33,117 +33,115 @@ class Entry
 {
 public:
 
-    virtual int unlink(path_ptr path)
+    virtual int unlink(path_ptr)
     {
         return -EROFS;
     }
 
-    virtual int mknod(path_ptr path, mode_t m, dev_t t)
+    virtual int mknod(path_ptr, mode_t, dev_t)
     {
         return -EROFS;
     }
 
-    virtual int mkdir(path_ptr path, mode_t m)
+    virtual int mkdir(path_ptr, mode_t)
     {
         return -EROFS;
     }
 
-    virtual int rmdir(path_ptr path)
+    virtual int rmdir(path_ptr)
     {
         return -EROFS;
     }
 
-    virtual int access(path_ptr path, int perm)
+    virtual int access(path_ptr, int)
     {
         return -ENOENT;
     }
 
-    virtual int chmod(path_ptr path, mode_t perm)
+    virtual int chmod(path_ptr, mode_t)
     {
         return -ENOENT;
     }
 
-    virtual int open(path_ptr path, struct fuse_file_info &fi)
+    virtual int open(path_ptr, struct fuse_file_info &)
     {
         return -ENOENT;
     }
 
-    virtual int release(path_ptr path, struct fuse_file_info &fi)
+    virtual int release(path_ptr, struct fuse_file_info &)
     {
         return -ENOENT;
     }
 
-    virtual int flush(path_ptr path, struct fuse_file_info &fi)
+    virtual int flush(path_ptr, struct fuse_file_info &)
     {
         return -ENOENT;
     }
 
-    virtual int truncate(path_ptr path, off_t offset)
+    virtual int truncate(path_ptr, off_t)
     {
         return -ENOENT;
     }
 
-    virtual int getattr(path_ptr path, struct stat *stbuf)
+    virtual int getattr(path_ptr, struct stat *stbuf)
     {
         memset(stbuf, 0, sizeof(stbuf[0]));
         return -ENOENT;
     }
 
-    virtual int read(path_ptr path, char* buf, size_t size,
-                     off_t offset, struct fuse_file_info &fi)
+    virtual int read(path_ptr, char*, size_t,
+                     off_t, struct fuse_file_info &)
     {
         return -ENOENT;
     }
 
-    virtual int write(path_ptr path, const char* src, size_t size,
-                      off_t offset, struct fuse_file_info &fi)
+    virtual int write(path_ptr, const char*, size_t,
+                      off_t, struct fuse_file_info &)
     {
         return -ENOENT;
     }
 
-    virtual int readdir(path_ptr path, void *buf, fuse_fill_dir_t filler,
-                        off_t offset, struct fuse_file_info &fi)
+    virtual int readdir(path_ptr, void *, fuse_fill_dir_t,
+                        off_t, struct fuse_file_info &)
     {
         return -ENOENT;
     }
 
-    virtual int utime(path_ptr path, utimbuf &buf)
+    virtual int utime(path_ptr, utimbuf &)
     {
         return -ENOENT;
     }
 
-	virtual int poll(path_ptr path, struct fuse_file_info &fi,
-                     poll_handle_type &ph, unsigned *reventsp)
+	virtual int poll(path_ptr, struct fuse_file_info &,
+                     poll_handle_type &, unsigned *)
     {
         // PollHandle h(ph);
         return -ENOENT;
     }
 
-    virtual int readlink(path_ptr path, char* buf, size_t size)
+    virtual int readlink(path_ptr, char*, size_t)
     {
         return -ENOTSUP;
     }
 
 #ifdef USE_XATTR
 
-    virtual int setxattr(path_ptr path, const char *name, const char *value
-                        , size_t size, int flags)
+    virtual int setxattr(path_ptr, const char *, const char *, size_t, int)
     {
         return -ENOTSUP;
     }
 
-    virtual int getxattr(path_ptr path, const char *name, char *value
-                        , size_t size)
+    virtual int getxattr(path_ptr, const char *, char *, size_t)
     {
         return -ENOTSUP;
     }
 
-    virtual int listxattr(path_ptr path, char *list, size_t size)
+    virtual int listxattr(path_ptr, char *, size_t)
     {
         return -ENOTSUP;
     }
 
-    virtual int removexattr(path_ptr path, const char *name)
+    virtual int removexattr(path_ptr, const char *)
     {
         return -ENOTSUP;
     }
@@ -167,74 +165,74 @@ public:
     FileEntry(std::unique_ptr<impl_type> impl) : impl_(std::move(impl)) {}
     FileEntry(impl_ptr impl) : impl_(impl) {}
 
-    virtual int open(path_ptr path, struct fuse_file_info &fi)
+    virtual int open(path_ptr, struct fuse_file_info &fi)
     {
         return node_op(W(), &impl_type::open, fi);
     }
 
-    virtual int release(path_ptr path, struct fuse_file_info &fi)
+    virtual int release(path_ptr, struct fuse_file_info &fi)
     {
         return node_op(W(), &impl_type::release, fi);
     }
 
-    virtual int flush(path_ptr path, struct fuse_file_info &fi)
+    virtual int flush(path_ptr, struct fuse_file_info &)
     {
         return 0;
     }
 
-    virtual int truncate(path_ptr path, off_t offset)
+    virtual int truncate(path_ptr, off_t)
     {
         return 0;
     }
 
-    virtual int read(path_ptr path, char* buf, size_t size,
+    virtual int read(path_ptr, char* buf, size_t size,
                      off_t offset, struct fuse_file_info &fi)
     {
         return node_op(R(), &impl_type::read, buf, size, offset, fi);
     }
 
-    virtual int write(path_ptr path, const char* src, size_t size,
+    virtual int write(path_ptr, const char* src, size_t size,
                       off_t offset, struct fuse_file_info &fi)
     {
         return node_op(W(), &impl_type::write, src, size, offset, fi);
     }
 
-    virtual int utime(path_ptr path, utimbuf &buf)
+    virtual int utime(path_ptr, utimbuf &buf)
     {
         return node_op(W(), &impl_type::utime, buf);
     }
 
-    virtual int poll(path_ptr path, struct fuse_file_info &fi,
+    virtual int poll(path_ptr, struct fuse_file_info &fi,
                      poll_handle_type &ph, unsigned *reventsp)
     {
         return node_op(W(), &impl_type::poll, fi, ph, reventsp);
     }
 
-    virtual int getattr(path_ptr path, struct stat *buf)
+    virtual int getattr(path_ptr, struct stat *buf)
     {
         return node_op(W(), &impl_type::getattr, buf);
     }
 
 #ifdef USE_XATTR
 
-    virtual int setxattr(path_ptr path, const char *name, const char *value
+    virtual int setxattr(path_ptr, const char *name, const char *value
                         , size_t size, int flags)
     {
         return node_op(W(), &impl_type::setxattr, name, value, size, flags);
     }
 
-    virtual int getxattr(path_ptr path, const char *name, char *value
+    virtual int getxattr(path_ptr, const char *name, char *value
                         , size_t size)
     {
         return node_op(R(), &impl_type::getxattr, name, value, size);
     }
 
-    virtual int listxattr(path_ptr path, char *list, size_t size)
+    virtual int listxattr(path_ptr, char *list, size_t size)
     {
         return node_op(R(), &impl_type::listxattr, list, size);
     }
 
-    virtual int removexattr(path_ptr path, const char *name)
+    virtual int removexattr(path_ptr, const char *name)
     {
         return node_op(W(), &impl_type::removexattr, name);
     }
@@ -289,36 +287,36 @@ public:
 
     SymlinkEntry(std::unique_ptr<ImplT> impl) : impl_(std::move(impl)) {}
 
-    virtual int getattr(path_ptr path, struct stat *buf)
+    virtual int getattr(path_ptr, struct stat *buf)
     {
         return node_op(R(), &impl_type::getattr, buf);
     }
 
-    virtual int readlink(path_ptr path, char* buf, size_t size)
+    virtual int readlink(path_ptr, char* buf, size_t size)
     {
         return node_op(R(), &impl_type::readlink, buf, size);
     }
 
 #ifdef USE_XATTR
 
-    virtual int setxattr(path_ptr path, const char *name, const char *value
+    virtual int setxattr(path_ptr, const char *name, const char *value
                         , size_t size, int flags)
     {
         return node_op(W(), &impl_type::setxattr, name, value, size, flags);
     }
 
-    virtual int getxattr(path_ptr path, const char *name, char *value
+    virtual int getxattr(path_ptr, const char *name, char *value
                         , size_t size)
     {
         return node_op(R(), &impl_type::getxattr, name, value, size);
     }
 
-    virtual int listxattr(path_ptr path, char *list, size_t size)
+    virtual int listxattr(path_ptr, char *list, size_t size)
     {
         return node_op(R(), &impl_type::listxattr, list, size);
     }
 
-    virtual int removexattr(path_ptr path, const char *name)
+    virtual int removexattr(path_ptr, const char *name)
     {
         return node_op(W(), &impl_type::removexattr, name);
     }

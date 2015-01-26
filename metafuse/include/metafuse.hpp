@@ -119,7 +119,7 @@ public:
         xattrs_[name] = value;
     }
 
-    int setxattr(const char *name, const char *value, size_t size, int flags)
+    int setxattr(const char *name, const char *value, size_t size, int)
     {
         xattr(name, std::string{value, size});
         return 0;
@@ -536,7 +536,7 @@ public:
     { }
 
     int read(char* buf, size_t size,
-             off_t offset, struct fuse_file_info &fi)
+             off_t offset, struct fuse_file_info &)
     {
         if (offset < 0 || (size_t)offset >= data_.size() || !size)
             return 0;
@@ -546,8 +546,7 @@ public:
         return count;
     }
 
-    int write(const char* src, size_t size,
-              off_t offset, struct fuse_file_info &fi)
+    int write(const char*, size_t, off_t, struct fuse_file_info &)
     {
         return -EACCES;
     }
@@ -557,8 +556,8 @@ public:
         return data_.size();
     }
 
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
+	int poll(struct fuse_file_info &,
+             poll_handle_type &, unsigned *reventsp)
     {
         if (!is_accessed_) {
             *reventsp |= POLLIN;
@@ -577,12 +576,12 @@ class NotFile : public BasicXAttrStorage
 {
 public:
 
-    int open(struct fuse_file_info &fi)
+    int open(struct fuse_file_info &)
     {
         return -ENOTSUP;
     }
 
-    int release(struct fuse_file_info &fi)
+    int release(struct fuse_file_info &)
     {
         return -ENOTSUP;
     }
@@ -607,7 +606,7 @@ public:
         return -ENOTSUP;
     }
 
-    int truncate(off_t off)
+    int truncate(off_t)
     {
         return -ENOTSUP;
     }
@@ -745,8 +744,7 @@ public:
             });
     }
 
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
+	int poll(struct fuse_file_info &, poll_handle_type &, unsigned *)
     {
         return -ENOTSUP;
     }
@@ -883,22 +881,22 @@ public:
 
     virtual ~RODir() {}
 
-    int mknod(std::string const &name, mode_t mode, dev_t type)
+    int mknod(std::string const &, mode_t, dev_t)
     {
         return -EROFS;
     }
 
-    int unlink(std::string const &name)
+    int unlink(std::string const &)
     {
         return -EROFS;
     }
 
-    int mkdir(std::string const &name, mode_t mode)
+    int mkdir(std::string const &, mode_t)
     {
         return -EROFS;
     }
 
-    int rmdir(std::string const &name)
+    int rmdir(std::string const &)
     {
         return -EROFS;
     }
@@ -920,7 +918,7 @@ public:
 
     virtual ~ReadRmDir() {}
 
-    int mknod(std::string const &name, mode_t mode, dev_t type)
+    int mknod(std::string const &, mode_t, dev_t)
     {
         return -EROFS;
     }
@@ -930,7 +928,7 @@ public:
         return base_type::unlink_(name);
     }
 
-    int mkdir(std::string const &name, mode_t mode)
+    int mkdir(std::string const &, mode_t)
     {
         return -EROFS;
     }
@@ -1135,7 +1133,7 @@ private:
         return invoke(path, &RootT::readlink, buf, size);
     }
 
-    static void destroy(void *p)
+    static void destroy(void *)
     {
         auto root = impl();
         if (root)

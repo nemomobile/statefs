@@ -88,12 +88,11 @@ public:
     int getattr() const { return STATEFS_ATTR_READ; }
     statefs_ssize_t size() const;
 
-    bool connect(::statefs_slot *slot) { return false; }
+    bool connect(::statefs_slot *) { return false; }
 
-    int read(std::string *h, char *dst, statefs_size_t len, statefs_off_t);
+    int read(std::string *, char *, statefs_size_t, statefs_off_t);
 
-    int write(std::string *h, char const *src
-              , statefs_size_t len, statefs_off_t off)
+    int write(std::string *, char const *, statefs_size_t, statefs_off_t)
     {
         return -1;
     }
@@ -343,13 +342,13 @@ inline statefs_ssize_t BasicWriter::size() const
     return size_ ;
 }
 
-inline bool BasicWriter::connect(::statefs_slot *slot)
+inline bool BasicWriter::connect(::statefs_slot *)
 {
     return false;
 }
 
 inline int BasicWriter::read
-(std::string *h, char *dst, statefs_size_t len, statefs_off_t off)
+(std::string *, char *, statefs_size_t, statefs_off_t)
 {
     return -1;
 }
@@ -414,7 +413,7 @@ private:
 };
 
 
-static inline PropertyStatus analog_throw_on_set(std::string const &v)
+static inline PropertyStatus analog_throw_on_set(std::string const &)
 {
     throw cor::Error("Analog property can't be set");
     return statefs::PropertyStatus::Unchanged;

@@ -70,7 +70,7 @@ public:
         return read_from(v, dst, len, off);
     }
 
-    int write(std::string *h, char const *src, size_t len, off_t off)
+    int write(std::string *, char const *, size_t, off_t)
     {
         return -1;
     }
@@ -170,7 +170,7 @@ public:
         return read_from(v, dst, len, off);
     }
 
-    int write(std::string *h, char const *src, size_t len, off_t off)
+    int write(std::string *, char const *src, size_t len, off_t)
     {
         update_interval_usec_ = stoi(std::string(src, len));
         return len;
