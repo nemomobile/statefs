@@ -1,5 +1,6 @@
 #include <iostream>
 #include <statefs/provider.hpp>
+#include <statefs/property.hpp>
 #include <chrono>
 #include <future>
 
@@ -69,7 +70,7 @@ public:
         return read_from(v, dst, len, off);
     }
 
-    int write(std::string *h, char const *src, size_t len, off_t off)
+    int write(std::string *, char const *, size_t, off_t)
     {
         return -1;
     }
@@ -89,21 +90,49 @@ private:
     ::statefs_slot *slot_;
 };
 
-/// Basic namespace example, it contains single property
-class NsChild : public statefs::Namespace
+ /**
+  * Basic namespace example
+  *
+  * It contains analog/continious property "amount" implemented in the
+  * Stream class and also discrete property "custom" reusing higher
+  * level RWProperty wrapper
+  *
+  *
+  */
+class Drink : public statefs::Namespace
 {
 public:
-    NsChild(char const *name) : Namespace(name)
+    Drink(char const *name) : Namespace(name)
     {
-        insert(new statefs::BasicPropertyOwner
+        using namespace statefs;
+
+        insert(new BasicPropertyOwner
                <Stream, std::string>("amount"));
+
+        auto update = [this](std::string const &v) {
+            std::cout << "You set property value to " << v << std::endl;
+            set_custom_(v);
+            return PropertyStatus::Updated;
+        };
+        // adding property "custom" which can be changed by user
+        auto custom = create(DiscreteWritable("custom", "0"), update);
+        set_custom_ = setter(custom);
+        insert(custom);
     }
 
-    virtual ~NsChild() {}
+    virtual ~Drink() {}
     virtual void release() {}
+
+private:
+
+    statefs::setter_type set_custom_;
 };
 
-/// Discrete (pollable) property implementation example
+/**
+ * Discrete (pollable) property implementation example
+ *
+ * Implements full property interface
+ */
 class Seconds
 {
 public:
@@ -141,7 +170,7 @@ public:
         return read_from(v, dst, len, off);
     }
 
-    int write(std::string *h, char const *src, size_t len, off_t off)
+    int write(std::string *, char const *src, size_t len, off_t)
     {
         update_interval_usec_ = stoi(std::string(src, len));
         return len;
@@ -186,18 +215,23 @@ private:
     ::statefs_slot *slot_;
 };
 
-/// Another basic namespace example, representing namespace for
-/// "seconds" property, implemented in Seconds class
-class NsTime : public statefs::Namespace
+/**
+ * Another basic namespace example
+ *
+ * Namespace represents namespace for "seconds" property, implemented
+ * in the Seconds class
+ *
+ */
+class Time : public statefs::Namespace
 {
 public:
-    NsTime() : Namespace("Time")
+    Time() : Namespace("Time")
     {
         insert(new statefs::BasicPropertyOwner
                <Seconds, std::string>("seconds"));
     }
 
-    virtual ~NsTime() {}
+    virtual ~Time() {}
     virtual void release() {}
 };
 
@@ -211,14 +245,14 @@ public:
     Provider(statefs_server *server)
         : AProvider("Drink", server)
     {
-        insert(new NsChild("Water"));
-        insert(new NsChild("Beer"));
-        insert(new NsTime());
+        insert(new Drink("Water"));
+        insert(new Drink("Beer"));
+        insert(new Time());
     }
     virtual ~Provider() {
         std::cerr << "~Provider " << get_name() << std::endl; }
 
-    /** 
+    /**
      * corresponds to statefs_node.release of the
      * statefs_provider.root
      */

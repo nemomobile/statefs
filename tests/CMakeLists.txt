@@ -1,20 +1,10 @@
-set(TESTS_DIR /opt/tests/statefs)
-configure_file(tests.xml.in tests.xml @ONLY)
+testrunner_project(statefs)
 add_library(test MODULE test-provider.c)
-install(TARGETS test DESTINATION ${TESTS_DIR})
-install(
+testrunner_install(
+  TARGETS test
   PROGRAMS test-statefs.py
-  DESTINATION ${TESTS_DIR}
+  FILES UT.py
 )
-install(
-  FILES UT.py tests.xml
-  DESTINATION ${TESTS_DIR}
-)
-#find_package(Threads)
-
-# target_link_libraries(power
-#   ${CMAKE_THREAD_LIBS_INIT}
-# )
 
 add_executable(test-link-statefs-util
   link-statefs-util.cpp link-statefs-util2.cpp)

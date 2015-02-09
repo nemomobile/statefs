@@ -36,8 +36,50 @@
 
 //static const char *statefs_version = DQUOTESTR(STATEFS_VERSION);
 
+static inline bool variant_is_invalid(::statefs_variant const &v)
+{
+    return v.tag == statefs_variant_tags_end;
+}
+
+static std::string str(::statefs_variant const &v)
+{
+    using std::to_string;
+    std::string res;
+    switch (v.tag) {
+    case statefs_variant_int:
+        res = to_string(v.i);
+        break;
+    case statefs_variant_uint:
+        res = to_string(v.u);
+        break;
+    case statefs_variant_bool:
+        res = v.b ? "1" : "0";
+        break;
+    case statefs_variant_real:
+        res = to_string(v.r);
+        break;
+    case statefs_variant_cstr:
+        if (v.s)
+            res = std::string(v.s);
+        break;
+    default:
+        break;
+    }
+    return res;
+}
+
+static inline ::statefs_variant invalid_variant()
+{
+    ::statefs_variant v;
+    v.tag = statefs_variant_tags_end;
+    v.s = nullptr;
+    return v;
+};
+
 
 namespace statefs { namespace server {
+
+static int global_umask = 0022;
 
 using namespace metafuse;
 using statefs::provider_ptr;
@@ -62,7 +104,7 @@ public:
         return loaded() ? &(provider_->io) : nullptr;
     }
 
-    void on_provider_event(statefs_provider *p, statefs_event e)
+    void on_provider_event(statefs_provider *, statefs_event e)
     {
         if (e == statefs_event_reload) {
             std::cerr << "Reloading required, exiting" << std::endl;
@@ -141,9 +183,10 @@ public:
         int res = 0;
         auto attr = getattr();
         if (attr & STATEFS_ATTR_WRITE)
-            res |= 0200;
+            res |= 0222;
         if (attr & STATEFS_ATTR_READ)
-            res |= 0440;
+            res |= 0444;
+        res &= (~global_umask);
         return res;
     }
 
@@ -176,6 +219,19 @@ public:
     char const* name() const
     {
         return handle_ ? statefs_prop_name(handle_.get()) : "";
+    }
+
+    template <typename FnT>
+    void metadata_foreach(FnT fn) const
+    {
+        if (!handle_)
+            return;
+
+        auto meta = handle_->node.info;
+        if (meta) {
+            for (auto name = meta->name; meta->name; ++meta)
+                fn(name, meta->value);
+        }
     }
 
 private:
@@ -267,18 +323,15 @@ public:
 
     int open(struct fuse_file_info &fi)
     {
-        auto loaded = load_();
-        return loaded->open(empty_path(), fi);
+        return load_call(&metafuse::Entry::open, fi);
     }
 
-    int read(char* buf, size_t size,
-             off_t offset, struct fuse_file_info &fi)
+    int read(char*, size_t, off_t, struct fuse_file_info &)
     {
         return -ENOTSUP;
     }
 
-    int write(const char* src, size_t size,
-              off_t offset, struct fuse_file_info &fi)
+    int write(const char*, size_t, off_t, struct fuse_file_info &)
     {
         return -ENOTSUP;
     }
@@ -288,14 +341,45 @@ public:
         return size_;
     }
 
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
+	int poll(struct fuse_file_info &, poll_handle_type &, unsigned *)
     {
         std::cerr << "Loader file can't be polled\n";
         return 0;
     }
 
+#ifdef USE_XATTR
+
+    int setxattr(const char *name, const char *value, size_t size, int flags)
+    {
+        return load_call(&metafuse::Entry::setxattr, name, value, size, flags);
+    }
+
+    int getxattr(const char *name, char *value, size_t out_size) const
+    {
+        return load_call(&metafuse::Entry::getxattr, name, value, out_size);
+    }
+
+    int listxattr(char *list, size_t out_size) const
+    {
+        return load_call(&metafuse::Entry::listxattr, list, out_size);
+    }
+
+    int removexattr(const char *name)
+    {
+        return load_call(&metafuse::Entry::removexattr, name);
+    }
+
+#endif // USE_XATTR
+
 private:
+
+    template <typename FnT, typename ... Args>
+    int load_call(FnT fn, Args&& ... args) const
+    {
+        auto loaded = load_();
+        return ((loaded.get())->*fn)(empty_path(), std::forward<Args>(args)...);
+    }
+
     LoadT load_;
     size_t size_;
 };
@@ -335,6 +419,7 @@ public:
     ContinuousPropFile(std::unique_ptr<Property> prop, int mode)
         : PropertyStorage(std::move(prop))
         , base_type(mode)
+        , got_metadata_(false)
     {}
 
     int open(struct fuse_file_info &fi)
@@ -373,8 +458,7 @@ public:
         return prop_->size();
     }
 
-	int poll(struct fuse_file_info &fi,
-             poll_handle_type &ph, unsigned *reventsp)
+	int poll(struct fuse_file_info &, poll_handle_type &, unsigned *)
     {
         std::cerr << "User wants to poll unpollable file "
                   << prop_->name() << std::endl;
@@ -386,6 +470,51 @@ public:
         update_time(modification_time_bit | change_time_bit | access_time_bit);
         return base_type::getattr(buf);
     }
+
+#ifdef USE_XATTR
+
+    int setxattr(const char *name, const char *value, size_t size, int flags)
+    {
+        metadata_fetch();
+        return base_type::setxattr(name, value, size, flags);
+    }
+
+    int getxattr(const char *name, char *value, size_t out_size) const
+    {
+        metadata_fetch();
+        return base_type::getxattr(name, value, out_size);
+    }
+
+    int listxattr(char *list, size_t out_size) const
+    {
+        metadata_fetch();
+        return base_type::listxattr(list, out_size);
+    }
+
+    int removexattr(const char *name)
+    {
+        metadata_fetch();
+        return base_type::removexattr(name);
+    }
+
+private:
+    void metadata_fetch() const
+    {
+        auto self = const_cast<ContinuousPropFile*>(this);
+        self->metadata_fetch();
+    }
+    void metadata_fetch()
+    {
+        auto set_fn = [this] (std::string const &name, ::statefs_variant const &v) {
+            this->xattr("user.statefs." + name, str(v));
+        };
+        if (!got_metadata_) {
+            prop_->metadata_foreach(set_fn);
+            got_metadata_ = true;
+        }
+    }
+
+#endif // USE_XATTR
 
 protected:
 
@@ -404,6 +533,9 @@ protected:
         auto h = handle(fi);
         return h ? h->get() : 0;
     }
+
+private:
+    mutable bool got_metadata_;
 };
 
 class PluginNsDir;
@@ -635,7 +767,9 @@ void PluginNsDir::add_loader_file
     // initially adding loader file - it accesses provider
     // implementation only on first read/write access to the
     // file itself. Default size is 1Kb
-    add_file(name, mk_file_entry(mk_loader(load_get, prop->mode(), 1024)));
+    add_file
+        (name, mk_file_entry
+         (mk_loader(load_get, prop->mode(global_umask), 1024)));
 }
 
 void PluginNsDir::add_prop_file(std::unique_ptr<Property> prop)
@@ -1174,6 +1308,21 @@ bool split_pairs(std::string const &src, std::string const &items_sep
 
 namespace config = statefs::config;
 
+template <int Base>
+long to_long(std::string const &s)
+{
+    auto on_err = [&s]() {
+        throw cor::Error("Wrong value to convert: %s", s.c_str());
+    };
+    if (!s.size())
+        on_err();
+    char *endptr = nullptr;
+    auto l = strtol(&s[0], &endptr, Base);
+    if ((endptr && *endptr != '\0') || l == LONG_MAX || l == LONG_MIN)
+        on_err();
+    return l;
+}
+
 class Server
 {
     typedef cor::OptParse<std::string> option_parser_type;
@@ -1187,7 +1336,7 @@ public:
                       , {"system", "system"}
                       , {"help", "help"}},
                   {"config", "type", "options"},
-                  {"help", "options"})
+                  {"help"})
         , commands({
                 {"dump", statefs_cmd_dump}
                 , {"register", statefs_cmd_register}
@@ -1195,6 +1344,7 @@ public:
                 , {"cleanup", statefs_cmd_cleanup}
             })
     {
+        // TODO it is better to use fuse options parser
         options.parse(argc, argv, opts, params);
     }
 
@@ -1254,8 +1404,11 @@ private:
 
     void parse_fuse_opts()
     {
+        // later -o options will be repacked separately because some
+        // options can be extracted from (or added to) -o to avoid
+        // error from fuse_parse_cmdline
         if (!split_pairs(opts["options"], ",", "="
-                         , std::inserter(opts, opts.begin())))
+                         , std::inserter(fs_opts, fs_opts.begin())))
             throw cor::Error("Invalid fuse options");
     }
 
@@ -1323,25 +1476,31 @@ private:
     int fuse_run()
     {
         auto root = fuse();
-        return root ? root->main(params.size(), &params[0], true) : -EPERM;
+        return root ? root->main(std::move(params), std::move(fs_opts), true) : -EPERM;
     }
 
     int main()
     {
-        auto p = opts.find("uid");
-        if (p != opts.end()) {
-            if (::setuid(::atoi(p->second.c_str()))) {
+        auto p = fs_opts.find("uid");
+        if (p != fs_opts.end()) {
+            if (::setuid(to_long<10>(p->second))) {
                 std::cerr << "setuid is failed: " << ::strerror(errno);
                 return -1;
             }
         }
 
-        p = opts.find("gid");
-        if (p != opts.end()) {
-            if (::setgid(::atoi(p->second.c_str()))) {
+        p = fs_opts.find("gid");
+        if (p != fs_opts.end()) {
+            if (::setgid(to_long<10>(p->second))) {
                 std::cerr << "setgid is failed: " << ::strerror(errno);
                 return -1;
             }
+        }
+        p = fs_opts.find("file_umask");
+        if (p != fs_opts.end()) {
+            statefs::server::global_umask = to_long<8>(p->second);
+            // fuse std parser does not understand unknown options
+            fs_opts.erase(p);
         }
 
         auto root = fuse();
@@ -1375,6 +1534,7 @@ private:
     option_parser_type options;
     std::unordered_map<std::string, statefs_cmd> commands;
     option_parser_type::map_type opts;
+    option_parser_type::map_type fs_opts;
     std::vector<char const*> params;
 };
 

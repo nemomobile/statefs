@@ -4,6 +4,6 @@ includedir=${prefix}/include
 
 Name: statefs
 Description: Statefs C++ provider framework
-Version: @STATEFS_VERSION@
+Version: @VERSION@
 Libs: -lstatefs-pp
 Cflags: -I${includedir}

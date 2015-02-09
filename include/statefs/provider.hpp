@@ -422,7 +422,7 @@ public:
         : APropertyOwner<T>(name.c_str(), std::forward<Args>(args)...)
     {}
 
-    virtual statefs::APropertyAccessor* open(int flags)
+    virtual statefs::APropertyAccessor* open(int)
     {
         return statefs::mk_prop_accessor(this->impl_, new HandleT());
     }

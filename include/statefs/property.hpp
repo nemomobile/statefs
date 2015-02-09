@@ -17,9 +17,9 @@
 namespace statefs {
 
 
-enum PropertyStatus {
-    PropertyUpdated,
-    PropertyUnchanged
+enum class PropertyStatus {
+    Updated,
+    Unchanged
 };
 
 typedef std::function<PropertyStatus (std::string const&)> setter_type;
@@ -88,12 +88,11 @@ public:
     int getattr() const { return STATEFS_ATTR_READ; }
     statefs_ssize_t size() const;
 
-    bool connect(::statefs_slot *slot) { return false; }
+    bool connect(::statefs_slot *) { return false; }
 
-    int read(std::string *h, char *dst, statefs_size_t len, statefs_off_t);
+    int read(std::string *, char *, statefs_size_t, statefs_off_t);
 
-    int write(std::string *h, char const *src
-              , statefs_size_t len, statefs_off_t off)
+    int write(std::string *, char const *, statefs_size_t, statefs_off_t)
     {
         return -1;
     }
@@ -137,12 +136,82 @@ private:
     PropertyStatus update(std::string const&);
 
     statefs::AProperty *parent_;
+    // discrete property can be concurrently accessed by setter
+    // updating it and statefs, so needs protection
     mutable std::mutex m_;
     std::string v_;
 
     ::statefs_slot *slot_;
 };
 
+class BasicWriterImpl
+{
+public:
+    BasicWriterImpl(setter_type update);
+
+    int write(std::string *h, char const *src
+              , statefs_size_t len, statefs_off_t off);
+
+protected:
+    setter_type update_;
+    size_t size_;
+};
+
+/**
+ * Wrapper for readable property implementation BaseT, forwarding all
+ * read operations to it
+ */
+template <typename BaseT>
+class RWProperty : public BasicWriterImpl, public BaseT
+{
+public:
+    typedef BaseT reader_type;
+
+    template <typename ... Args>
+    RWProperty(statefs::AProperty *parent, setter_type setter, Args &&...args)
+        : BasicWriterImpl(setter)
+        , reader_type(parent, std::forward<Args>(args)...)
+    {}
+
+    RWProperty(RWProperty const&) = delete;
+    void operator = (RWProperty const&) = delete;
+
+    int getattr() const {
+        return reader_type::getattr() | STATEFS_ATTR_WRITE;
+    }
+    statefs_ssize_t size() const { return reader_type::size(); }
+    bool connect(::statefs_slot *s) { return reader_type::connect(s); }
+    int read(std::string *str, char *b, statefs_size_t sz, statefs_off_t o)
+    {
+        return reader_type::read(str, b, sz, o);
+    }
+
+    int write(std::string *h, char const *src, statefs_size_t len
+              , statefs_off_t off)
+    {
+        return BasicWriterImpl::write(h, src, len, off);
+    }
+
+    void release() { reader_type::release(); }
+    void disconnect() { reader_type::disconnect(); }
+};
+
+
+/**
+ * @defgroup property_traits Property traits
+ *
+ * @brief Property traits to construct basic properties easier
+ *
+ *  @{
+ */
+
+/**
+ * Traits to construct property implementation with std::string as the
+ * data storage
+ *
+ * Set of inline create() functions is used to create
+ * property node implementation corresponding to T
+ */
 template <typename T>
 struct PropTraits
 {
@@ -150,7 +219,7 @@ struct PropTraits
     typedef std::shared_ptr<handle_type> handle_ptr;
 
     PropTraits(std::string const& prop_name
-                   , std::string const& prop_defval)
+               , std::string const& prop_defval)
         : name(prop_name), defval(prop_defval) {}
 
     std::string name;
@@ -160,12 +229,22 @@ struct PropTraits
 typedef PropTraits<DiscreteProperty> Discrete;
 typedef PropTraits<AnalogProperty> Analog;
 
+typedef PropTraits<RWProperty<DiscreteProperty> > DiscreteWritable;
+typedef PropTraits<RWProperty<AnalogProperty> > AnalogWriteable;
 
 static inline Discrete::handle_ptr create(Discrete const &t)
 {
     typedef Discrete::handle_type h_type;
     return std::make_shared<h_type>(t.name, t.defval);
-    
+
+}
+
+static inline DiscreteWritable::handle_ptr create
+(DiscreteWritable const &t, setter_type setter)
+{
+    typedef DiscreteWritable::handle_type h_type;
+    return std::make_shared<h_type>(t.name, setter, t.defval);
+
 }
 
 template <typename SourceT>
@@ -176,9 +255,23 @@ static inline Analog::handle_ptr create
     return std::make_shared<h_type>(t.name, std::move(src));
 }
 
+template <typename SourceT>
+static inline AnalogWriteable::handle_ptr create
+(AnalogWriteable const &t, std::unique_ptr<SourceT> src, setter_type setter)
+{
+    typedef AnalogWriteable::handle_type h_type;
+    return std::make_shared<h_type>(t.name, setter, std::move(src));
+}
+
 static inline Analog::handle_ptr create(Analog const &t)
 {
     return create(t, cor::make_unique<DefaultSource>(t.defval));
+}
+
+static inline AnalogWriteable::handle_ptr create
+(AnalogWriteable const &t, setter_type setter)
+{
+    return create(t, cor::make_unique<DefaultSource>(t.defval), setter);
 }
 
 template <typename T>
@@ -196,10 +289,16 @@ Namespace& operator <<
     return ns;
 }
 
-class BasicWriter
+/** @}
+ * property traits
+ */
+
+class BasicWriter : public BasicWriterImpl
 {
 public:
-    BasicWriter(statefs::AProperty *parent, setter_type update);
+    BasicWriter(statefs::AProperty *parent, setter_type update)
+        : BasicWriterImpl(update), parent_(parent)
+    {}
 
     int getattr() const;
     statefs_ssize_t size() const;
@@ -217,12 +316,16 @@ public:
 
 protected:
     statefs::AProperty *parent_;
-    setter_type update_;
-    size_t size_;
 };
 
 
 // -----------------------------------------------------------------------------
+
+inline int BasicWriter::write
+(std::string *h, char const *src, statefs_size_t len, statefs_off_t off)
+{
+    return BasicWriterImpl::write(h, src, len, off);
+}
 
 inline int DiscreteProperty::getattr() const
 {
@@ -239,13 +342,13 @@ inline statefs_ssize_t BasicWriter::size() const
     return size_ ;
 }
 
-inline bool BasicWriter::connect(::statefs_slot *slot)
+inline bool BasicWriter::connect(::statefs_slot *)
 {
     return false;
 }
 
 inline int BasicWriter::read
-(std::string *h, char *dst, statefs_size_t len, statefs_off_t off)
+(std::string *, char *, statefs_size_t, statefs_off_t)
 {
     return -1;
 }
@@ -310,10 +413,10 @@ private:
 };
 
 
-static inline PropertyStatus analog_throw_on_set(std::string const &v)
+static inline PropertyStatus analog_throw_on_set(std::string const &)
 {
     throw cor::Error("Analog property can't be set");
-    return statefs::PropertyUnchanged;
+    return statefs::PropertyStatus::Unchanged;
 }
 
 

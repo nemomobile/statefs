@@ -6,8 +6,9 @@ Description=StateFS FUSE filesystem
 Requires=dbus.socket
 
 [Service]
+EnvironmentFile=@SYS_CONFIG_DIR@/session.conf
 ExecStartPre=@prefix@/bin/statefs-prerun
-ExecStart=@prefix@/bin/statefs ${XDG_RUNTIME_DIR}/state -f -o allow_other
+ExecStart=@prefix@/bin/statefs ${XDG_RUNTIME_DIR}/state -f -o allow_other,default_permissions,file_umask=${STATEFS_UMASK}
 Restart=always
 RestartSec=1
 

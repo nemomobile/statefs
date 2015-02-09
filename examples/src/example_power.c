@@ -143,6 +143,16 @@ static struct statefs_power_prop * power_prop(struct statefs_property *p)
     return container_of(p, struct statefs_power_prop, prop);
 };
 
+const struct statefs_meta voltage_info[] = {
+    { "help", STATEFS_CSTR("Voltage in V") },
+    { NULL }
+};
+
+const struct statefs_meta current_info[] = {
+    { "help", STATEFS_CSTR("Current in A") },
+    { NULL }
+};
+
 /**
  * array describing properties
  * @showinitializer
@@ -152,7 +162,8 @@ static struct statefs_power_prop props[] = {
         .prop = {
             .node = {
                 .type = statefs_node_prop,
-                .name = "voltage"
+                .name = "voltage",
+                .info = voltage_info
             },
             .default_value = STATEFS_REAL(3.8)
         },
@@ -163,7 +174,8 @@ static struct statefs_power_prop props[] = {
         .prop = {
             .node = {
                 .type = statefs_node_prop,
-                .name = "current"
+                .name = "current",
+                .info = current_info
             },
             .default_value = STATEFS_REAL(0),
         },

@@ -25,7 +25,11 @@ if [ "$cmd" == "register" ]; then
     if [ "$provider_type" == "loader" ]; then
         order=02
     fi
-    add-oneshot --now statefs-$order-register-$group_name
+    # add-oneshot is used only if there is oneshot available,
+    # otherwise it is replaced with alternative command
+    echo "Register $group_name"
+    @ONESHOT_CMD@statefs-$order-register-$group_name || :
 else
-    $script_name $cmd $params
+    echo "$cmd $params"
+    $script_name $cmd $params || :
 fi

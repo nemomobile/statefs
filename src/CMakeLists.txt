@@ -1,3 +1,5 @@
+configure_file(misc.hpp.in misc.hpp @ONLY)
+
 add_library(statefs-config SHARED
   config.cpp
   util.cpp
@@ -7,12 +9,14 @@ SET_TARGET_PROPERTIES(
   statefs-config
   PROPERTIES
   SOVERSION 0
-  VERSION ${STATEFS_VERSION}
+  VERSION ${VERSION}
   )
 
 target_link_libraries(statefs-config
   ${COR_LIBRARIES}
+  ${CMAKE_DL_LIBS}
   ${Boost_FILESYSTEM_LIBRARY}
+  ${Boost_SYSTEM_LIBRARY}
   )
 
 add_executable(statefs server.cpp)
@@ -23,7 +27,6 @@ target_link_libraries(statefs
   ${Boost_FILESYSTEM_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${FUSE_LIBRARIES}
-  -ldl
 )
 
 install(TARGETS statefs DESTINATION bin)
@@ -37,7 +40,7 @@ SET_TARGET_PROPERTIES(
   statefs-pp
   PROPERTIES
   SOVERSION 0
-  VERSION ${STATEFS_VERSION}
+  VERSION ${VERSION}
   )
 
 target_link_libraries(statefs-pp
@@ -48,11 +51,15 @@ add_library(statefs-util
   SHARED common_util.cpp consumer.cpp
 )
 
+target_link_libraries(statefs-util
+  ${COR_LIBRARIES}
+)
+
 SET_TARGET_PROPERTIES(
   statefs-util
   PROPERTIES
   SOVERSION 0
-  VERSION ${STATEFS_VERSION}
+  VERSION ${VERSION}
   )
 
 add_library(loader-default
@@ -61,6 +68,7 @@ add_library(loader-default
 
 target_link_libraries(loader-default
   ${COR_LIBRARIES}
+  ${CMAKE_DL_LIBS}
 )
 
 add_library(loader-inout
@@ -78,9 +86,6 @@ install(TARGETS statefs-util DESTINATION ${DST_LIB})
 install(TARGETS loader-default DESTINATION ${DST_LIB}/statefs)
 install(TARGETS loader-inout DESTINATION ${DST_LIB}/statefs)
 
-configure_file(statefs.pc.in statefs.pc @ONLY)
-configure_file(statefs-cpp.pc.in statefs-cpp.pc @ONLY)
-configure_file(statefs-util.pc.in statefs-util.pc @ONLY)
-install(FILES statefs.pc DESTINATION ${DST_LIB}/pkgconfig)
-install(FILES statefs-cpp.pc DESTINATION ${DST_LIB}/pkgconfig)
-install(FILES statefs-util.pc DESTINATION ${DST_LIB}/pkgconfig)
+configure_install_pkgconfig(statefs)
+configure_install_pkgconfig(statefs-cpp)
+configure_install_pkgconfig(statefs-util)

@@ -6,7 +6,7 @@
 
 %_statefs_datadir %{_datadir}/statefs
 
-%_statefs_sharedstatedir %{_sharedstatedir}/statefs
+%_statefs_sharedstatedir /var/lib/statefs
 
 %_statefs_sharedhooksdir %{_statefs_sharedstatedir}/hooks
 
