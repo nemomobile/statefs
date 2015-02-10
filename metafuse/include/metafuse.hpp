@@ -214,7 +214,7 @@ private:
 class Storage
 {
 public:
-    typedef std::unordered_map<std::string, entry_ptr> map_t;
+    typedef std::map<std::string, entry_ptr> map_t;
     typedef typename map_t::value_type item_type;
     typedef typename map_t::mapped_type value_type;
 
