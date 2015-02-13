@@ -447,6 +447,19 @@ public:
         return prop_->read(provider_handle(fi), buf, size, offset);
     }
 
+    int truncate(off_t offset)
+    {
+        int res = -ENOTSUP;
+        if (!offset) {
+            auto h = prop_->open(O_WRONLY | O_TRUNC);
+            if (h) {
+                prop_->close(h);
+                res = 0;
+            }
+        }
+        return res;
+    }
+
     int write(const char* src, size_t size,
               off_t offset, struct fuse_file_info &fi)
     {

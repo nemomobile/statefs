@@ -52,6 +52,8 @@ public:
     Stream(statefs::AProperty *parent)
         : parent_(parent), v_("e"), slot_(nullptr) {}
 
+    int open(int flags) { return (flags & (O_WRONLY | O_TRUNC)) ? -EINVAL : 0; }
+
     int getattr() const { return STATEFS_ATTR_READ; }
     ssize_t size() const { return 128 ; }
 
@@ -141,6 +143,8 @@ public:
         , parent_(parent)
         , v_(calc())
         , slot_(nullptr) {}
+
+    int open(int) { return 0; }
 
     int getattr() const {
         return STATEFS_ATTR_READ
