@@ -361,6 +361,11 @@ public:
     BasicPropertyAccessor(std::shared_ptr<T> p, HandleT *h)
         : prop_(p), handle_(h) {}
 
+    virtual int open(int flags)
+    {
+        return prop_->open(flags);
+    }
+
     virtual int read(char *dst, statefs_size_t len, statefs_off_t off)
     {
         return prop_->read(handle_.get(), dst, len, off);
@@ -378,9 +383,10 @@ protected:
 
 template <typename T, typename HandleT>
 BasicPropertyAccessor<T, HandleT>* mk_prop_accessor
-(std::shared_ptr<T> p, HandleT *h)
+(std::shared_ptr<T> p, HandleT *h, int flags)
 {
-    return new BasicPropertyAccessor<T, HandleT>(p, h);
+    auto res = cor::make_unique<BasicPropertyAccessor<T, HandleT> >(p, h);
+    return res->open(flags) ? nullptr : res.release();
 }
 
 template <typename T>
@@ -422,9 +428,9 @@ public:
         : APropertyOwner<T>(name.c_str(), std::forward<Args>(args)...)
     {}
 
-    virtual statefs::APropertyAccessor* open(int)
+    virtual statefs::APropertyAccessor* open(int flags)
     {
-        return statefs::mk_prop_accessor(this->impl_, new HandleT());
+        return statefs::mk_prop_accessor(this->impl_, new HandleT(), flags);
     }
 
     std::shared_ptr<T> get_impl() { return this->impl_; }

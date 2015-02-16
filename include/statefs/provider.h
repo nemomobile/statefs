@@ -189,7 +189,7 @@ struct statefs_io
 
     /**
      * open property for I/O
-     * @param flags [O_RDONLY, O_RDWR, O_WRONLY]
+     * @param flags [O_RDONLY, O_RDWR, O_WRONLY, O_TRUNC]
      * @retval opaque handle to be used for I/O operations
      */
     statefs_handle_t (*open)(struct statefs_property *self, int flags);
@@ -293,7 +293,7 @@ static inline char const *statefs_provider_accessor()
  * if provider logic is changed and it can't be used with previous
  * versions of consumer safely
  */
-#define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(3, 0)
+#define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(3, 1)
 
 static inline bool statefs_is_version_compatible
 (unsigned own_version, unsigned lib_ver)

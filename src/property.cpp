@@ -113,12 +113,22 @@ int BasicWriterImpl::write
         }
         
         std::copy(src, src + len, &(h->at(off)));
-    } else {
+    } else if (!off) {
         *h = "";
+    } else {
+        return len;
     }
 
     update_(*h);
     return len;
+}
+
+int BasicWriterImpl::open_writable(int flags)
+{
+    if (flags | O_TRUNC)
+        update_(std::string(""));
+
+    return 0;
 }
 
 }

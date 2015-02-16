@@ -451,6 +451,11 @@ public:
         return 0;
     }
 
+    int truncate(off_t)
+    {
+        return -ENOTSUP;
+    }
+
     int release(struct fuse_file_info &fi)
     {
         handles_.erase(fi.fh);
@@ -1200,4 +1205,3 @@ private:
 } // metafuse
 
 #endif // _METAFUSE_HPP_
-

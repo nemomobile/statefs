@@ -14,6 +14,8 @@
 #include <mutex>
 #include <array>
 
+#include <fcntl.h>
+
 namespace statefs {
 
 
@@ -80,6 +82,11 @@ class AnalogProperty
 public:
     AnalogProperty(statefs::AProperty *, std::unique_ptr<PropertySource>);
 
+    int open(int flags)
+    {
+        return (flags & (O_WRONLY | O_TRUNC)) ? -EINVAL : 0;
+    }
+
     void set_source(std::unique_ptr<PropertySource> s)
     {
         source_ = std::move(s);
@@ -117,6 +124,11 @@ public:
     DiscreteProperty(DiscreteProperty const&) =delete;
     void operator =(DiscreteProperty const&) =delete;
 
+    int open(int flags)
+    {
+        return (flags & (O_WRONLY | O_TRUNC)) ? -EINVAL : 0;
+    }
+
     int getattr() const;
     statefs_ssize_t size() const;
     bool connect(::statefs_slot *);
@@ -148,7 +160,7 @@ class BasicWriterImpl
 {
 public:
     BasicWriterImpl(setter_type update);
-
+    int open_writable(int);
     int write(std::string *h, char const *src
               , statefs_size_t len, statefs_off_t off);
 
@@ -175,6 +187,11 @@ public:
 
     RWProperty(RWProperty const&) = delete;
     void operator = (RWProperty const&) = delete;
+
+    int open(int flags)
+    {
+        return BasicWriterImpl::open_writable(flags);
+    }
 
     int getattr() const {
         return reader_type::getattr() | STATEFS_ATTR_WRITE;
@@ -299,6 +316,13 @@ public:
     BasicWriter(statefs::AProperty *parent, setter_type update)
         : BasicWriterImpl(update), parent_(parent)
     {}
+
+    int open(int flags)
+    {
+        return (flags & (O_RDONLY))
+            ? -EINVAL
+            : BasicWriterImpl::open_writable(flags);
+    }
 
     int getattr() const;
     statefs_ssize_t size() const;

@@ -180,9 +180,9 @@ public:
         return 0;
     }
 
-    virtual int truncate(path_ptr, off_t)
+    virtual int truncate(path_ptr, off_t offset)
     {
-        return 0;
+        return node_op(W(), &impl_type::truncate, offset);
     }
 
     virtual int read(path_ptr, char* buf, size_t size,
