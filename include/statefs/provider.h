@@ -254,13 +254,19 @@ typedef enum {
 
     // add new events above
     statefs_events_end
-}  statefs_event;
+} statefs_event;
+
+typedef enum {
+    statefs_provider_mode_dump,
+    statefs_provider_mode_run
+} statefs_provider_mode;
 
 struct statefs_server
 {
     void (*event)(struct statefs_server*
                   , struct statefs_provider*
                   , statefs_event);
+    statefs_provider_mode mode;
 };
 
 /**
@@ -293,7 +299,7 @@ static inline char const *statefs_provider_accessor()
  * if provider logic is changed and it can't be used with previous
  * versions of consumer safely
  */
-#define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(3, 1)
+#define STATEFS_CURRENT_VERSION STATEFS_MK_VERSION(3, 2)
 
 static inline bool statefs_is_version_compatible
 (unsigned own_version, unsigned lib_ver)

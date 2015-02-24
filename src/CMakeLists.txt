@@ -8,7 +8,7 @@ add_library(statefs-config SHARED
 SET_TARGET_PROPERTIES(
   statefs-config
   PROPERTIES
-  SOVERSION 0
+  SOVERSION 1
   VERSION ${VERSION}
   )
 
@@ -39,7 +39,7 @@ add_library(statefs-pp
 SET_TARGET_PROPERTIES(
   statefs-pp
   PROPERTIES
-  SOVERSION 0
+  SOVERSION 1
   VERSION ${VERSION}
   )
 
@@ -58,7 +58,7 @@ target_link_libraries(statefs-util
 SET_TARGET_PROPERTIES(
   statefs-util
   PROPERTIES
-  SOVERSION 0
+  SOVERSION 1
   VERSION ${VERSION}
   )
 

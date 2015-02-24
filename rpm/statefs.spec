@@ -152,12 +152,8 @@ rm -rf %{buildroot}
 %{_unitdir}/statefs.service
 %{_unitdir}/multi-user.target.wants/statefs.service
 %{_unitdir}/actdead-pre.target.wants/statefs.service
-%{_libdir}/libstatefs-config.so
-%{_libdir}/libstatefs-util.so
-%{_libdir}/libstatefs-config.so.0
-%{_libdir}/libstatefs-util.so.0
-%{_libdir}/libstatefs-config.so.%{version}
-%{_libdir}/libstatefs-util.so.%{version}
+%{_libdir}/libstatefs-config.so*
+%{_libdir}/libstatefs-util.so*
 %{_statefs_libdir}
 %{_statefs_libdir}/install-provider
 %{_statefs_libdir}/loader-do
@@ -189,9 +185,7 @@ rm -rf %{buildroot}
 
 %files pp
 %defattr(-,root,root,-)
-%{_libdir}/libstatefs-pp.so
-%{_libdir}/libstatefs-pp.so.0
-%{_libdir}/libstatefs-pp.so.%{version}
+%{_libdir}/libstatefs-pp.so*
 
 %files doc
 %defattr(-,root,root,-)
