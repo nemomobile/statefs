@@ -679,6 +679,8 @@ static std::string dump_loader
     return cfg_loader_prefix() + "-" + loader_info->value();
 }
 
+static statefs_server config_server_info = { nullptr, statefs_provider_mode_dump };
+
 static std::string dump_provider
 (std::string const& cfg_dir, std::ostream &dst
  , fs::path const &path, std::string const& provider_type)
@@ -699,7 +701,7 @@ static std::string dump_provider
     }
 
     auto prov_info = from_api
-        (loader->load(path.native(), nullptr)
+        (loader->load(path.native(), &config_server_info)
          , path.native(), provider_type);
     if (!prov_info) {
         std::cerr << "Not provider, trying loader\n";

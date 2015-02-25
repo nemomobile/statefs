@@ -117,6 +117,7 @@ private:
     static statefs_server* init_server(statefs_server *s)
     {
         s->event = &ProviderBridge::on_event_;
+        s->mode = statefs_provider_mode_run;
         return s;
     }
 
