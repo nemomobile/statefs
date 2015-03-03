@@ -30,6 +30,8 @@ Requires: oneshot
 %_oneshot_requires_pre
 %_oneshot_requires_post
 %endif
+Provides: statefs-change-notifier = %{version}
+Obsoletes: statefs-change-notifier < 0.3.29.999
 
 %description
 StateFS is the syntetic filesystem to expose current system state
@@ -135,6 +137,8 @@ install -d -D -p -m755 %{buildroot}%{statefs_state_dir}
 %{pinstall} default examples %{_statefs_libdir}/libprovider_basic_example.so system
 
 mkdir -p %{buildroot}%{my_env_dir}
+# for backward compatibility with tool name
+ln -s ./statefs-watch %{buildroot}%{_bindir}/statefs-change-notifier
 
 %clean
 rm -rf %{buildroot}
@@ -164,6 +168,8 @@ rm -rf %{buildroot}
 %{_statefs_libdir}/statefs-stop
 %{_statefs_libdir}/once
 %{my_env_dir}
+%{_bindir}/statefs-watch
+%{_bindir}/statefs-change-notifier
 
 %files devel
 %defattr(-,root,root,-)

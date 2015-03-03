@@ -35,6 +35,7 @@ int main(int argc, char * argv[]) {
         exit(-1);
     }
 
+    setvbuf(stdout, NULL, _IOLBF, 0);
     if (openWatcher(&watcher)) {
         listenFileChanges(&watcher, onFileChanged);
     }
@@ -45,4 +46,5 @@ int main(int argc, char * argv[]) {
 
 void onFileChanged(char *filepath) {
     printf("%s\n", filepath);
+    fflush(stdout);
 }
