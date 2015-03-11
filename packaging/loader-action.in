@@ -7,6 +7,7 @@ fi
 action=$1
 loader_path=$2
 
+export LC_ALL=C
 loader_type=$(statefs $action $loader_path --statefs-type=loader ${@:2} | cut -d '-' -f 2)
 if [ "x$loader_type" == "x" ]; then
     echo "Loader ($loader_path) should return its type"

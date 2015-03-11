@@ -80,4 +80,4 @@ if [ ! -f "$path" ]; then
     exit 1
 fi
 
-statefs $action $path --statefs-type=$type $params
+LC_ALL=C statefs $action $path --statefs-type=$type $params
