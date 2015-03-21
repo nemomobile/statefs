@@ -144,7 +144,7 @@ rm -rf %{buildroot}
 %doc COPYING
 %{_bindir}/statefs
 %{_bindir}/statefs-prerun
-%{statefs_state_dir}
+%dir %{statefs_state_dir}
 %if 0%{?_with_usersession:1}
 %{_userunitdir}/statefs.service
 %{_userunitdir}/pre-user-session.target.wants/statefs.service
@@ -154,7 +154,7 @@ rm -rf %{buildroot}
 %{_unitdir}/actdead-pre.target.wants/statefs.service
 %{_libdir}/libstatefs-config.so*
 %{_libdir}/libstatefs-util.so*
-%{_statefs_libdir}
+%dir %{_statefs_libdir}
 %{_statefs_libdir}/install-provider
 %{_statefs_libdir}/loader-do
 %{_statefs_libdir}/provider-do
@@ -163,7 +163,7 @@ rm -rf %{buildroot}
 %{_statefs_libdir}/statefs-start
 %{_statefs_libdir}/statefs-stop
 %{_statefs_libdir}/once
-%{my_env_dir}
+%dir %{my_env_dir}
 
 %files devel
 %defattr(-,root,root,-)
@@ -189,6 +189,7 @@ rm -rf %{buildroot}
 
 %files doc
 %defattr(-,root,root,-)
+%dir %{_datarootdir}/doc/statefs
 %{_datarootdir}/doc/statefs/html/*
 
 %files examples -f examples.files
@@ -196,6 +197,7 @@ rm -rf %{buildroot}
 
 %files tests
 %defattr(-,root,root,-)
+%dir /opt/tests/statefs
 /opt/tests/statefs/*
 
 %post
