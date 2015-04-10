@@ -5,7 +5,7 @@
        <set name="unit-tests" feature="Statefs basic functionality">
            <description>Basic tests</description>
            <case manual="false" name="unittests">
-               <step>LANG=C cd /opt/tests/statefs/ &amp;&amp; ./test-statefs.py @prefix@/bin/statefs @prefix@/@DST_LIB@/statefs/libloader-default.so</step>
+               <step>cd /opt/tests/statefs/ &amp;&amp; LANG=C LC_ALL=C ./test-statefs.py @prefix@/bin/statefs @prefix@/@DST_LIB@/statefs/libloader-default.so</step>
            </case>
        </set>
    </suite>
