@@ -1,6 +1,0 @@
-#!/bin/sh
-
-systemctl stop statefs.service || :
-if [ -x /bin/systemctl-user ]; then
-   systemctl-user stop statefs.service || :
-fi
